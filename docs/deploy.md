@@ -6,7 +6,7 @@ and pasted. Values in `<angle brackets>` are yours to fill in.
 
 | | dev | production |
 |---|---|---|
-| Deploys from | `main` branch | `production` branch |
+| Deploys from | `dev` branch | `main` branch |
 | Apex (website, account API, webhooks) | `https://dev.privatecrates.dev` | `https://privatecrates.dev` (+ `www.` redirect) |
 | Tenant registries | `https://{slug}.dev.privatecrates.dev` | `https://{slug}.privatecrates.dev` |
 | GitHub Apps | PrivateCrates Dev Reader / Dev Storage | PrivateCrates Reader / Storage |
@@ -33,10 +33,10 @@ Contents:
 
 ## 1. Decisions
 
-**Production deploys from a `production` branch, not from tags.** Railway's GitHub integration deploys the latest
-commit of one branch per environment; it has no tag trigger [R3]. Promoting is a fast-forward of `production` to a
-commit on `main` that already runs in dev (§10), and with Railway's *Wait for CI* the deploy starts only once CI has
-passed on that commit [R3]. Tags (`vX.Y.Z`) are used only to release the open-source client tools (§13).
+**Dev deploys from the `dev` branch and production from `main`, not from tags.** Railway's GitHub integration
+deploys the latest commit of one branch per environment; it has no tag trigger [R3]. Work lands on `dev` first;
+promoting is a fast-forward of `main` to a commit on `dev` that already runs in dev (§10), and with Railway's *Wait
+for CI* the deploy starts only once CI has passed on that commit [R3]. Tags (`vX.Y.Z`) are used only to release the open-source client tools (§13).
 
 **Exactly one replica per environment.** The server keeps tenants, permission caches and subscription state in
 memory and updates them from webhooks; a second replica would miss the webhooks the first received. Do not raise
@@ -227,7 +227,7 @@ top):
 
 | Setting | dev | production |
 |---|---|---|
-| Settings → Source → Branch | `main` | `production` |
+| Settings → Source → Branch | `dev` | `main` |
 | Settings → Source → Wait for CI | on | on |
 | Settings → Deploy → Replicas | 1 | 1 |
 | Settings → Deploy → Serverless (App Sleeping) | off | off |
@@ -238,7 +238,9 @@ dashboard [R2]: Dockerfile builder, health check `GET /healthz` (up to 120 s; th
 discovery at start-up has finished), restart on failure (up to 10 times), 30 s draining, and watch patterns so that
 changes to docs alone do not redeploy. Railway sets `PORT` and routes the domains to it; the image defaults to 8080.
 
-Create the `production` branch before the first production deploy (§10).
+Connect production's source only once its variables are set (§6.2), or its first deploy fails to start. The
+Railway CLI's `service source connect` sets the source for every environment at once; set per-environment branches
+in the dashboard.
 
 ### 6.2 Set the variables
 
@@ -427,14 +429,14 @@ After a commit has run in dev and CI is green on it:
 
 ```sh
 git fetch origin
-git push origin origin/main:production      # fast-forward only; fails if production has diverged
+git push origin origin/dev:main      # fast-forward only; fails if main has diverged
 ```
 
-The first time, this creates the branch. Protect it in *GitHub → Settings → Rules*: restrict updates to
-maintainers, block force pushes and deletion, and require the CI status checks. Railway deploys production once CI
-has passed on the commit (Wait for CI). Then run §9 against `https://privatecrates.dev`.
+Protect `main` in *GitHub → Settings → Rules*: restrict updates to maintainers, block force pushes and deletion,
+and require the CI status checks. Railway deploys production once CI has passed on the commit (Wait for CI). Then
+run §9 against `https://privatecrates.dev`.
 
-To promote an older commit: `git push origin <sha>:production` (must still be a fast-forward).
+To promote an older commit: `git push origin <sha>:main` (must still be a fast-forward).
 
 ## 11. Roll back
 
