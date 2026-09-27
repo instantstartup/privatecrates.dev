@@ -375,6 +375,14 @@ pub enum ApiError {
     #[http_status(401)]
     SignInRequired,
 
+    #[error(
+        "the account API accepts only a PrivateCrates sign-in token (`ghu_…`, from `cargo privatecrates login`); \
+         other GitHub tokens are refused here, as they are usually far broader than it needs"
+    )]
+    #[diagnostic(code(account::token_not_accepted))]
+    #[http_status(401)]
+    AccountTokenNotAccepted,
+
     #[error("this request must come from the PrivateCrates website")]
     #[diagnostic(code(account::cross_site_request))]
     #[http_status(403)]

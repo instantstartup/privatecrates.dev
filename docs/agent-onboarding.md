@@ -41,17 +41,21 @@ admin a link where a human is needed.
 ## 3. `cargo privatecrates` (new crate `cargo-privatecrates`, open source)
 
 A Cargo subcommand; agents do better with one deterministic command than a prose recipe, and people benefit too.
-- `login` / `logout`: the device flow, sharing the credential provider's token store (move the store into
-  `privatecrates-common` or a small shared crate rather than duplicating it).
+Every command takes `--json`, `--domain` (another deployment, e.g. `dev.privatecrates.dev`) or `--url` (a registry's
+URL), and exits non-zero on failure.
+- `login` / `logout`: the device flow, sharing the credential provider's token store (both use the small
+  `privatecrates-auth` crate). The token is stored under the apex URL; the apex serves `GET /api/v1/auth` for it.
 - `setup <org> [--slug S] [--start-trial] [--json]`: prints the onboarding checklist with each step's status and
   link; `--slug` and `--start-trial` perform those steps through the account API. `--json` for agents.
 - `init --registry <slug> [--url URL]`, run in a crate repository or workspace: merges the registry into
   `.cargo/config.toml` (preserving formatting, with `toml_edit`); sets `package.repository` from the git remote where
   missing (in `[workspace.package]` with `repository.workspace = true` in members, for workspaces); writes
   `.github/workflows/publish.yml`; idempotent; prints what it changed.
-- `doctor [--json]`: checks the provider is installed and configured, the registry answers, `package.repository`
-  matches the git remote, the workflow exists with `id-token: write`, and, if a version was published, that its
-  release is immutable and has provenance.
+- `doctor [--registry S …] [--json]`: checks the provider is installed and configured, the registry answers (401
+  without a token, 200 with the stored one), `package.repository` matches the git remote, `publish` is restricted to
+  the registry, the workflow exists with `id-token: write`, and that the current version is in the index. Whether
+  the release is immutable and has provenance is `privatecrates-verify`'s job: it needs the storage repository,
+  which a developer's token cannot read.
 
 ## 4. Machine-readable status for agents
 

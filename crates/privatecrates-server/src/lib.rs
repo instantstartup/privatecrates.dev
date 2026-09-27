@@ -248,6 +248,7 @@ fn apex_router(state: Arc<AppState>) -> Router {
         router = router.route("/robots.txt", get(website::disallow_robots));
     }
     router
+        .route("/api/v1/auth", get(routes::apex_auth_info))
         .merge(account::routes(state.clone()))
         .merge(billing::routes())
         .merge(webhooks::routes())

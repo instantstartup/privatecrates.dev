@@ -15,7 +15,9 @@ with GitHub's device flow through a Cargo credential provider; CI needs no store
 |---|---|---|
 | [`crates/privatecrates-server`](crates/privatecrates-server) | The hosted service: registry, website and account API, webhooks | BUSL-1.1 |
 | [`crates/cargo-credential-privatecrates`](crates/cargo-credential-privatecrates) | Cargo credential provider (device flow, Actions OIDC) | MIT OR Apache-2.0 |
+| [`crates/cargo-privatecrates`](crates/cargo-privatecrates) | `cargo privatecrates`: sign in, onboard an organisation, configure crate repositories, check them | MIT OR Apache-2.0 |
 | [`crates/privatecrates-verify`](crates/privatecrates-verify) | Verifier customers run against their storage repository | MIT OR Apache-2.0 |
+| [`crates/privatecrates-auth`](crates/privatecrates-auth) | Device-flow sign-in and the token store, shared by the provider and `cargo privatecrates` | MIT OR Apache-2.0 |
 | [`crates/privatecrates-common`](crates/privatecrates-common) | Types and rules shared by the above | MIT OR Apache-2.0 |
 | [`crates/privatecrates-testkit`](crates/privatecrates-testkit) | Fake GitHub and fixtures for the tests (not published) | MIT OR Apache-2.0 |
 | [`website/`](website) | SvelteKit static site, served by the server on the apex host | BUSL-1.1 |

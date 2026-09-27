@@ -5,10 +5,13 @@
 
 use std::time::Duration;
 
-use cargo_credential::Error;
+use reqwest::blocking::Client;
 use serde::Deserialize;
 
-use crate::store::{Store, Stored};
+use crate::{
+    Error, now,
+    store::{Store, Stored},
+};
 
 #[derive(Deserialize)]
 struct AuthInfo {
@@ -17,30 +20,41 @@ struct AuthInfo {
 }
 
 /// A usable access token for the registry: from the store, refreshed, or from a new sign-in.
-pub fn token(base: &str, store: &Store) -> Result<Stored, Error> {
-    let now = crate::now();
-    if let Some(stored) = store.load(base)? {
-        if stored.expires_at > now + 60 {
-            return Ok(stored);
-        }
-        if let Some(refresh) = stored.refresh_token.as_deref()
-            && stored.refresh_expires_at.is_none_or(|at| at > now)
-        {
-            let info = auth_info(base)?;
-            if let Ok(Some(fresh)) = grant(
-                &info,
-                &[("grant_type", "refresh_token"), ("refresh_token", refresh)],
-            ) {
-                store.save(base, &fresh)?;
-                return Ok(fresh);
-            }
+pub fn token(http: &Client, base: &str, store: &Store) -> Result<Stored, Error> {
+    match current(http, base, store)? {
+        Some(stored) => Ok(stored),
+        None => sign_in(http, base, store),
+    }
+}
+
+/// A usable access token from the store, refreshed with GitHub if it has expired, without signing in. `None` when
+/// the user must sign in again.
+pub fn current(http: &Client, base: &str, store: &Store) -> Result<Option<Stored>, Error> {
+    let now = now();
+    let Some(stored) = store.load(base)? else {
+        return Ok(None);
+    };
+    if stored.expires_at > now + 60 {
+        return Ok(Some(stored));
+    }
+    if let Some(refresh) = stored.refresh_token.as_deref()
+        && stored.refresh_expires_at.is_none_or(|at| at > now)
+    {
+        let info = auth_info(http, base)?;
+        if let Ok(Some(fresh)) = grant(
+            http,
+            &info,
+            &[("grant_type", "refresh_token"), ("refresh_token", refresh)],
+        ) {
+            store.save(base, &fresh)?;
+            return Ok(Some(fresh));
         }
     }
-    sign_in(base, store)
+    Ok(None)
 }
 
 /// Runs the device flow and stores the result.
-pub fn sign_in(base: &str, store: &Store) -> Result<Stored, Error> {
+pub fn sign_in(http: &Client, base: &str, store: &Store) -> Result<Stored, Error> {
     #[derive(Deserialize)]
     struct DeviceCode {
         device_code: String,
@@ -49,8 +63,8 @@ pub fn sign_in(base: &str, store: &Store) -> Result<Stored, Error> {
         expires_in: u64,
         interval: u64,
     }
-    let info = auth_info(base)?;
-    let code: DeviceCode = crate::http()?
+    let info = auth_info(http, base)?;
+    let code: DeviceCode = http
         .post(format!("{}/login/device/code", info.github_url))
         .header("Accept", "application/json")
         .form(&[("client_id", info.github_client_id.as_str())])
@@ -63,10 +77,11 @@ pub fn sign_in(base: &str, store: &Store) -> Result<Stored, Error> {
         code.verification_uri, code.user_code
     );
     let mut interval = code.interval;
-    let deadline = crate::now() + code.expires_in as i64;
-    while crate::now() < deadline {
+    let deadline = now() + code.expires_in as i64;
+    while now() < deadline {
         std::thread::sleep(Duration::from_secs(interval));
         match grant(
+            http,
             &info,
             &[
                 ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
@@ -98,7 +113,11 @@ impl From<Error> for Pending {
 }
 
 /// Asks GitHub for a token. `Ok(None)` while the user has not yet approved.
-fn grant(info: &AuthInfo, params: &[(&str, &str)]) -> Result<Option<Stored>, Pending> {
+fn grant(
+    http: &Client,
+    info: &AuthInfo,
+    params: &[(&str, &str)],
+) -> Result<Option<Stored>, Pending> {
     #[derive(Deserialize)]
     struct Response {
         access_token: Option<String>,
@@ -109,7 +128,7 @@ fn grant(info: &AuthInfo, params: &[(&str, &str)]) -> Result<Option<Stored>, Pen
     }
     let mut form = vec![("client_id", info.github_client_id.as_str())];
     form.extend_from_slice(params);
-    let response: Response = crate::http()?
+    let response: Response = http
         .post(format!("{}/login/oauth/access_token", info.github_url))
         .header("Accept", "application/json")
         .form(&form)
@@ -119,7 +138,7 @@ fn grant(info: &AuthInfo, params: &[(&str, &str)]) -> Result<Option<Stored>, Pen
         .map_err(|e| Error::from(format!("could not sign in with GitHub: {e}")))?;
     match (response.access_token, response.error.as_deref()) {
         (Some(access_token), _) => {
-            let now = crate::now();
+            let now = now();
             Ok(Some(Stored {
                 access_token,
                 // GitHub App user tokens last eight hours unless expiry is disabled.
@@ -146,9 +165,8 @@ fn grant(info: &AuthInfo, params: &[(&str, &str)]) -> Result<Option<Stored>, Pen
     }
 }
 
-fn auth_info(base: &str) -> Result<AuthInfo, Error> {
-    crate::http()?
-        .get(format!("{base}/api/v1/auth"))
+fn auth_info(http: &Client, base: &str) -> Result<AuthInfo, Error> {
+    http.get(format!("{base}/api/v1/auth"))
         .send()
         .and_then(|r| r.error_for_status())
         .and_then(|r| r.json())

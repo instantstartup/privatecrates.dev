@@ -41,7 +41,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - name: Package the publishable crates
-        run: cargo publish --dry-run --locked -p privatecrates-common -p cargo-credential-privatecrates -p privatecrates-verify
+        run: cargo publish --dry-run --locked -p privatecrates-common -p privatecrates-auth -p cargo-credential-privatecrates -p cargo-privatecrates -p privatecrates-verify
 
   website:
     name: Website (check, lint, build)

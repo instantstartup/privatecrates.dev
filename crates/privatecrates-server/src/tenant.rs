@@ -30,16 +30,7 @@ pub fn is_reserved(slug: &str) -> bool {
     RESERVED_SLUGS.contains(&slug)
 }
 
-/// Checks a slug's form: it becomes a hostname label.
-pub fn slug_is_valid(slug: &str) -> bool {
-    !slug.is_empty()
-        && slug.len() <= 63
-        && slug
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-        && !slug.starts_with('-')
-        && !slug.ends_with('-')
-}
+pub use privatecrates_common::slug_is_valid;
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

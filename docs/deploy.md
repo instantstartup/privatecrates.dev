@@ -488,7 +488,8 @@ action beyond fixing it.
 
 ## 13. Release the client tools
 
-`cargo-credential-privatecrates` and `privatecrates-verify` (with `privatecrates-common`) are released by
+`cargo-credential-privatecrates`, `cargo-privatecrates` and `privatecrates-verify` (with `privatecrates-common` and
+`privatecrates-auth`) are released by
 [`.github/workflows/release.yml`](../.github/workflows/release.yml) when a tag `vX.Y.Z` is pushed: binaries for Linux
 (x86_64, aarch64), macOS (aarch64, x86_64) and Windows (x86_64) with GitHub build-provenance attestations, a GitHub
 release with the archives and `SHA256SUMS` (where `cargo binstall` finds them), then crates.io.
@@ -501,12 +502,13 @@ One-time setup:
 
    ```sh
    cargo login                     # paste the token
-   cargo publish --locked -p privatecrates-common -p cargo-credential-privatecrates -p privatecrates-verify
+   cargo publish --locked -p privatecrates-common -p privatecrates-auth -p cargo-credential-privatecrates \
+     -p cargo-privatecrates -p privatecrates-verify
    cargo logout
    ```
 
    Then push the tag `v0.1.0`; the workflow builds the binaries and release and skips the crates already on crates.io.
-2. On crates.io, for **each** of the three crates, *Settings → Trusted Publishing → Add*: GitHub, repository owner
+2. On crates.io, for **each** of the five crates, *Settings → Trusted Publishing → Add*: GitHub, repository owner
    `worldbuilding-dev`, repository `privatecrates.dev`, workflow `release.yml`, environment `crates-io` [C1].
 3. In GitHub → repository *Settings → Environments*, create `crates-io`; optionally add required reviewers (a manual
    approval before anything is published) and restrict it to tags `v*`.
@@ -515,12 +517,13 @@ One-time setup:
 Each release:
 
 ```sh
-# bump version = "X.Y.Z" in crates/privatecrates-common, cargo-credential-privatecrates and privatecrates-verify
-# (and privatecrates-common's version in the other two's [dependencies]); commit on main; CI green
+# bump version = "X.Y.Z" in crates/privatecrates-common, privatecrates-auth, cargo-credential-privatecrates,
+# cargo-privatecrates and privatecrates-verify (and the shared crates' versions in the others' [dependencies]);
+# commit on main; CI green
 git tag -s vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
 ```
 
-The workflow refuses a tag that does not match the three crate versions. Verify an artefact with
+The workflow refuses a tag that does not match the five crate versions. Verify an artefact with
 `gh attestation verify <file> --repo worldbuilding-dev/privatecrates.dev`.
 
 ## 14. Sources

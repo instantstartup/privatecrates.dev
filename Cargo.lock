@@ -489,7 +489,7 @@ dependencies = [
  "bytes",
  "cargo-credential",
  "flate2",
- "keyring",
+ "privatecrates-auth",
  "privatecrates-common",
  "privatecrates-server",
  "privatecrates-testkit",
@@ -500,6 +500,29 @@ dependencies = [
  "tempfile",
  "time",
  "tokio",
+ "url",
+]
+
+[[package]]
+name = "cargo-privatecrates"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "clap",
+ "flate2",
+ "privatecrates-auth",
+ "privatecrates-common",
+ "privatecrates-server",
+ "privatecrates-testkit",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tar",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "toml_edit",
  "url",
 ]
 
@@ -1968,6 +1991,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
+name = "privatecrates-auth"
+version = "0.1.0"
+dependencies = [
+ "keyring",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "privatecrates-common"
 version = "0.1.0"
 dependencies = [
@@ -2960,6 +2994,7 @@ dependencies = [
  "indexmap",
  "toml_datetime",
  "toml_parser",
+ "toml_writer",
  "winnow",
 ]
 

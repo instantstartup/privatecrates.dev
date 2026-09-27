@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
-use crate::{AppState, config::Config, error::ApiError, github::now_secs};
+use crate::{AppState, auth::Credential, config::Config, error::ApiError, github::now_secs};
 
 pub const SESSION_COOKIE: &str = "pc_session";
 /// Binds a sign-in to the browser that started it, so nobody can sign a victim in as themselves.
@@ -96,21 +96,37 @@ struct SignIn {
     expires_at: u64,
 }
 
-/// A signed-in website user.
+/// A signed-in website user, or a tool such as `cargo privatecrates` holding a reader App user token.
 pub struct Session {
     /// The user's reader App token. Used only for GitHub calls on their behalf.
     pub token: String,
+    /// Whether the token came in an `Authorization` header rather than the session cookie.
+    pub bearer: bool,
 }
 
 impl Session {
-    pub fn from_headers(state: &AppState, headers: &HeaderMap) -> Option<Self> {
-        cookies(headers, SESSION_COOKIE).find_map(|value| {
+    /// The request's session: from `Authorization: Bearer ghu_…` when the header is present (never falling back to
+    /// the cookie then), otherwise from the session cookie. `None` when signed out.
+    pub fn from_headers(state: &AppState, headers: &HeaderMap) -> Result<Option<Self>, ApiError> {
+        if headers.contains_key(header::AUTHORIZATION) {
+            // Only reader App user tokens, as the device flow gives: other GitHub tokens are usually far broader
+            // than we need, and we do not want them sent to us.
+            return match Credential::from_headers(headers) {
+                Some(Credential::AppUser(token)) => Ok(Some(Self {
+                    token,
+                    bearer: true,
+                })),
+                _ => Err(ApiError::AccountTokenNotAccepted),
+            };
+        }
+        Ok(cookies(headers, SESSION_COOKIE).find_map(|value| {
             let plaintext = state.sealer.open(SESSION_COOKIE, value)?;
             let cookie: SessionCookie = serde_json::from_slice(&plaintext).ok()?;
             (cookie.expires_at > now_secs()).then_some(Self {
                 token: cookie.token,
+                bearer: false,
             })
-        })
+        }))
     }
 }
 
@@ -121,7 +137,7 @@ impl FromRequestParts<Arc<AppState>> for Session {
         parts: &mut Parts,
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
-        Self::from_headers(state, &parts.headers).ok_or(ApiError::SignInRequired)
+        Self::from_headers(state, &parts.headers)?.ok_or(ApiError::SignInRequired)
     }
 }
 
@@ -289,12 +305,16 @@ pub async fn logout() -> Response {
 
 /// CSRF protection for the account API: a state-changing request must be JSON from the website itself. A form on
 /// another site can send neither that content type nor our `Origin`.
+///
+/// Requests with an `Authorization` header are exempt. A bearer token is not an ambient credential: a browser never
+/// adds one by itself, and another site cannot set the header without a CORS preflight, which we never grant. Such
+/// a request is authenticated by that header alone ([`Session::from_headers`] never falls back to the cookie).
 pub async fn same_origin(
     State(state): State<Arc<AppState>>,
     request: Request,
     next: Next,
 ) -> Response {
-    if !request.method().is_safe() {
+    if !request.method().is_safe() && !request.headers().contains_key(header::AUTHORIZATION) {
         let headers = request.headers();
         let json = headers
             .get(header::CONTENT_TYPE)

@@ -535,3 +535,127 @@ async fn the_error_catalog_is_published() {
     // Internal error types are not part of the public catalog.
     assert!(!catalog.iter().any(|e| e["code"] == "github::unauthorized"));
 }
+
+#[tokio::test]
+async fn tools_use_a_bearer_token_without_the_csrf_check() {
+    let h = Harness::start().await;
+    let globex = h.fake.add_org_without_apps("globex");
+    h.fake.install_app(&globex, READER_APP_ID);
+    h.fake.install_app(&globex, STORAGE_APP_ID);
+    let token = h.fake.add_user("alice", "ghu_", &[]);
+    h.fake.add_member(&token, &globex, "admin");
+    let bearer = format!("Bearer {token}");
+
+    let session: Value = h
+        .client
+        .get(h.apex("/api/session"))
+        .header("Authorization", &bearer)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(session["user"]["login"], "alice");
+    assert_eq!(session["orgs"][0]["login"], "globex");
+
+    // No cookie, no Origin, no JSON content type: a bearer token is not an ambient credential.
+    let response = h
+        .client
+        .post(h.apex("/api/orgs/globex/settings"))
+        .header("Authorization", &bearer)
+        .body(json!({ "slug": "globex" }).to_string())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    assert!(response.headers().get("set-cookie").is_none());
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(statuses(&doc), ["done", "done", "done", "done", "done"]);
+
+    // A cookie session is still checked.
+    let (_, session) = admin(&h).await;
+    let response = h
+        .client
+        .post(h.apex("/api/orgs/acme/trial"))
+        .header("Cookie", &session)
+        .header("Origin", "http://evil.example")
+        .header("Content-Type", "application/json")
+        .body("{}")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(error_code(response).await, "account::cross_site_request");
+}
+
+#[tokio::test]
+async fn the_account_api_refuses_other_tokens() {
+    let h = Harness::start().await;
+    let (_, session) = admin(&h).await;
+    let oauth = h.fake.add_user("bob", "gho_", &[]);
+    h.fake.add_member(&oauth, &h.org, "admin");
+    for authorization in [
+        format!("Bearer {oauth}"),
+        "Bearer ghp_classic".into(),
+        "token github_pat_fine_grained".into(),
+        "Bearer ghs_installation".into(),
+        "Bearer pcr_eyJ.a.b".into(),
+        "Bearer eyJhbGc.eyJzdWI.sig".into(),
+        "Bearer ".into(),
+    ] {
+        for request in [
+            h.client.get(h.apex("/api/session")),
+            h.client.get(h.apex("/api/orgs/acme/onboarding")),
+            h.client.post(h.apex("/api/orgs/acme/trial")).body("{}"),
+        ] {
+            // A valid session cookie alongside does not help: the header alone authenticates.
+            let response = request
+                .header("Authorization", &authorization)
+                .header("Cookie", &session)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 401, "{authorization}");
+            assert_eq!(
+                error_code(response).await,
+                "account::token_not_accepted",
+                "{authorization}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn an_expired_bearer_token_must_sign_in_again() {
+    let h = Harness::start().await;
+    for path in ["/api/session", "/api/orgs/acme/onboarding"] {
+        let response = h
+            .client
+            .get(h.apex(path))
+            .header("Authorization", "Bearer ghu_revoked")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 401, "{path}");
+        assert_eq!(error_code(response).await, "account::sign_in_required");
+    }
+}
+
+#[tokio::test]
+async fn the_apex_serves_the_device_flow_client() {
+    let h = Harness::start().await;
+    let body: Value = h
+        .client
+        .get(h.apex("/api/v1/auth"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        body,
+        json!({ "github_client_id": privatecrates_testkit::READER_CLIENT_ID, "github_url": h.fake.url })
+    );
+}

@@ -6,14 +6,11 @@
 //!   resulting narrow token in the operating system's keyring.
 
 mod actions;
-mod device;
-mod store;
-
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use cargo_credential::{
     Action, CacheControl, Credential, CredentialResponse, Error, Operation, RegistryInfo, Secret,
 };
+use privatecrates_auth::{device, store::Store};
 use privatecrates_common::audience;
 
 struct Provider;
@@ -30,12 +27,14 @@ impl Credential for Provider {
         match action {
             Action::Get(operation) => get(&base, operation),
             Action::Login(_) => {
-                let store = store::Store::open()?;
-                device::sign_in(&base, &store)?;
+                let store = Store::open().map_err(auth)?;
+                device::sign_in(&http()?, &base, &store).map_err(auth)?;
                 Ok(CredentialResponse::Login)
             }
             Action::Logout => {
-                store::Store::open()?.delete(&base)?;
+                Store::open()
+                    .and_then(|store| store.delete(&base))
+                    .map_err(auth)?;
                 Ok(CredentialResponse::Logout)
             }
             _ => Err(Error::OperationNotSupported),
@@ -61,8 +60,8 @@ fn get(base: &str, operation: &Operation<'_>) -> Result<CredentialResponse, Erro
         )
         .into());
     }
-    let store = store::Store::open()?;
-    let token = device::token(base, &store)?;
+    let store = Store::open().map_err(auth)?;
+    let token = device::token(&http()?, base, &store).map_err(auth)?;
     Ok(CredentialResponse::Get {
         token: Secret::from(token.access_token),
         cache: expires(token.expires_at),
@@ -78,11 +77,9 @@ fn expires(at: i64) -> CacheControl {
     }
 }
 
-fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or_default()
+/// Signing in and the token store report what to do in their message, which Cargo shows.
+fn auth(e: privatecrates_auth::Error) -> Error {
+    e.to_string().into()
 }
 
 fn http() -> Result<reqwest::blocking::Client, Error> {

@@ -52,6 +52,19 @@ Reserved slugs (refused at onboarding, never routed as tenants): `www`, `dev`, `
   `SESSION_SECRET`), valid until the token expires (8 hours). Nothing is stored server-side.
 - State-changing requests (`POST`) must send `Content-Type: application/json` and an `Origin` equal to the apex URL;
   otherwise 403. This is the CSRF protection.
+- **Bearer tokens, for tools and agents.** `/api/session` and `/api/orgs/{org}/…` also accept
+  `Authorization: Bearer ghu_…`, a reader App user token from the device flow (as `cargo privatecrates login`
+  stores it), in place of the cookie. Responses are the same JSON.
+  - When an `Authorization` header is present it alone authenticates the request; the cookie is ignored.
+  - Bearer requests skip the CSRF check above: a bearer token is not an ambient credential (a browser never attaches
+    it by itself, and another site cannot set the header without a CORS preflight, which the server never grants).
+  - Only reader App user tokens (`ghu_…`) are accepted. Any other token (`gho_`, `ghp_`, `github_pat_`, `ghs_`,
+    registry or OIDC tokens) is refused with `account::token_not_accepted` (401), to keep broad tokens out.
+  - An expired or revoked bearer token gets `account::sign_in_required` (401) from `GET /api/session` too, rather
+    than the signed-out document.
+  - Tokens are never logged.
+- `GET /api/v1/auth` on the apex host returns `{"github_client_id": …, "github_url": …}`, the reader App's client ID
+  for the device flow, as each registry host does (SPEC §3.1).
 
 ## Endpoints (apex host only)
 

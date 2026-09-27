@@ -101,6 +101,15 @@ pub async fn auth_info(
     State(state): State<Arc<AppState>>,
     TenantHost(_tenant): TenantHost,
 ) -> Json<serde_json::Value> {
+    github_client(&state)
+}
+
+/// The same on the apex host, where `cargo privatecrates login` signs in for the account API.
+pub async fn apex_auth_info(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    github_client(&state)
+}
+
+fn github_client(state: &AppState) -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "github_client_id": state.config.reader_client_id,
         "github_url": state.config.github_web.as_str().trim_end_matches('/'),

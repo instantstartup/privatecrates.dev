@@ -1,9 +1,10 @@
-# Releases the open-source client tools, cargo-credential-privatecrates and privatecrates-verify (with
-# privatecrates-common), when a tag `vX.Y.Z` is pushed. X.Y.Z must equal the version of all three crates.
+# Releases the open-source client tools, cargo-credential-privatecrates, cargo-privatecrates and privatecrates-verify
+# (with privatecrates-common and privatecrates-auth), when a tag `vX.Y.Z` is pushed. X.Y.Z must equal the version of
+# all five crates.
 #
 #   1. build binaries for five targets on native runners, and attest their build provenance;
 #   2. create the GitHub release `vX.Y.Z` with the archives and SHA256SUMS (the URLs cargo-binstall uses);
-#   3. publish the three crates to crates.io with trusted publishing (no stored token).
+#   3. publish the five crates to crates.io with trusted publishing (no stored token).
 #
 # The server is not released here: it is deployed by Railway: dev from the `dev` branch, production from `main` (docs/deploy.md).
 
@@ -18,8 +19,8 @@ permissions: {}
 env:
   CARGO_TERM_COLOR: always
   RUST_TOOLCHAIN: "1.98.0"
-  CRATES: privatecrates-common cargo-credential-privatecrates privatecrates-verify
-  BINARIES: cargo-credential-privatecrates privatecrates-verify
+  CRATES: privatecrates-common privatecrates-auth cargo-credential-privatecrates cargo-privatecrates privatecrates-verify
+  BINARIES: cargo-credential-privatecrates cargo-privatecrates privatecrates-verify
 
 jobs:
   check:
@@ -144,7 +145,7 @@ jobs:
             --verify-tag \
             --title "$TAG" \
             --generate-notes \
-            --notes "Binaries of cargo-credential-privatecrates and privatecrates-verify (install with \`cargo binstall\`). Verify any archive or binary with: \`gh attestation verify <file> --repo $GH_REPO\`"
+            --notes "Binaries of cargo-credential-privatecrates, cargo-privatecrates and privatecrates-verify (install with \`cargo binstall\`). Verify any archive or binary with: \`gh attestation verify <file> --repo $GH_REPO\`"
 
   publish:
     name: Publish to crates.io

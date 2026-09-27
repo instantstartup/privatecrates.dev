@@ -18,6 +18,18 @@ pub fn is_crates_io(registry: &str) -> bool {
     registry == CRATES_IO_INDEX || registry == CRATES_IO_SPARSE_INDEX
 }
 
+/// A registry name ("slug"): its hostname label and its name in Cargo. 1 to 63 lowercase letters, digits or
+/// hyphens, not starting or ending with a hyphen.
+pub fn slug_is_valid(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug.len() <= 63
+        && slug
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && !slug.starts_with('-')
+        && !slug.ends_with('-')
+}
+
 /// Lowercase hex sha256 of `bytes`, the format Cargo uses for `cksum`.
 pub fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))

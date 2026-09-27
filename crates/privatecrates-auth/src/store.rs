@@ -7,8 +7,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use cargo_credential::Error;
 use serde::{Deserialize, Serialize};
+
+use crate::Error;
 
 const SERVICE: &str = "privatecrates";
 
@@ -66,9 +67,7 @@ impl Store {
     pub fn save(&self, base: &str, stored: &Stored) -> Result<(), Error> {
         match self {
             Self::Keyring => entry(base)?
-                .set_password(
-                    &serde_json::to_string(stored).map_err(|e| Error::Other(Box::new(e)))?,
-                )
+                .set_password(&serde_json::to_string(stored).map_err(json_error)?)
                 .map_err(keyring_error),
             Self::File(path) => {
                 let mut all = read_file(path)?;
@@ -106,6 +105,10 @@ fn keyring_error(e: keyring::Error) -> Error {
     .into()
 }
 
+fn json_error(e: serde_json::Error) -> Error {
+    format!("cannot serialise the PrivateCrates token: {e}").into()
+}
+
 fn config_dir() -> Result<PathBuf, Error> {
     if let Some(dir) = std::env::var_os("PRIVATECRATES_CONFIG_DIR") {
         return Ok(PathBuf::from(dir));
@@ -134,7 +137,7 @@ fn write_file(path: &Path, all: &BTreeMap<String, Stored>) -> Result<(), Error> 
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(fail)?;
     }
-    let text = serde_json::to_string_pretty(all).map_err(|e| Error::Other(Box::new(e)))?;
+    let text = serde_json::to_string_pretty(all).map_err(json_error)?;
     // Write to a new file readable only by the user, then rename over the old one.
     let tmp = path.with_extension("json.tmp");
     let mut options = fs::OpenOptions::new();

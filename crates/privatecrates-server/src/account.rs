@@ -119,11 +119,13 @@ async fn session_info(
     // installing it; `install_url` is how the website offers that.
     let install_url = install_url(&state.config, &state.config.reader_app_slug);
     let signed_out = Json(json!({ "user": null, "orgs": [], "install_url": install_url }));
-    let Some(session) = Session::from_headers(&state, &headers) else {
+    let Some(session) = Session::from_headers(&state, &headers)? else {
         return Ok(signed_out.into_response());
     };
     let user = match state.gh.user(&session.token).await {
         Ok(user) => user,
+        // An expired or revoked bearer token: the tool signs in again.
+        Err(GitHubError::Unauthorized) if session.bearer => return Err(ApiError::SignInRequired),
         // Revoked on GitHub: the session is over.
         Err(GitHubError::Unauthorized) => {
             return Ok(([(header::SET_COOKIE, clear_session_cookie())], signed_out).into_response());
