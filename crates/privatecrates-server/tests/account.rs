@@ -292,9 +292,13 @@ async fn onboarding_checklist() {
         doc["steps"][0]["action_url"],
         format!("{}/apps/privatecrates-reader/installations/new", h.fake.url)
     );
+    // Our Apps cannot create repositories, so the step links to GitHub's create page, filled in.
     assert_eq!(
         doc["steps"][1]["action_url"],
-        format!("{}/organizations/globex/repositories/new", h.fake.url)
+        format!(
+            "{}/new?owner=globex&name=crates-store&visibility=private&description=PrivateCrates+registry+storage%3A+the+index+and+crate+releases",
+            h.fake.url
+        )
     );
     assert!(
         doc["steps"][1]["detail"]
@@ -302,11 +306,29 @@ async fn onboarding_checklist() {
             .unwrap()
             .contains("globex/crates-store")
     );
-
-    h.fake.install_app(&globex, READER_APP_ID);
     assert_eq!(
-        statuses(&onboarding().await),
-        ["done", "todo", "todo", "blocked", "done"]
+        doc["steps"][2]["action_url"],
+        format!(
+            "{}/apps/privatecrates-storage/installations/new",
+            h.fake.url
+        )
+    );
+
+    // Once the reader App is installed it can see the new repository: the step is done, and the storage App's install
+    // link pre-selects it.
+    h.fake.install_app(&globex, READER_APP_ID);
+    let doc = onboarding().await;
+    assert_eq!(statuses(&doc), ["done", "done", "todo", "blocked", "done"]);
+    assert_eq!(
+        doc["steps"][1]["action_url"],
+        format!("{}/globex/crates-store/settings", h.fake.url)
+    );
+    assert_eq!(
+        doc["steps"][2]["action_url"],
+        format!(
+            "{}/apps/privatecrates-storage/installations/new/permissions?suggested_target_id={}&repository_ids[]={}",
+            h.fake.url, globex.id, globex.storage_repo
+        )
     );
     h.fake.install_app(&globex, STORAGE_APP_ID);
     assert_eq!(

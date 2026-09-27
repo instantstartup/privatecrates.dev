@@ -266,14 +266,13 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
     let github = config.github_web.as_str().trim_end_matches('/');
     let install = |app: &str| install_url(config, app);
     let mut tenant = state.tenants.by_org(org.id);
-    let (reader, storage_repos, settings_file) = match &tenant {
-        Some(_) => (true, Some(1), true),
+    let (reader, storage_repos, settings_file, suggested_repo) = match &tenant {
+        Some(_) => (true, Some(1), true, None),
         None => {
             let reader = state
                 .gh
                 .org_installation(AppKind::Reader, &org.login)
-                .await?
-                .is_some();
+                .await?;
             let storage = storage(state, &org.login).await?;
             let settings_file = match &storage {
                 Some((token, repos)) if repos.len() == 1 => {
@@ -281,7 +280,27 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
                 }
                 _ => false,
             };
-            (reader, storage.map(|(_, repos)| repos.len()), settings_file)
+            // Until the storage App is installed, look for the repository the pre-filled link creates: the reader
+            // App can see it, so the checklist moves on by itself and the install link can pre-select it.
+            let suggested_repo = match (&reader, &storage) {
+                (Some(installation), None) => {
+                    let token = state
+                        .gh
+                        .installation_token(AppKind::Reader, installation.id)
+                        .await?;
+                    state
+                        .gh
+                        .repository(&token, &format!("{}/{STORAGE_REPO_NAME}", org.login))
+                        .await?
+                }
+                _ => None,
+            };
+            (
+                reader.is_some(),
+                storage.map(|(_, repos)| repos.len()),
+                settings_file,
+                suggested_repo,
+            )
         }
     };
     // Both Apps are installed and the settings exist, but we have not noticed yet (a missed webhook).
@@ -321,19 +340,15 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
     let mut steps = vec![
         Step::new("reader_app", reader, "Install the reader App on the organisation.")
             .action(install(&config.reader_app_slug)),
-        Step::new(
-            "storage_repo",
-            storage_ready,
-            format!(
-                "Create a private repository, e.g. {}/crates-store, or use an existing empty one: it must hold nothing \
-                 but PrivateCrates' index and releases. Enable immutable releases in Settings → General → Releases. \
-                 You choose it when you install the storage App.",
-                org.login
+        storage_repo_step(config, org, storage_ready, suggested_repo.as_ref()),
+        Step::new("storage_app", storage_ready, storage_detail).action(match &suggested_repo {
+            // Pre-selects the organisation and the storage repository on GitHub's install page.
+            Some(repo) => format!(
+                "{github}/apps/{}/installations/new/permissions?suggested_target_id={}&repository_ids[]={}",
+                config.storage_app_slug, org.id, repo.id
             ),
-        )
-        .action(format!("{github}/organizations/{}/repositories/new", org.login)),
-        Step::new("storage_app", storage_ready, storage_detail)
-            .action(install(&config.storage_app_slug)),
+            None => install(&config.storage_app_slug),
+        }),
         settings,
         Step::new("subscription", subscribed, subscription_todo),
     ];
@@ -352,6 +367,52 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
         "steps": steps,
         "suggested_slug": suggested_slug(state, org, tenant.as_deref()),
     }))
+}
+
+/// The storage repository's conventional name, which the pre-filled create link uses.
+const STORAGE_REPO_NAME: &str = "crates-store";
+
+/// Creating the storage repository. Our Apps cannot create repositories (that needs administration rights, which
+/// could also turn immutable releases off), so the step links to GitHub's create page, pre-filled.
+fn storage_repo_step(
+    config: &crate::config::Config,
+    org: &Organization,
+    storage_ready: bool,
+    suggested: Option<&Repo>,
+) -> Step {
+    let github = config.github_web.as_str().trim_end_matches('/');
+    let immutable = "Enable immutable releases in its Settings → General → Releases, so published versions can never \
+                     change.";
+    match suggested {
+        Some(repo) if !storage_ready => Step::new(
+            "storage_repo",
+            true,
+            format!("{} exists. {immutable}", repo.full_name),
+        )
+        .action(format!("{github}/{}/settings", repo.full_name)),
+        _ => {
+            let mut create = url::Url::parse(&format!("{github}/new")).expect("a valid URL");
+            create
+                .query_pairs_mut()
+                .append_pair("owner", &org.login)
+                .append_pair("name", STORAGE_REPO_NAME)
+                .append_pair("visibility", "private")
+                .append_pair(
+                    "description",
+                    "PrivateCrates registry storage: the index and crate releases",
+                );
+            Step::new(
+                "storage_repo",
+                storage_ready,
+                format!(
+                    "Create {}/{STORAGE_REPO_NAME} (the link fills in the form), or use an existing empty repository: \
+                     it must hold nothing but PrivateCrates' index and releases. {immutable}",
+                    org.login
+                ),
+            )
+            .action(create.to_string())
+        }
+    }
 }
 
 /// The organisation's own name, lowercased (a GitHub login is always a valid slug), unless it is reserved or

@@ -814,6 +814,7 @@ fn router(fake: FakeGitHub) -> Router {
             get(user_installation_repositories),
         )
         .route("/repositories/{id}", get(repository_by_id))
+        .route("/repos/{owner}/{repo}", get(repository_by_name))
         .route("/repos/{owner}/{repo}/git/trees/{branch}", get(tree))
         .route("/repos/{owner}/{repo}/git/blobs/{sha}", get(blob))
         .route("/repos/{owner}/{repo}/contents/{*path}", put(put_contents))
@@ -966,6 +967,18 @@ async fn user_installation_repositories(
     }
     Json(json!({ "total_count": repos.len(), "repositories": paginate(&repos, &page) }))
         .into_response()
+}
+
+async fn repository_by_name(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Path((owner, name)): Path<(String, String)>,
+) -> Response {
+    let id = find_repo(&fake.world(), &owner, &name);
+    match id {
+        Some(id) => repository_by_id(State(fake), headers, Path(id)).await,
+        None => error(StatusCode::NOT_FOUND, "Not Found"),
+    }
 }
 
 async fn repository_by_id(

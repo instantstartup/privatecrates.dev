@@ -482,6 +482,25 @@ impl GitHub {
         Ok(all)
     }
 
+    /// A repository by `owner/name`, as seen by `token`. `None` if it does not exist or the token cannot see it.
+    pub async fn repository(
+        &self,
+        token: &str,
+        full_name: &str,
+    ) -> Result<Option<Repo>, GitHubError> {
+        match json(
+            self.request(Method::GET, &format!("/repos/{full_name}"), token)
+                .send()
+                .await?,
+        )
+        .await
+        {
+            Ok(repo) => Ok(Some(repo)),
+            Err(GitHubError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// A repository by ID, as seen by `token`. `None` if the token cannot see it.
     pub async fn repository_by_id(
         &self,
