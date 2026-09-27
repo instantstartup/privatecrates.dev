@@ -1,0 +1,29 @@
+{
+	"name": "privatecrates-status",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"description": "status.privatecrates.dev: probes, history and the public status page, as a Cloudflare Worker.",
+	"scripts": {
+		"build": "node scripts/build.ts",
+		"dev": "wrangler dev --test-scheduled",
+		"types": "wrangler types",
+		"check": "wrangler types && tsc --noEmit",
+		"test": "vitest run",
+		"deploy:dry-run": "wrangler deploy --dry-run --outdir dist",
+		"deploy": "wrangler deploy"
+	},
+	"packageManager": "pnpm@10.34.5",
+	"pnpm": {
+		"onlyBuiltDependencies": ["esbuild", "workerd"]
+	},
+	"devDependencies": {
+		"@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+		"@fontsource-variable/big-shoulders-stencil": "^5.3.0",
+		"@types/node": "^26.6.3",
+		"typescript": "~6.0.3",
+		"vitest": "^5.0.2",
+		"wrangler": "^4.142.0",
+		"yaml": "^2.9.1"
+	}
+}

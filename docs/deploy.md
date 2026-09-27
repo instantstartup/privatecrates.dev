@@ -27,7 +27,8 @@ Contents:
 11. [Roll back](#11-roll-back)
 12. [Rotate secrets](#12-rotate-secrets)
 13. [Release the client tools](#13-release-the-client-tools)
-14. [Sources](#14-sources)
+14. [Status page](#14-status-page)
+15. [Sources](#15-sources)
 
 ---
 
@@ -526,7 +527,108 @@ git tag -s vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
 The workflow refuses a tag that does not match the five crate versions. Verify an artefact with
 `gh attestation verify <file> --repo worldbuilding-dev/privatecrates.dev`.
 
-## 14. Sources
+## 14. Status page
+
+`https://status.privatecrates.dev` is a Cloudflare Worker in `status/` (docs/trust-and-status.md §1), deliberately
+not on Railway so it stays up when we are down. Every minute a Cron Trigger probes both environments (`/healthz`,
+`/api/status`, and the canary registry's `/index/config.json`, which must answer `401` with `WWW-Authenticate`) and
+reads GitHub's and Stripe's status pages [W6]; it keeps 90 days of per-minute results and per-day summaries in D1. `/` is
+production, `/dev` is dev; each has `/feed.xml` (incidents, Atom) and `/api/summary.json`. It is deployed by hand,
+not by Railway or CI.
+
+You need a Cloudflare account with the `privatecrates.dev` zone (already there for DNS), Node 24 and pnpm (via
+corepack). Wrangler is a dev dependency; log in once with `pnpm exec wrangler login` (or set `CLOUDFLARE_API_TOKEN`
+to a token with *Workers Scripts: Edit*, *D1: Edit*, *Workers Routes: Edit* and, for the zone, *DNS: Edit*).
+
+### 14.1 The canary registry
+
+Each environment's canary is a real registry slug on that apex (`canary` in `status/wrangler.jsonc` under `vars`,
+`ENVIRONMENTS[].canary`). An unknown slug answers 404, which the page shows as the registry being down, so create
+one first: a small organisation we own, with PrivateCrates installed on each environment, claiming the slug
+`canary` (or change the slug in `wrangler.jsonc`). Nobody needs to publish to it. Check:
+
+```sh
+curl -si https://canary.dev.privatecrates.dev/index/config.json | grep -Ei '^(HTTP|www-authenticate)'
+curl -si https://canary.privatecrates.dev/index/config.json     | grep -Ei '^(HTTP|www-authenticate)'
+# HTTP/2 401 and a www-authenticate header, for each
+```
+
+### 14.2 First deploy
+
+```sh
+cd status
+pnpm install --frozen-lockfile
+
+# 1. The database. Prints a database_id: paste it into wrangler.jsonc (d1_databases[0].database_id) and commit it
+#    (it is an identifier, not a secret).
+pnpm exec wrangler d1 create privatecrates-status        # [W1][W5]
+
+# 2. Its tables (migrations/0001_init.sql).
+pnpm exec wrangler d1 migrations apply privatecrates-status --remote
+
+# 3. Test, then deploy. `deploy` runs the build (incidents, fonts), uploads the Worker and its static assets, sets
+#    the every-minute Cron Trigger, and creates the status.privatecrates.dev Custom Domain with its DNS record and
+#    certificate.
+pnpm test
+pnpm exec wrangler deploy
+```
+
+**DNS.** Do not create a record for `status` yourself: the Custom Domain (`routes` with `custom_domain: true` in
+`wrangler.jsonc`) makes it, and refuses if a CNAME for `status` already exists, so delete any such record first
+[W3]. The record it creates is **proxied** (orange cloud), which Workers Custom Domains require; that is fine for
+this host, unlike the Railway hosts in §8, because no tokens or customer data ever reach it. The explicit `status`
+record takes precedence over the `*` wildcard to Railway, and `status` is a reserved slug, so no tenant can claim
+it. A Custom Domain matches the whole host (every path), so it is the equivalent of the route
+`status.privatecrates.dev/*`; it takes no path pattern [W3].
+
+The first check runs within a minute (new Cron Triggers can take up to 15 minutes to reach the whole network [W4]).
+Check:
+
+```sh
+curl -s https://status.privatecrates.dev/api/summary.json | jq '{checked_at, state}'
+curl -s https://status.privatecrates.dev/dev/api/summary.json | jq '.components[] | {id, state, cause}'
+pnpm exec wrangler tail privatecrates-status        # live logs, including the scheduled runs
+```
+
+To try it locally first: `pnpm exec wrangler d1 migrations apply privatecrates-status --local`, then `pnpm dev`, and
+trigger a run with `curl 'http://localhost:8787/__scheduled?cron=*+*+*+*+*'` (it probes the real environments).
+
+### 14.3 Post or update an incident
+
+Incidents are Markdown files in `status/incidents/`, deployed with the Worker; `status/incidents/README.md` has the
+format and `_example.md` every field.
+
+```sh
+cd status
+cp incidents/_example.md incidents/2026-10-02-publish-errors.md   # then edit: remove `example: true`
+pnpm build && pnpm test                                             # a mistake in the file fails here
+pnpm exec wrangler deploy
+git add incidents/2026-10-02-publish-errors.md && git commit -m "Status: publish errors" && git push
+```
+
+For each update, add an entry under `updates` (and `end` once it is over) and deploy again. While an incident has no
+`end`, its components are shown as at least its `impact`, whatever the probes say.
+
+### 14.4 Changes and rollback
+
+Change the probed environments, the canary slug or the upstream URLs in `vars` in `wrangler.jsonc` and deploy.
+Schema changes go in a new `migrations/000N_*.sql`, applied with the `migrations apply --remote` command above
+before deploying. `pnpm exec wrangler rollback` returns to the previous version; `pnpm exec wrangler deployments
+list` shows them. CI runs the tests and `wrangler deploy --dry-run` on every change under `status/`.
+
+Storage is D1, not KV: every minute the Worker adds a row per environment and updates that day's summary, and prunes
+rows older than 90 days by range; D1 does that with one SQL statement each and is strongly consistent, while KV
+allows one write per second per key, is eventually consistent (a read-modify-write of a day's summary could lose
+minutes) and cannot delete by range [W2][W5]. At about 8,600 rows written a day, it is well inside D1's free
+allowance of 100,000 a day [W5]; KV's free plan allows 1,000 writes a day [W2].
+
+**Stripe's status.** `STRIPE_STATUS_URL` is Statuspage's `/api/v2/summary.json` as planned, but
+`status.stripe.com` is not a Statuspage site and answers 404 there (September 2026); its older `/current` JSON has
+not changed since February 2024. The page therefore shows Stripe's status as "could not be read automatically"
+with a link, and Billing is judged from the server's own Stripe error rate in `/api/status`. If Stripe publishes a
+Statuspage-compatible API, point the var at it.
+
+## 15. Sources
 
 Consulted in September 2026.
 
@@ -569,3 +671,15 @@ Consulted in September 2026.
   `rust-lang/crates-io-auth-action`: <https://github.com/rust-lang/crates-io-auth-action>
 - [C2] RFC 3691, *Trusted Publishing for crates.io*:
   <https://rust-lang.github.io/rfcs/3691-trusted-publishing-cratesio.html>
+- [W1] Cloudflare, *Wrangler configuration* (`wrangler.jsonc` recommended for new projects; `triggers.crons`,
+  `d1_databases`, `routes` with `custom_domain`, `vars`, `assets`, `build`):
+  <https://developers.cloudflare.com/workers/wrangler/configuration/>
+- [W2] Cloudflare, *Workers KV limits* (1 write per second per key; 1,000 writes a day on the Free plan):
+  <https://developers.cloudflare.com/kv/platform/limits/>
+- [W3] Cloudflare, *Custom Domains* (DNS records and certificate created for you; no wildcard or path; not on a host
+  with an existing CNAME): <https://developers.cloudflare.com/workers/configuration/routing/custom-domains/>
+- [W4] Cloudflare, *Cron Triggers* (UTC; up to 15 minutes to propagate; local testing):
+  <https://developers.cloudflare.com/workers/configuration/cron-triggers/>
+- [W5] Cloudflare, *D1 limits* and *D1 pricing* (rows written: 100,000 a day Free, 50 million a month Paid):
+  <https://developers.cloudflare.com/d1/platform/limits/>, <https://developers.cloudflare.com/d1/platform/pricing/>
+- [W6] Statuspage public API used by GitHub (`/api/v2/summary.json`): <https://www.githubstatus.com/api>
