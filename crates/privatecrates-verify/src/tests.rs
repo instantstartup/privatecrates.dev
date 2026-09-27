@@ -99,6 +99,7 @@ fn claims(workflow: &str) -> Value {
         "repository_id": REPO_ID.to_string(),
         "repository_owner_id": "100",
         "job_workflow_ref": format!("acme/story-engine/.github/workflows/{workflow}@refs/tags/v1"),
+        "event_name": "push",
     })
 }
 
@@ -387,6 +388,25 @@ fn append_v3(repo: &Repo, mem: &mut Mem, provenance: Option<String>, owners: Opt
 }
 
 #[test]
+fn provenance_from_each_allowed_trigger_verifies() {
+    let v3 = b"three".as_slice();
+    let audience_v3 = audience::publish(BASE, "story_engine", "0.3.0", &sha256_hex(v3));
+    for event in ["push", "release", "workflow_dispatch"] {
+        let mut claims = claims("release.yml");
+        claims["event_name"] = event.into();
+        let (repo, mut mem) = published();
+        append_v3(
+            &repo,
+            &mut mem,
+            Some(sign_oidc(ISSUER, &audience_v3, &claims)),
+            None,
+        );
+        let e = errors(&run(&repo, &mem, &State::default()));
+        assert!(e.is_empty(), "{event}: {e:?}");
+    }
+}
+
+#[test]
 fn a_version_without_provenance_is_an_error_unless_manual_publishing_is_allowed() {
     let (repo, mut mem) = published();
     append_v3(&repo, &mut mem, None, None);
@@ -453,6 +473,24 @@ fn forged_or_misused_provenance_is_reported() {
             "workflow",
             provenance("story_engine", "0.3.0", v3, "sneaky.yml"),
             "sneaky.yml",
+        ),
+        (
+            "trigger",
+            sign_oidc(ISSUER, &audience_v3, &{
+                let mut claims = claims("release.yml");
+                claims["event_name"] = "pull_request_target".into();
+                claims
+            }),
+            "triggered by `pull_request_target`",
+        ),
+        (
+            "no trigger",
+            sign_oidc(ISSUER, &audience_v3, &{
+                let mut claims = claims("release.yml");
+                claims.as_object_mut().unwrap().remove("event_name");
+                claims
+            }),
+            "does not say what triggered",
         ),
     ];
     for (case, jwt, expected) in cases {

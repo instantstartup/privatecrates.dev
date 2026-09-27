@@ -201,6 +201,31 @@ pub enum ApiError {
     EnvironmentRequired { name: String, environment: String },
 
     #[error(
+        "{name} cannot be published from a workflow triggered by `{event}`: only push, release and \
+         workflow_dispatch are allowed, because each needs Write access to the repository. Other events, such as \
+         pull_request_target, issue_comment, pull_request, workflow_run, schedule, merge_group and \
+         repository_dispatch, can run a workflow for people without it. Trigger the publish workflow by pushing a \
+         tag, publishing a release or running it by hand"
+    )]
+    #[diagnostic(code(publish::trigger_not_allowed))]
+    #[http_status(403)]
+    TriggerNotAllowed { name: String, event: String },
+
+    #[error(
+        "{actor} started this workflow, but publishing {name} needs Write access to {repository} (permission to \
+         create releases), and {actor} does not have it. {advice}"
+    )]
+    #[diagnostic(code(publish::actor_cannot_release))]
+    #[http_status(403)]
+    ActorCannotRelease {
+        actor: String,
+        name: String,
+        #[extension]
+        repository: String,
+        advice: String,
+    },
+
+    #[error(
         "the first publish of {name} must come from the repository in its Cargo.toml `package.repository` \
          ({declared}), but this workflow is in {repository}"
     )]

@@ -18,6 +18,21 @@ pub struct Owner {
     pub publish_environment: Option<String>,
     #[serde(default)]
     pub allow_manual_publish: bool,
+    /// GitHub App bots, such as `release-please[bot]`, whose workflow runs may publish although a bot cannot be
+    /// given Write access to the repository. Every other actor needs it (SPEC §6.4).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub publish_bots: Vec<String>,
+}
+
+impl Owner {
+    /// Whether `actor` is a bot listed in `publish_bots`. GitHub logins are case-insensitive.
+    pub fn allows_bot(&self, actor: &str) -> bool {
+        actor.ends_with("[bot]")
+            && self
+                .publish_bots
+                .iter()
+                .any(|bot| bot.eq_ignore_ascii_case(actor))
+    }
 }
 
 pub fn owner_path(name: &str) -> String {
@@ -68,5 +83,21 @@ mod tests {
             provenance_asset_name("a", "1.0.0"),
             "a-1.0.0.provenance.jwt"
         );
+    }
+
+    #[test]
+    fn listed_bots() {
+        let owner: Owner = serde_json::from_str(
+            r#"{"repository_id":5,"repository":"acme/a","publish_bots":["release-please[bot]","alice"]}"#,
+        )
+        .unwrap();
+        assert!(owner.allows_bot("release-please[bot]"));
+        assert!(owner.allows_bot("Release-Please[bot]"));
+        assert!(!owner.allows_bot("renovate[bot]"));
+        // Only bots: a person needs Write access, listed or not.
+        assert!(!owner.allows_bot("alice"));
+        let bare: Owner =
+            serde_json::from_str(r#"{"repository_id":5,"repository":"acme/a"}"#).unwrap();
+        assert!(bare.publish_bots.is_empty());
     }
 }

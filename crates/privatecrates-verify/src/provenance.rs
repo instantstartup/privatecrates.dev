@@ -1,7 +1,7 @@
 //! Checks a version's provenance: the GitHub Actions OIDC token stored with its release (SPEC §10.3).
 
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, jwk::JwkSet};
-use privatecrates_common::{audience, storage::Owner};
+use privatecrates_common::{audience, storage::Owner, trigger};
 use serde::Deserialize;
 
 pub struct Expected<'a> {
@@ -21,6 +21,8 @@ struct Claims {
     job_workflow_ref: String,
     #[serde(default)]
     environment: Option<String>,
+    #[serde(default)]
+    event_name: Option<String>,
 }
 
 pub fn check(jwt: &[u8], jwks: &JwkSet, expected: &Expected<'_>) -> Result<(), String> {
@@ -78,6 +80,20 @@ pub fn check(jwt: &[u8], jwks: &JwkSet, expected: &Expected<'_>) -> Result<(), S
         && claims.environment.as_ref() != Some(env)
     {
         return Err(format!("it was not published from the `{env}` environment"));
+    }
+    // The service also required the run's actor to have Write access to the owning repository, but that cannot be
+    // checked here: GitHub's permissions answer for now, not for when the version was published. The event that
+    // triggered the run is in the signed token, so that part of the rule is checked.
+    match claims.event_name.as_deref() {
+        Some(event) if trigger::may_publish(event) => {}
+        Some(event) => {
+            return Err(format!(
+                "its workflow was triggered by `{event}`, which can run for people without Write access; only {} \
+                 may publish",
+                trigger::PUBLISH_EVENTS.join(", ")
+            ));
+        }
+        None => return Err("it does not say what triggered its workflow".into()),
     }
     Ok(())
 }

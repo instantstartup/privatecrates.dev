@@ -4,6 +4,7 @@ pub mod audience;
 pub mod index;
 pub mod name;
 pub mod storage;
+pub mod trigger;
 
 use sha2::{Digest, Sha256};
 

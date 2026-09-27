@@ -104,9 +104,14 @@ pub struct PermissionCache {
     org_admins: moka::future::Cache<UserKey, Cached<bool>>,
     /// Reader installation → the repositories in it, to tell when an owning repository was deleted (SPEC §6.2).
     live_repos: moka::future::Cache<u64, Arc<HashSet<u64>>>,
+    /// (repository ID, actor ID) → whether the actor of a workflow run can create releases there (SPEC §6.4).
+    actors: moka::future::Cache<(u64, u64), bool>,
 }
 
 const DENIAL_TTL: Duration = Duration::from_secs(30);
+/// How long a workflow actor's permission is trusted: at most a minute, so that revoking someone's Write access
+/// stops their publishes almost at once.
+const ACTOR_TTL: Duration = Duration::from_secs(60);
 
 struct Expiry;
 
@@ -152,6 +157,10 @@ impl PermissionCache {
                 .max_capacity(10_000)
                 .time_to_live(ttl)
                 .build(),
+            actors: moka::future::Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(ttl.min(ACTOR_TTL))
+                .build(),
         }
     }
 
@@ -188,6 +197,7 @@ impl PermissionCache {
                 self.users.invalidate(key).await;
             }
         }
+        invalidate_where(&self.actors, |k| k.1 == user_id).await;
         if let Some(installation) = reader_installation {
             invalidate_where(&self.repos, |k| k.1 == installation).await;
             invalidate_where(&self.org_admins, |k| k.1 == installation).await;
@@ -394,6 +404,8 @@ impl Resolver<'_> {
         value.map_err(Into::into)
     }
 
+    /// Whether the caller can push to a repository. GitHub's `push` permission is Write, Maintain or Admin (a custom
+    /// role, the role it is based on): the same people who can create releases, as publishing needs (SPEC §6.4).
     pub async fn can_push(&self, caller: &Caller, repository_id: u64) -> Result<bool, ApiError> {
         match caller {
             Caller::User { access, .. } => Ok(access.repos.get(&repository_id) == Some(&true)),
@@ -402,6 +414,47 @@ impl Resolver<'_> {
             }
             Caller::Ci { .. } => Ok(false),
         }
+    }
+
+    /// Whether the actor of a workflow run can currently create releases in a repository (`owner/name`): Write,
+    /// Maintain or Admin (SPEC §6.4). Asked with the reader App's installation token, which reads collaborators'
+    /// permissions with metadata read alone. The answer must be about the account with `actor_id`: a login that
+    /// now names another account is refused, and not cached, as it is not an answer about that actor.
+    pub async fn actor_can_release(
+        &self,
+        repository: &str,
+        repository_id: u64,
+        actor: &str,
+        actor_id: u64,
+    ) -> Result<bool, ApiError> {
+        let key = (repository_id, actor_id);
+        if let Some(cached) = self.cache.actors.get(&key).await {
+            return Ok(cached);
+        }
+        let token = self
+            .gh
+            .installation_token(AppKind::Reader, self.tenant.reader_installation)
+            .await?;
+        let can = match self
+            .gh
+            .collaborator_permission(&token, repository, actor)
+            .await?
+        {
+            None => false,
+            Some(permission) => {
+                let user_id = permission.user.as_ref().map(|u| u.id);
+                if user_id != Some(actor_id) {
+                    tracing::warn!(
+                        %repository, %actor, actor_id, ?user_id,
+                        "a workflow actor's login names another account"
+                    );
+                    return Ok(false);
+                }
+                permission.can_release()
+            }
+        };
+        self.cache.actors.insert(key, can).await;
+        Ok(can)
     }
 
     /// Whether the caller may use this registry at all: they can read at least one repository in it (SPEC §4.1).

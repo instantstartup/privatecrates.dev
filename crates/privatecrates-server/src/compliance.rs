@@ -740,17 +740,16 @@ fn entry(
             .find_map(|l| l.strip_prefix(key))
             .map(|v| v.trim().to_owned())
     };
+    // `Published by alice via workflow …`; publishes before workflow actors were checked say `Publisher: workflow …`.
+    let publisher = || field("Published by ").or_else(|| field("Publisher:"));
     let words: Vec<&str> = subject.split_whitespace().collect();
     let (action, krate, version, by) = match (by_app, words.as_slice(), area) {
-        (true, ["Publish", name, version], Area::Index) => (
-            Action::Publish,
-            Some(*name),
-            Some(*version),
-            field("Publisher:"),
-        ),
+        (true, ["Publish", name, version], Area::Index) => {
+            (Action::Publish, Some(*name), Some(*version), publisher())
+        }
         // A crate's first publish creates its owners file, in a commit of its own.
         (true, ["Publish", name, _], Area::Owners) => {
-            (Action::OwnersChange, Some(*name), None, field("Publisher:"))
+            (Action::OwnersChange, Some(*name), None, publisher())
         }
         (true, ["Yank", name, version], Area::Index) => {
             (Action::Yank, Some(*name), Some(*version), field("By:"))
@@ -828,7 +827,7 @@ mod tests {
     #[test]
     fn our_apps_messages_say_what_and_who() {
         let publish = classify(
-            "Publish story_engine 0.2.0\n\nPublisher: workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v0.2.0 (run 42)\nChecksum: sha256:00\n",
+            "Publish story_engine 0.2.0\n\nPublished by alice via workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v0.2.0 (run 42, attempt 1), triggered by push on refs/tags/v0.2.0\nChecksum: sha256:00\n",
             Some(APP),
             true,
             Area::Index,
@@ -838,13 +837,37 @@ mod tests {
         assert_eq!(publish.version.as_deref(), Some("0.2.0"));
         assert_eq!(
             publish.by,
-            "workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v0.2.0 (run 42)"
+            "alice via workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v0.2.0 (run 42, attempt 1), \
+             triggered by push on refs/tags/v0.2.0"
         );
         assert_eq!(publish.provenance, Some(true));
         assert_eq!(publish.at.as_deref(), Some("2026-09-27T14:20:02Z"));
 
+        // Publishes from before workflow actors were checked keep their publisher.
+        let earlier = classify(
+            "Publish story_engine 0.2.0\n\nPublisher: workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v0.2.0 (run 42)\nChecksum: sha256:00\n",
+            Some(APP),
+            true,
+            Area::Index,
+        );
+        assert_eq!(
+            (earlier.action, earlier.by.as_str()),
+            (
+                Action::Publish,
+                "workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v0.2.0 (run 42)"
+            )
+        );
+
+        let manual = classify(
+            "Publish story_engine 0.2.0\n\nPublished by alice (manual publish, no provenance)\nChecksum: sha256:00\n",
+            Some(APP),
+            true,
+            Area::Index,
+        );
+        assert_eq!(manual.by, "alice (manual publish, no provenance)");
+
         let owners = classify(
-            "Publish story_engine 0.1.0\n\nPublisher: user alice (manual publish, no provenance)\n",
+            "Publish story_engine 0.1.0\n\nPublished by alice via workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v0.1.0 (run 7), triggered by release on refs/tags/v0.1.0\n",
             Some(APP),
             true,
             Area::Owners,
@@ -852,6 +875,11 @@ mod tests {
         assert_eq!(owners.action, Action::OwnersChange);
         assert_eq!(owners.version, None);
         assert_eq!(owners.provenance, None);
+        assert!(
+            owners.by.starts_with("alice via workflow "),
+            "{}",
+            owners.by
+        );
 
         let yank = classify(
             "Yank story_engine 0.2.0\n\nBy: bob\n",

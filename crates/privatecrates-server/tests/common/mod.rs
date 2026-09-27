@@ -211,7 +211,7 @@ impl Harness {
 
     /// A bound OIDC token for publishing `krate` from `workflow` in `repo`.
     pub fn publish_token(&self, repo: &str, repo_id: u64, workflow: &str, krate: &Crate) -> String {
-        let claims = FakeGitHub::actions_claims(&self.org, repo, repo_id, workflow);
+        let claims = self.fake.actions_claims(&self.org, repo, repo_id, workflow);
         self.fake.oidc_token(
             &audience::publish(&self.base(), &krate.name, &krate.version, &krate.cksum()),
             &claims,

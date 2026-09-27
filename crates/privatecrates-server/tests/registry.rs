@@ -4,7 +4,6 @@ mod common;
 
 use common::{Crate, Harness, error_detail};
 use privatecrates_common::audience;
-use privatecrates_testkit::FakeGitHub;
 use serde_json::Value;
 
 #[tokio::test]
@@ -217,7 +216,9 @@ async fn publish_token_is_bound_to_the_bytes() {
     assert_eq!(h.publish(&other_version, &token).await.status(), 403);
 
     // A token for reading is not a publish token.
-    let claims = FakeGitHub::actions_claims(&h.org, "acme/story-engine", repo, "release.yml");
+    let claims = h
+        .fake
+        .actions_claims(&h.org, "acme/story-engine", repo, "release.yml");
     let read_token = h.fake.oidc_token(&audience::read(&h.base()), &claims);
     assert_eq!(h.publish(&krate, &read_token).await.status(), 403);
 
@@ -241,7 +242,9 @@ async fn first_publish_must_come_from_the_declared_repository() {
     assert_eq!(h.publish(&undeclared, &token).await.status(), 403);
 
     // A workflow in another organisation.
-    let mut foreign = FakeGitHub::actions_claims(&h.org, "acme/story-engine", repo, "release.yml");
+    let mut foreign = h
+        .fake
+        .actions_claims(&h.org, "acme/story-engine", repo, "release.yml");
     foreign["repository_owner_id"] = "999999".into();
     let token = h.fake.oidc_token(
         &audience::publish(&h.base(), &krate.name, &krate.version, &krate.cksum()),
@@ -283,7 +286,9 @@ async fn later_publishes_must_use_an_allowed_workflow_and_environment() {
     h.refresh().await;
     let token = h.publish_token("acme/story-engine", repo, "release.yml", &next);
     assert_eq!(h.publish(&next, &token).await.status(), 403);
-    let mut claims = FakeGitHub::actions_claims(&h.org, "acme/story-engine", repo, "release.yml");
+    let mut claims = h
+        .fake
+        .actions_claims(&h.org, "acme/story-engine", repo, "release.yml");
     claims["environment"] = "crates".into();
     let token = h.fake.oidc_token(
         &audience::publish(&h.base(), &next.name, &next.version, &next.cksum()),
@@ -331,7 +336,7 @@ async fn manual_publishing_is_opt_in_and_needs_push() {
             .last()
             .unwrap()
             .message
-            .contains("user alice (manual publish, no provenance)")
+            .contains("Published by alice (manual publish, no provenance)")
     );
 }
 
@@ -581,7 +586,9 @@ async fn ci_reads_with_an_exchanged_token() {
     )
     .await;
 
-    let claims = FakeGitHub::actions_claims(&h.org, "acme/website", consumer, "ci.yml");
+    let claims = h
+        .fake
+        .actions_claims(&h.org, "acme/website", consumer, "ci.yml");
     let oidc = h.fake.oidc_token(&audience::read(&h.base()), &claims);
 
     // OIDC tokens are for publishing and exchange only.

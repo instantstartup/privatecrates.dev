@@ -223,8 +223,9 @@ exact `.crate` it is about to upload. The provider requests an Actions OIDC toke
 cacheable and valid for this operation only.
 
 The service accepts the publish only if the audience matches the uploaded bytes, the token's `repository_id` is the
-crate's owning repository, and its workflow (and environment, if configured) is allowed in `owners/{name}.toml`
-(§5). The token is stored with the release as its provenance (§10.3). Because it names one immutable version and
+crate's owning repository, its workflow (and environment, if configured) is allowed in `owners/{name}.toml` (§5),
+the run was triggered by `push`, `release` or `workflow_dispatch`, and the person who started it can create releases
+in the owning repository (§6.4). The token is stored with the release as its provenance (§10.3). Because it names one immutable version and
 checksum, it cannot be replayed for anything else. Publishing a whole workspace works the same way: Cargo asks for
 one token per crate.
 
@@ -237,11 +238,17 @@ error: story_engine is published from CI only, so every version has verifiable p
 ```
 
 A crate can opt in to publishing from developers' machines with `allow_manual_publish = true` in its owners file.
-Then anyone with push access to the owning repository can publish from their machine. Such versions have no
+Then anyone with Write access to the owning repository can publish from their machine. Such versions have no
 provenance, and the verifier and search label them as manual publishes.
 
 **A brand-new crate** is first published from CI too (§6.2), so its first version always has provenance. The error
 above tells a developer who tries it from their machine what to do.
+
+**Who may publish.** One rule, from CI and from a machine alike: only people who can create releases in a crate's
+owning repository, meaning GitHub's Write, Maintain or Admin role (a custom role counts as the role it is based on),
+may publish the crate. Triage and Read are not enough. A workflow run must also have been triggered by an event only
+such people can cause: `push`, `release` or `workflow_dispatch`. Bots, which cannot hold a role, may publish only
+when listed in `publish_bots` in the crate's owners file (§5, §6.4).
 
 Yanking and unyanking (`cargo yank`) are allowed to anyone with push access, from a machine or CI, without
 provenance: yanking a bad version must be quick, it does not change any bytes, and it can be undone.
@@ -401,6 +408,7 @@ repository = "worldbuilding-dev/story-engine"    # for humans, updated on rename
 publish_workflows = ["release.yml"]              # trusted publishing: allowed workflow files in that repository
 publish_environment = "crates"                   # optional: require this GitHub environment (e.g. with reviewers)
 allow_manual_publish = false                     # default; true allows `cargo publish` from machines, without provenance
+publish_bots = ["release-please[bot]"]           # optional: bots whose workflow runs may publish (§6.4)
 ```
 
 `publish_environment` lets a customer require GitHub's environment protection rules, such as a required reviewer,
@@ -488,7 +496,29 @@ as the publish credential itself. Its
 audience, `{base_url}/publish/{name}/{version}/{sha256}`, must match the request exactly. Then:
 - `repository_id` must equal the owners file's (or satisfy the first-publish rule, §6.2);
 - the workflow file from `job_workflow_ref` must be listed in `publish_workflows`;
-- if `publish_environment` is set, the token's `environment` claim must equal it.
+- if `publish_environment` is set, the token's `environment` claim must equal it;
+- `event_name` must be `push`, `release` or `workflow_dispatch`, which only someone with Write access to the
+  repository can cause. Anything else is refused with `publish::trigger_not_allowed`: `pull_request_target`,
+  `issue_comment`, `pull_request`, `workflow_run`, `schedule`, `merge_group`, `repository_dispatch` and the rest can
+  run a workflow for people without Write access, or with no person behind it;
+- the run's `actor` must currently be able to create releases in the owning repository. The service asks
+  `GET /repos/{owner}/{repo}/collaborators/{actor}/permission` with the reader App's installation token (metadata
+  read is enough) and accepts `permission` `write` or `admin` only: GitHub reports Maintain as `write` and Triage as
+  `read`. The response's `user.id` must equal the token's `actor_id`, so a login renamed since the run started
+  cannot stand for someone else. Not a collaborator (404) is a refusal. The answer is cached per (repository ID,
+  actor ID) for at most 60 seconds, and a refusal is `publish::actor_cannot_release`, naming the actor and the
+  repository;
+- a bot (a login ending in `[bot]`, such as `release-please[bot]`) cannot hold a repository role, so it may publish
+  only when listed in the owners file's `publish_bots`; the trigger rule still applies. A crate's first publish
+  has no owners file yet, so it must be started by a person.
+
+The commit and release notes of a trusted publish name the actor, workflow, run, trigger and ref ("Published by
+alice via workflow … (run 42, attempt 1), triggered by push on refs/tags/v1"), for the audit trail. The verifier
+checks the trigger in the stored provenance (§10.3), but cannot re-check the actor: GitHub answers for current
+permissions only, not for when a version was published.
+
+Manual publishing (`allow_manual_publish`) applies the same rule to the developer's own token: GitHub's `push`
+permission, which is true for Write, Maintain and Admin and false for Triage and Read.
 
 This is trusted publishing: no publish secrets anywhere, and nothing that can publish any bytes other than the ones
 the workflow built.
@@ -656,7 +686,8 @@ Threats this design has to survive, and how:
   - any version whose provenance is missing (unless the crate allows manual publishing, in which case the version is
     listed as a manual publish), has an invalid GitHub signature, has an audience that does not name that crate,
     version and checksum, or names a repository, workflow or environment that the owners file did not allow at
-    the time;
+    the time, or a trigger other than `push`, `release` or `workflow_dispatch` (the actor's permission at the
+    time cannot be re-checked, §6.4);
   - crate names that clash with crates.io (§9.3).
 
   GitHub rotates its OIDC signing keys, and old keys eventually disappear from its key set, so provenance must be

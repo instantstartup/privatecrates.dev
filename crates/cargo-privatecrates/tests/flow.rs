@@ -227,7 +227,7 @@ async fn init_publish_from_ci_then_doctor() {
     assert_eq!(status_of(&found, "publish"), ["pass"]);
 
     // CI publishes, from the workflow init wrote.
-    h.fake.set_actions_claims(FakeGitHub::actions_claims(
+    h.fake.set_actions_claims(h.fake.actions_claims(
         &h.org,
         "acme/story-engine",
         repo,

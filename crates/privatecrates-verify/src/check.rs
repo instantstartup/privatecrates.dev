@@ -1,6 +1,7 @@
 //! The checks of one published version, on what the caller fetched from GitHub: its release is present and
 //! immutable, its `.crate` matches the index checksum, and its provenance was signed by GitHub for the right
-//! repository, workflow and environment.
+//! repository, workflow, environment and triggering event. Whether the run's actor could create releases is not
+//! checked: GitHub answers for current permissions only, not for when the version was published.
 //!
 //! No I/O happens here, so the verifier and the PrivateCrates server (for its compliance dashboard) run exactly the
 //! same checks, each fetching the evidence its own way.
@@ -43,7 +44,7 @@ pub enum Digest {
 /// What the version's provenance shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Provenance {
-    /// Signed by GitHub for the owning repository, an allowed workflow and the required environment.
+    /// Signed by GitHub for the owning repository, an allowed workflow and trigger, and the required environment.
     Valid,
     Invalid(String),
     /// None, and the crate allowed manual publishing.

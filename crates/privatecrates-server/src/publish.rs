@@ -10,7 +10,7 @@ use privatecrates_common::{
     index::{IndexFile, IndexLine, PublishMetadata},
     is_crates_io,
     name::CrateName,
-    sha256_hex,
+    sha256_hex, trigger,
 };
 use time::OffsetDateTime;
 
@@ -71,7 +71,7 @@ pub fn parse_body(body: &Bytes, max_crate_bytes: usize) -> Result<Upload, ApiErr
 enum Publisher {
     /// A trusted publish: the OIDC token is the provenance, stored with the release.
     Workflow {
-        claims: ActionsClaims,
+        claims: Box<ActionsClaims>,
         token: String,
     },
     /// A manual publish, allowed only when the crate opts in.
@@ -79,14 +79,22 @@ enum Publisher {
 }
 
 impl Publisher {
+    /// Who published and how, for the commit message and release notes (`Published by …`), from which the
+    /// compliance dashboard's audit trail reads it back (see `compliance.rs`).
     fn describe(&self) -> String {
         match self {
-            Self::Workflow { claims, .. } => format!(
-                "workflow {} (run {})",
-                claims.job_workflow_ref,
-                claims.run_id.as_deref().unwrap_or("unknown")
-            ),
-            Self::User { login, .. } => format!("user {login} (manual publish, no provenance)"),
+            Self::Workflow { claims, .. } => {
+                let run_id = claims.run_id.as_deref().unwrap_or("unknown");
+                let run = match &claims.run_attempt {
+                    Some(attempt) => format!("run {run_id}, attempt {attempt}"),
+                    None => format!("run {run_id}"),
+                };
+                format!(
+                    "{} via workflow {} ({run}), triggered by {} on {}",
+                    claims.actor, claims.job_workflow_ref, claims.event_name, claims.git_ref
+                )
+            }
+            Self::User { login, .. } => format!("{login} (manual publish, no provenance)"),
         }
     }
 }
@@ -148,7 +156,7 @@ pub async fn publish(
         });
     }
     let message = format!(
-        "Publish {name} {}\n\nPublisher: {}\nChecksum: sha256:{cksum}\n",
+        "Publish {name} {}\n\nPublished by {}\nChecksum: sha256:{cksum}\n",
         meta.vers,
         publisher.describe()
     );
@@ -229,6 +237,12 @@ async fn authorize(
             let repository_id = claims
                 .repository_id()
                 .ok_or(ApiError::OidcRepositoryMissing)?;
+            if !trigger::may_publish(&claims.event_name) {
+                return Err(ApiError::TriggerNotAllowed {
+                    name: name.to_string(),
+                    event: claims.event_name.clone(),
+                });
+            }
             let workflow = claims
                 .own_workflow_file()
                 .ok_or(ApiError::WorkflowElsewhere)?;
@@ -275,10 +289,18 @@ async fn authorize(
                         publish_workflows: vec![workflow.to_owned()],
                         publish_environment: None,
                         allow_manual_publish: false,
+                        publish_bots: Vec::new(),
                     })
                 }
             };
-            Ok((Publisher::Workflow { claims, token }, new_owner))
+            check_actor(resolver, name, owner, &claims, repository_id).await?;
+            Ok((
+                Publisher::Workflow {
+                    claims: Box::new(claims),
+                    token,
+                },
+                new_owner,
+            ))
         }
         Credential::Registry(_) => Err(ApiError::RegistryTokenReadOnly),
         credential @ (Credential::AppUser(_) | Credential::GitHub(_)) => {
@@ -302,6 +324,50 @@ async fn authorize(
             Ok((Publisher::User { caller, login }, None))
         }
     }
+}
+
+/// Only people who can create releases in the owning repository may publish its crates, from CI too (SPEC §6.4):
+/// the workflow run's actor must have Write access to it now, unless they are a bot the owners file lists.
+async fn check_actor(
+    resolver: &Resolver<'_>,
+    name: &CrateName,
+    owner: Option<&Owner>,
+    claims: &ActionsClaims,
+    repository_id: u64,
+) -> Result<(), ApiError> {
+    let actor = &claims.actor;
+    if owner.is_some_and(|o| o.allows_bot(actor)) {
+        return Ok(());
+    }
+    let refuse = |advice: String| ApiError::ActorCannotRelease {
+        actor: actor.clone(),
+        name: name.to_string(),
+        repository: claims.repository.clone(),
+        advice,
+    };
+    // A GitHub App's bot cannot be given Write access, so there is nothing to look up.
+    if actor.ends_with("[bot]") {
+        return Err(refuse(format!(
+            "A bot may publish only if an administrator lists it in publish_bots in {} in the storage \
+             repository, and a crate's first version must be published by a person",
+            owner_path(name.as_str())
+        )));
+    }
+    let actor_id = claims
+        .actor_id()
+        .ok_or_else(|| ApiError::OidcTokenInvalid {
+            reason: "the token has no valid actor_id".into(),
+        })?;
+    if resolver
+        .actor_can_release(&claims.repository, repository_id, actor, actor_id)
+        .await?
+    {
+        return Ok(());
+    }
+    Err(refuse(format!(
+        "Ask an administrator of {} for Write access, or have someone who has it run the workflow",
+        claims.repository
+    )))
 }
 
 /// `owner/repo`, lowercased, from a GitHub repository URL.

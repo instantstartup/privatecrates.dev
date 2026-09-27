@@ -183,6 +183,23 @@ impl Membership {
     }
 }
 
+/// A user's permission on a repository.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CollaboratorPermission {
+    /// The base role: `admin`, `write`, `read` or `none`. GitHub maps `maintain` to `write`, `triage` to `read`,
+    /// and a custom role to the role it is based on.
+    pub permission: String,
+    #[serde(default)]
+    pub user: Option<Account>,
+}
+
+impl CollaboratorPermission {
+    /// Whether the permission includes creating releases: Write, Maintain or Admin.
+    pub fn can_release(&self) -> bool {
+        matches!(self.permission.as_str(), "write" | "admin")
+    }
+}
+
 /// A user access token from the web sign-in flow.
 pub struct UserToken {
     pub access_token: String,
@@ -440,6 +457,31 @@ impl GitHub {
             }
         }
         Ok(count)
+    }
+
+    /// A user's permission on a repository (`owner/name`), with an installation token that can read the
+    /// repository's metadata. `None` if they are not a collaborator, or there is no such user.
+    pub async fn collaborator_permission(
+        &self,
+        token: &str,
+        repo: &str,
+        username: &str,
+    ) -> Result<Option<CollaboratorPermission>, GitHubError> {
+        match json(
+            self.request(
+                Method::GET,
+                &format!("/repos/{repo}/collaborators/{username}/permission"),
+                token,
+            )
+            .send_recorded(&self.metrics)
+            .await?,
+        )
+        .await
+        {
+            Ok(permission) => Ok(Some(permission)),
+            Err(GitHubError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     // --- Calls with the caller's token ---
@@ -1027,5 +1069,26 @@ mod tests {
     #[test]
     fn base64_with_line_breaks() {
         assert_eq!(decode_base64("aGVs\nbG8=\n").unwrap(), b"hello");
+    }
+
+    #[test]
+    fn write_maintain_and_admin_can_release() {
+        // GitHub's `permission` for each role; `role_name` is ignored.
+        for (role, permission, can) in [
+            ("admin", "admin", true),
+            ("maintain", "write", true),
+            ("write", "write", true),
+            ("triage", "read", false),
+            ("read", "read", false),
+            ("none", "none", false),
+        ] {
+            let response: CollaboratorPermission = serde_json::from_value(serde_json::json!({
+                "permission": permission,
+                "role_name": role,
+                "user": { "login": "alice", "id": 7 },
+            }))
+            .unwrap();
+            assert_eq!(response.can_release(), can, "{role}");
+        }
     }
 }

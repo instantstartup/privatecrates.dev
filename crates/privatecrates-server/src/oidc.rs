@@ -27,11 +27,28 @@ pub struct ActionsClaims {
     pub run_id: Option<String>,
     #[serde(default)]
     pub sha: Option<String>,
+    /// The login of the account that started the run: who pushed, published the release or ran the workflow.
+    pub actor: String,
+    pub actor_id: String,
+    /// What triggered the run, e.g. `push` (see [`privatecrates_common::trigger`]).
+    pub event_name: String,
+    /// The git ref the run is for, e.g. `refs/tags/v1`.
+    #[serde(rename = "ref")]
+    pub git_ref: String,
+    /// `branch` or `tag`.
+    #[serde(default)]
+    pub ref_type: Option<String>,
+    #[serde(default)]
+    pub run_attempt: Option<String>,
 }
 
 impl ActionsClaims {
     pub fn repository_id(&self) -> Option<u64> {
         self.repository_id.parse().ok()
+    }
+
+    pub fn actor_id(&self) -> Option<u64> {
+        self.actor_id.parse().ok()
     }
 
     pub fn owner_id(&self) -> Option<u64> {
@@ -252,6 +269,12 @@ mod tests {
             environment: None,
             run_id: None,
             sha: None,
+            actor: "alice".into(),
+            actor_id: "7".into(),
+            event_name: "push".into(),
+            git_ref: "refs/tags/v1".into(),
+            ref_type: Some("tag".into()),
+            run_attempt: Some("1".into()),
         }
     }
 

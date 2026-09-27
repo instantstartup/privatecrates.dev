@@ -1,6 +1,6 @@
 [package]
 name = "privatecrates-common"
-version = "0.2.2"
+version = "0.2.3"
 description = "Types and rules shared by the PrivateCrates credential provider, verifier and server."
 license = "MIT OR Apache-2.0"
 readme = "README.md"

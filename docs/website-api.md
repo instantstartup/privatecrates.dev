@@ -228,7 +228,7 @@ discarded by a `push` webhook for the storage repository. `Cache-Control: no-sto
   ],
   "audit": [
     { "at": "2026-09-27T14:20:01Z", "action": "publish", "crate": "story_engine", "version": "0.2.0",
-      "by": "workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v0.2.0 (run 42)",
+      "by": "alice via workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v0.2.0 (run 42, attempt 1), triggered by push on refs/tags/v0.2.0",
       "provenance": true, "commit": "abc1234…" }
   ],
   "audit_next_before": "9f8e7d6…"
@@ -236,7 +236,9 @@ discarded by a `push` webhook for the storage repository. `Cache-Control: no-sto
 ```
 - **`integrity`** runs `privatecrates-verify`'s own per-version checks (its `check` module): the release exists and is
   immutable, the `.crate` digest matches the index `cksum`, and the provenance was signed by GitHub for the owning
-  repository, an allowed workflow and the required environment (checked against the crate's current owners file).
+  repository, an allowed workflow and trigger (`push`, `release` or `workflow_dispatch`), and the required environment
+  (checked against the crate's current owners file). Whether the run's actor could create releases is not checked
+  here: GitHub answers for current permissions only.
   `immutable`, `digest_matches` and `provenance` count the versions passing each check; `manual` counts versions
   published manually where the crate allows it. `problems` lists what the checks found, per version, with the
   verifier's message as `detail` and one of these `code`s:
@@ -247,7 +249,7 @@ discarded by a `push` webhook for the storage repository. `Cache-Control: no-sto
   - `provenance_missing`: no provenance where it is required (a crate's first version, or a crate that does not
     allow manual publishing);
   - `provenance_invalid`: the provenance is not signed by GitHub, or names another repository, workflow, environment,
-    crate, version or checksum;
+    crate, version or checksum, or a trigger other than `push`, `release` or `workflow_dispatch`;
   - `manual_publish`: published manually, without provenance, as the crate allows; worth a look, not a failure;
   - `index_invalid`: an index file, or a line of it, cannot be read (`version` is `null`).
 
@@ -264,7 +266,9 @@ discarded by a `push` webhook for the storage repository. `Cache-Control: no-sto
   `yank`, `unyank`, `owners_change` (including the owners file a crate's first publish creates), `settings_change`,
   and `index_change` (a person edited the index directly, which only the storage App should do). For the storage
   App's commits (by its bot and signed by GitHub) `crate`, `version` and `by` come from the commit message: `by` is
-  the publisher (`workflow …@ref (run N)` or `user alice (manual publish, no provenance)`) or the login that yanked,
+  what follows `Published by ` in the message: `alice via workflow …@ref (run N, attempt M), triggered by push on
+  refs/tags/v1` or `alice (manual publish, no provenance)`, or for publishes made before workflow actors were
+  checked, `workflow …@ref (run N)` or `user alice (manual publish, no provenance)`, or the login that yanked,
   unyanked or set the registry up. A person's commit is classified by what it changed, with `by` its author's GitHub
   login (or the name git recorded), and `crate` and `version` `null`. `provenance` is set for publishes only: whether
   the release has a provenance asset.
@@ -303,7 +307,13 @@ Unauthenticated, `Cache-Control: no-store`: the server's own health, for the sta
 
 ### `GET /api/errors`
 The error catalog from `apollo_errors::error_catalog()`: `[{"code": "publish::ci_only", "message": "…", "http_status": 403}]`,
-for the docs' error reference page.
+for the docs' error reference page. Among the publish refusals (SPEC §6.4):
+- `publish::trigger_not_allowed` (403): the publishing workflow was triggered by an event other than `push`,
+  `release` or `workflow_dispatch`; the detail names the event and why others (`pull_request_target`,
+  `issue_comment`, `workflow_run`, `schedule`, …) are refused.
+- `publish::actor_cannot_release` (403): the account that started the workflow run does not have Write access to the
+  owning repository (permission to create releases), or is a bot not listed in the crate's `publish_bots`; the detail
+  names the actor and repository, and the extension `repository` carries the repository.
 
 ### `POST /webhooks/stripe`
 Stripe webhooks, verified with `Stripe-Signature` and `STRIPE_WEBHOOK_SECRET`: `checkout.session.completed`,

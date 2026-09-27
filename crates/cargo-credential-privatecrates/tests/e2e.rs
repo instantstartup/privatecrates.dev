@@ -115,7 +115,7 @@ async fn publish_and_read_in_github_actions() {
     let home = tempfile::tempdir().unwrap();
 
     // The publish job runs in the crate's own repository.
-    h.fake.set_actions_claims(FakeGitHub::actions_claims(
+    h.fake.set_actions_claims(h.fake.actions_claims(
         &h.org,
         "acme/story-engine",
         repo,
@@ -183,12 +183,10 @@ async fn publish_and_read_in_github_actions() {
     );
 
     // A build job in another repository reads it, through the OIDC exchange.
-    h.fake.set_actions_claims(FakeGitHub::actions_claims(
-        &h.org,
-        "acme/website",
-        site,
-        "ci.yml",
-    ));
+    h.fake.set_actions_claims(
+        h.fake
+            .actions_claims(&h.org, "acme/website", site, "ci.yml"),
+    );
     let consumer = tempfile::tempdir().unwrap();
     project(
         &h,
@@ -220,12 +218,10 @@ async fn publish_and_read_in_github_actions() {
 async fn publish_a_workspace_in_github_actions() {
     let h = Harness::start().await;
     let repo = h.repo("story");
-    h.fake.set_actions_claims(FakeGitHub::actions_claims(
-        &h.org,
-        "acme/story",
-        repo,
-        "release.yml",
-    ));
+    h.fake.set_actions_claims(
+        h.fake
+            .actions_claims(&h.org, "acme/story", repo, "release.yml"),
+    );
     let home = tempfile::tempdir().unwrap();
     let ws = tempfile::tempdir().unwrap();
     project(

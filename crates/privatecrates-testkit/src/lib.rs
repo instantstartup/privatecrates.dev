@@ -87,6 +87,8 @@ pub const READER_CLIENT_SECRET: &str = "fake-reader-client-secret";
 pub const STORAGE_APP_ID: u64 = 2;
 /// The bot accounts the Apps' commits are attributed to.
 pub const READER_APP_LOGIN: &str = "privatecrates-reader[bot]";
+/// The user who starts the workflow runs of [`FakeGitHub::actions_claims`].
+pub const ACTIONS_ACTOR: &str = "releaser";
 pub const STORAGE_APP_LOGIN: &str = "privatecrates-storage[bot]";
 
 #[derive(Clone, Debug)]
@@ -149,6 +151,9 @@ struct User {
     login: String,
     /// Repository ID → can push.
     repos: HashMap<u64, bool>,
+    /// Repository ID → the user's role there, when set by [`FakeGitHub::set_repo_role`]; otherwise `write` if they
+    /// can push and `read` if not.
+    roles: HashMap<u64, String>,
     /// The organisation enforces SSO and this token has not been authorised.
     sso_blocked: bool,
     /// Whether this is a GitHub App user token (`ghu_`), which can list installation repositories.
@@ -280,11 +285,22 @@ impl FakeGitHub {
                 id,
                 login: login.into(),
                 repos: repos.iter().copied().collect(),
+                roles: HashMap::new(),
                 sso_blocked: false,
                 app_user: prefix == "ghu_",
             },
         );
         token
+    }
+
+    /// Gives a user a role on a repository: `read`, `triage`, `write`, `maintain` or `admin`. Write and above can
+    /// push.
+    pub fn set_repo_role(&self, token: &str, repo: u64, role: &str) {
+        let mut w = self.world();
+        let user = w.users.get_mut(token).expect("known token");
+        user.repos
+            .insert(repo, matches!(role, "write" | "maintain" | "admin"));
+        user.roles.insert(repo, role.into());
     }
 
     pub fn block_sso(&self, token: &str) {
@@ -468,12 +484,46 @@ impl FakeGitHub {
         sign_oidc(&self.oidc_issuer(), audience, claims)
     }
 
-    /// Standard claims for a workflow run in `repository`.
+    /// Standard claims for a workflow run in `repository`, started by pushing a tag. The actor is
+    /// [`ACTIONS_ACTOR`], a user this gives push access to the repository.
     pub fn actions_claims(
+        &self,
         org: &Org,
         repository: &str,
         repository_id: u64,
         workflow: &str,
+    ) -> Value {
+        let existing = self
+            .world()
+            .users
+            .iter()
+            .find(|(_, u)| u.login == ACTIONS_ACTOR)
+            .map(|(token, _)| token.clone());
+        let token = existing.unwrap_or_else(|| self.add_user(ACTIONS_ACTOR, "ghu_", &[]));
+        let actor_id = {
+            let mut w = self.world();
+            let user = w.users.get_mut(&token).expect("the actor");
+            user.repos.insert(repository_id, true);
+            user.id
+        };
+        Self::actions_claims_for(
+            org,
+            repository,
+            repository_id,
+            workflow,
+            (ACTIONS_ACTOR, actor_id),
+            "push",
+        )
+    }
+
+    /// Claims for a workflow run in `repository`, started by `actor` (login and user ID) with `event`.
+    pub fn actions_claims_for(
+        org: &Org,
+        repository: &str,
+        repository_id: u64,
+        workflow: &str,
+        (actor, actor_id): (&str, u64),
+        event: &str,
     ) -> Value {
         json!({
             "repository": repository,
@@ -482,8 +532,14 @@ impl FakeGitHub {
             "repository_owner_id": org.id.to_string(),
             "job_workflow_ref": format!("{repository}/.github/workflows/{workflow}@refs/tags/v1"),
             "run_id": "42",
+            "run_attempt": "1",
             "sha": "deadbeef",
+            "ref": "refs/tags/v1",
+            "ref_type": "tag",
             "sub": format!("repo:{repository}:ref:refs/tags/v1"),
+            "actor": actor,
+            "actor_id": actor_id.to_string(),
+            "event_name": event,
         })
     }
 
@@ -1041,6 +1097,10 @@ fn router(fake: FakeGitHub) -> Router {
         .route("/repos/{owner}/{repo}/contents/{*path}", put(put_contents))
         .route("/repos/{owner}/{repo}/commits", get(list_commits))
         .route(
+            "/repos/{owner}/{repo}/collaborators/{username}/permission",
+            get(collaborator_permission),
+        )
+        .route(
             "/repos/{owner}/{repo}/releases",
             get(list_releases).post(create_release),
         )
@@ -1223,6 +1283,43 @@ async fn repository_by_id(
         Ok(_) => error(StatusCode::NOT_FOUND, "Not Found"),
         Err(e) => e,
     }
+}
+
+/// A user's permission on a repository, for an installation token that covers it (metadata read is enough). As
+/// GitHub does, `permission` is the base role: `maintain` is `write` and `triage` is `read`. Someone with no access
+/// is not a collaborator: 404.
+async fn collaborator_permission(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Path((owner, name, username)): Path<(String, String, String)>,
+) -> Response {
+    let w = fake.world();
+    let (repo, _) = match storage_access(&w, &headers, &owner, &name) {
+        Ok(found) => found,
+        Err(e) => return e,
+    };
+    let Some(user) = w.users.values().find(|u| u.login == username) else {
+        return error(StatusCode::NOT_FOUND, "Not Found");
+    };
+    let Some(&push) = user.repos.get(&repo) else {
+        return error(StatusCode::NOT_FOUND, "Not Found");
+    };
+    let role = user
+        .roles
+        .get(&repo)
+        .cloned()
+        .unwrap_or_else(|| if push { "write" } else { "read" }.into());
+    let permission = match role.as_str() {
+        "admin" => "admin",
+        "maintain" | "write" => "write",
+        _ => "read",
+    };
+    Json(json!({
+        "permission": permission,
+        "role_name": role,
+        "user": { "login": user.login, "id": user.id },
+    }))
+    .into_response()
 }
 
 async fn tree(

@@ -8,8 +8,7 @@ use serde_json::{Value, json};
 const REPO: &str = "acme/story-engine";
 const OWNERS: &str = "owners/story_engine.toml";
 const INDEX: &str = "index/st/or/story_engine";
-const WORKFLOW: &str =
-    "workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v1 (run 42)";
+const WORKFLOW: &str = "releaser via workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v1 (run 42, attempt 1), triggered by push on refs/tags/v1";
 
 /// A signed-in member of `acme` with the given role.
 async fn member(h: &Harness, login: &str, role: &str) -> String {
@@ -213,7 +212,7 @@ async fn manual_publishing() {
             "publish",
             "story_engine",
             "0.2.0",
-            "user alice (manual publish, no provenance)",
+            "alice (manual publish, no provenance)",
             false
         ])
     );
@@ -301,8 +300,7 @@ async fn forged_provenance() {
     let repo = h.repo("story-engine");
     publish(&h, repo, "0.1.0").await;
     let krate = Crate::new("story_engine", "0.1.0", REPO);
-    let claims =
-        privatecrates_testkit::FakeGitHub::actions_claims(&h.org, REPO, repo, "release.yml");
+    let claims = h.fake.actions_claims(&h.org, REPO, repo, "release.yml");
     let forged = privatecrates_testkit::forge_oidc(
         &h.fake.oidc_issuer(),
         &privatecrates_common::audience::publish(
@@ -491,7 +489,9 @@ async fn the_audit_trail_pages_and_exports() {
         )
     );
     assert!(
-        rows[4].contains(&format!(",publish,story_engine,0.48.0,{WORKFLOW},true,")),
+        rows[4].contains(&format!(
+            ",publish,story_engine,0.48.0,\"{WORKFLOW}\",true,"
+        )),
         "{}",
         rows[4]
     );
