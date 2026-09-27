@@ -5,7 +5,7 @@
 #   2. create the GitHub release `vX.Y.Z` with the archives and SHA256SUMS (the URLs cargo-binstall uses);
 #   3. publish the three crates to crates.io with trusted publishing (no stored token).
 #
-# The server is not released here: it is deployed by Railway from the `production` branch (docs/deploy.md).
+# The server is not released here: it is deployed by Railway: dev from the `dev` branch, production from `main` (docs/deploy.md).
 
 name: Release
 
