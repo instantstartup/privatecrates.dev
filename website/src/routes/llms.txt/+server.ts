@@ -36,7 +36,7 @@ ${fence(installCli)}
 ${fence(cliUsage)}
 
 - \`login\` / \`logout\`: GitHub's device flow for the reader App. The token is stored in the operating system's keyring, shared with the credential provider.
-- \`setup <org>\`: prints the organisation's set-up checklist, each step's status (\`done\`, \`todo\` or \`blocked\`) and, where a person must act, the link. \`--slug\` saves the registry name; \`--start-trial\` starts the no-card trial; \`--json\` prints the checklist as JSON.
+- \`setup <org>\`: prints the organisation's set-up checklist, each step's status (\`done\`, \`todo\` or \`blocked\`) and, where a person must act, the link. \`--slug\` saves the registry name; \`--start-trial --billing-email <address>\` starts the no-card trial (Stripe sends the trial-ending reminder and invoices to that address; ask the admin for it, never guess it); \`--json\` prints the checklist as JSON.
 - \`init --registry <name>\`: run in a crate repository or workspace. Adds the registry to \`.cargo/config.toml\`, sets \`package.repository\` from the git remote where missing, and writes \`.github/workflows/publish.yml\`. Idempotent; prints what it changed.
 - \`doctor\`: checks the credential provider, the registry, \`package.repository\`, the publish workflow's \`id-token: write\` permission, that \`publish\` is restricted to the registry and, once a version is published, that it is in the registry's index. Immutable releases and provenance are checked by \`privatecrates-verify\`, run on the storage repository.
 
@@ -53,7 +53,7 @@ ${indent(fence(storageRepoCommands(ORG)))}
    Or use an existing, empty private repository. It must hold nothing but the registry.
 6. Storage App. **A person is needed:** give the admin the \`storage_app\` step's link. It is pre-selected for the organisation; they choose "Only select repositories" and pick the storage repository alone. Wait.
 7. Registry name, once both Apps are installed: \`${cli(`setup ${ORG} --slug ${SLUG}`)}\`. The name becomes the hostname \`<name>.${PROD_APEX}\` and the registry name in Cargo; lowercase letters, digits and hyphens. The service saves it as \`privatecrates.toml\` in the storage repository.
-8. Plan. Organisations with up to ${FREE_MEMBER_LIMIT} members are free: nothing to do. Larger ones: \`${cli(`setup ${ORG} --start-trial`)}\` (no card). If the checklist says the organisation has had its trial, **a person is needed:** the admin subscribes with a card at https://${PROD_APEX}/account.
+8. Plan. Organisations with up to ${FREE_MEMBER_LIMIT} members are free: nothing to do. Larger ones: ask the admin for a billing email address, then \`${cli(`setup ${ORG} --start-trial --billing-email <address>`)}\` (no card). If the checklist says the organisation has had its trial, **a person is needed:** the admin subscribes with a card at https://${PROD_APEX}/account.
 9. Confirm: \`${cli(`setup ${ORG} --json`)}\` reports every step as \`done\`. The registry is live at https://<name>.${PROD_APEX}.
 
 ## Configure crate repositories and publish

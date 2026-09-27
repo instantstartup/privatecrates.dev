@@ -1,16 +1,14 @@
 <script lang="ts">
 	import { api, ApiError, hasSubscription, isActive, planOf, type Org, type Tenant } from '$lib/api';
 	import Callout from '$lib/components/Callout.svelte';
-	import {
-		FREE_MEMBER_LIMIT,
-		PRICE_USD,
-		READ_GRACE_DAYS,
-		TRIAL_MONTHS,
-		TRIAL_REMINDER_DAYS
-	} from '$lib/site';
+	import { FREE_MEMBER_LIMIT, PRICE_USD, READ_GRACE_DAYS, TRIAL_REMINDER_DAYS } from '$lib/site';
 	import ErrorNotice from './ErrorNotice.svelte';
 	import { addDays, daysUntil, formatDate, plural } from './format';
+	import { page } from '$app/state';
+	import Tabs, { tabIds, type Tab } from '$lib/components/Tabs.svelte';
+	import ComplianceView from './ComplianceView.svelte';
 	import GettingStarted from './GettingStarted.svelte';
+	import TrialForm from './TrialForm.svelte';
 
 	interface Props {
 		org: Org;
@@ -27,6 +25,17 @@
 	}
 
 	let { org, tenant, planDetail, live, onchange }: Props = $props();
+
+	const tabs: Tab[] = [
+		{ id: 'guide', label: 'Getting started' },
+		{ id: 'compliance', label: 'Compliance' }
+	];
+	// ?tab=compliance opens the dashboard directly, e.g. from a link shared with an auditor.
+	let view = $state(page.url.searchParams.get('tab') === 'compliance' ? 'compliance' : 'guide');
+	let complianceOpened = $state(false);
+	$effect(() => {
+		if (view === 'compliance') complianceOpened = true;
+	});
 
 	const admin = $derived(org.role === 'admin');
 	const plan = $derived(planOf(org));
@@ -50,20 +59,14 @@
 		!hasCard && trialDaysLeft === 0 && !!trialEnds && (!periodEndIso || periodEndIso === trialEndsIso)
 	);
 
-	let busy = $state<'portal' | 'checkout' | 'trial' | null>(null);
-	let failed = $state<'portal' | 'checkout' | 'trial' | null>(null);
+	let busy = $state<'portal' | 'checkout' | null>(null);
+	let failed = $state<'portal' | 'checkout' | null>(null);
 	let error = $state<ApiError | null>(null);
 
-	async function go(kind: 'portal' | 'checkout' | 'trial') {
+	async function go(kind: 'portal' | 'checkout') {
 		busy = kind;
 		error = null;
 		try {
-			if (kind === 'trial') {
-				await api.trial(org.login);
-				busy = null;
-				onchange?.();
-				return;
-			}
 			const { url } = kind === 'portal' ? await api.portal(org.login) : await api.checkout(org.login);
 			location.assign(url);
 		} catch (e) {
@@ -75,8 +78,7 @@
 
 	const errorTitles = {
 		portal: 'Billing could not be opened',
-		checkout: 'Checkout could not be opened',
-		trial: 'The free trial could not start'
+		checkout: 'Checkout could not be opened'
 	};
 </script>
 
@@ -124,7 +126,28 @@
 	{/if}
 
 	{#if live}
-		<GettingStarted org={org.login} {tenant} />
+		<div class="views">
+			<Tabs {tabs} bind:selected={view} prefix="registry-{org.login}" label="Registry" />
+			<div
+				role="tabpanel"
+				id={tabIds(`registry-${org.login}`, 'guide').panel}
+				aria-labelledby={tabIds(`registry-${org.login}`, 'guide').tab}
+				hidden={view !== 'guide'}
+			>
+				<GettingStarted org={org.login} {tenant} />
+			</div>
+			<div
+				role="tabpanel"
+				id={tabIds(`registry-${org.login}`, 'compliance').panel}
+				aria-labelledby={tabIds(`registry-${org.login}`, 'compliance').tab}
+				hidden={view !== 'compliance'}
+			>
+				<!-- Loaded the first time the tab is opened, then kept, so switching back does not reload it. -->
+				{#if complianceOpened}
+					<ComplianceView org={org.login} slug={tenant.slug} />
+				{/if}
+			</div>
+		</div>
 	{:else}
 		<section class="paused" aria-labelledby="paused-{org.login}">
 			<h3 id="paused-{org.login}">Your registry is paused</h3>
@@ -191,13 +214,12 @@
 			<ErrorNotice {error} title={errorTitles[failed]} />
 		{/if}
 
-		{#if admin && (portal || !live)}
+		{#if admin && !live && org.trial_available}
+			<TrialForm org={org.login} onstarted={() => onchange?.()} />
+		{/if}
+		{#if admin && (portal || (!live && !org.trial_available))}
 			<div class="row">
-				{#if !live && org.trial_available}
-					<button class="btn btn-primary" type="button" onclick={() => go('trial')} disabled={busy !== null}>
-						{busy === 'trial' ? 'Starting the trial…' : `Start ${TRIAL_MONTHS}-month free trial`}
-					</button>
-				{:else if !live && hasSubscription(org)}
+				{#if !live && !org.trial_available && hasSubscription(org)}
 					<button
 						class="btn btn-primary"
 						type="button"
@@ -229,6 +251,14 @@
 	.registry {
 		display: grid;
 		gap: 2.5rem;
+	}
+	.views {
+		display: grid;
+		gap: 1.75rem;
+		min-width: 0;
+	}
+	[role='tabpanel'] {
+		min-width: 0;
 	}
 	.paused,
 	.billing {

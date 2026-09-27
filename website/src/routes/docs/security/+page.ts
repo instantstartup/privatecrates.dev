@@ -9,6 +9,7 @@ export function load(): { toc: TocItem[] } {
 			['permissions', 'Permissions are GitHub’s'],
 			['controls', 'Controls'],
 			['integrity', 'Integrity and provenance'],
+			['trust', 'Trust centre'],
 			['source', 'Source code']
 		]
 	};

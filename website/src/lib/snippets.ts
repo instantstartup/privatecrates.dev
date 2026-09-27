@@ -122,7 +122,7 @@ export function cli(args: string, apex = PROD_APEX): string {
 
 export const cliUsage = `cargo privatecrates login
 cargo privatecrates logout
-cargo privatecrates setup <org> [--slug <name>] [--start-trial] [--json]
+cargo privatecrates setup <org> [--slug <name>] [--start-trial --billing-email <address>] [--json]
 cargo privatecrates init --registry <name> [--domain <domain> | --url <url>]
 cargo privatecrates doctor [--json]`;
 
@@ -144,8 +144,9 @@ export function setupCommands(org: string, slug: string, apex = PROD_APEX): stri
 ${cli(`setup ${org}`, apex)}
 # Choose the registry name (once both Apps are installed)
 ${cli(`setup ${org} --slug ${slug}`, apex)}
-# Organisations over the free limit: start the no-card trial
-${cli(`setup ${org} --start-trial`, apex)}
+# Organisations over the free limit: start the no-card trial. Stripe sends the
+# trial-ending reminder and invoices to the billing email.
+${cli(`setup ${org} --start-trial --billing-email billing@example.com`, apex)}
 # The same checklist as JSON, for agents and scripts
 ${cli(`setup ${org} --json`, apex)}`;
 }
@@ -239,7 +240,9 @@ export function setupPrompt({ org, slug, apex, steps, plan }: SetupPromptInput):
 		);
 	if (todo('settings')) items.push(`Choose the registry name: ${cli(`setup ${org} --slug ${slug}`, apex)}`);
 	if (todo('plan') && plan === 'trial')
-		items.push(`Start the free trial, no card needed: ${cli(`setup ${org} --start-trial`, apex)}`);
+		items.push(
+			`Start the free trial, no card needed. First ask me for the billing email address: Stripe sends the trial-ending reminder and invoices there. Do not guess it or take it from git config. Then run ${cli(`setup ${org} --start-trial --billing-email <address>`, apex)}`
+		);
 	if (todo('plan') && plan === 'subscribe')
 		items.push(`Stop and ask me to subscribe at ${account}: it needs a card, so only I can do it.`);
 	items.push(

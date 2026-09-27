@@ -7,6 +7,7 @@
 	import ErrorNotice from './ErrorNotice.svelte';
 	import { baseDomain, formatDate, plural } from './format';
 	import SlugForm from './SlugForm.svelte';
+	import TrialForm from './TrialForm.svelte';
 
 	interface Props {
 		doc: Onboarding;
@@ -151,7 +152,7 @@
 		return () => document.removeEventListener('visibilitychange', onVisible);
 	});
 
-	let busy = $state<'trial' | 'checkout' | null>(null);
+	let busy = $state<'checkout' | null>(null);
 	let planError = $state<ApiError | null>(null);
 	let planErrorTitle = $state('');
 
@@ -159,18 +160,9 @@
 		return e instanceof ApiError ? e : new ApiError(0, [{ detail: String(e) }]);
 	}
 
-	async function startTrial() {
-		busy = 'trial';
-		planError = null;
-		try {
-			onchange(await api.trial(doc.org.login));
-			ontrialstarted?.();
-		} catch (e) {
-			planError = toApiError(e);
-			planErrorTitle = 'The free trial could not start';
-		} finally {
-			busy = null;
-		}
+	function trialStarted(started: Onboarding) {
+		onchange(started);
+		ontrialstarted?.();
 	}
 
 	async function subscribe() {
@@ -251,20 +243,7 @@
 									<ErrorNotice error={planError} title={planErrorTitle} />
 								{/if}
 								{#if planAction === 'trial'}
-									<div class="row">
-										<button
-											class="btn btn-primary"
-											type="button"
-											onclick={startTrial}
-											disabled={busy !== null}
-										>
-											{busy === 'trial' ? 'Starting the trial…' : `Start ${TRIAL_MONTHS}-month free trial`}
-										</button>
-										<span class="fine"
-											>No card needed. Afterwards ${PRICE_USD} per organisation per month; add a card any time under
-											Manage billing. One free trial per organisation.</span
-										>
-									</div>
+									<TrialForm org={doc.org.login} onstarted={trialStarted} />
 								{:else if planAction === 'checkout'}
 									<div class="row">
 										<button

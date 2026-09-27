@@ -21,13 +21,30 @@
 //   ?mock=returning      subscribed once, setting up again: Subscribe (Checkout, no trial)
 //   ?mock=no-billing     12 members, billing not configured on the server
 //   ?mock=just-finished  3 members, only the registry name left: saving it makes the registry live
+// Compliance dashboard (the Compliance tab of a live registry; add &tab=compliance to open it directly):
+//   ?mock=compliance           142 versions, all verified with provenance, no risks
+//   ?mock=compliance-problems  142 versions: problems, manual publishes and every kind of risk
+//   ?mock=compliance-empty     a live registry with nothing published yet
+// Every other live registry answers with the clean data. The audit log pages 25 entries at a time (?before=).
+// The trial step asks for a billing email: an address without "@" and a dot after it gets billing::email_invalid.
 // The "Set up with your AI agent" prompt: the set-up variant beside the checklist (?mock=admin, acme; or
 // ?mock=just-finished), and the crate-repository variant in the ready guide (?mock=free, trial, paid).
 // Onboarding: the action links for GitHub steps come back to /account with ?mock_done=<step>, which completes them
 // (comma-separated for several, e.g. ?org=acme&mock_done=storage_repo,storage_app). The billing portal comes back
 // with ?mock_done=card, which adds a card.
 
-import type { CatalogEntry, Onboarding, Org, Plan, Session, Step, Tenant } from '../api';
+import type {
+	AuditEntry,
+	CatalogEntry,
+	Compliance,
+	Onboarding,
+	Org,
+	Plan,
+	Publisher,
+	Session,
+	Step,
+	Tenant
+} from '../api';
 
 const SIGNED_IN = ['admin', 'member', 'no-orgs', 'signed-out', 'down', 'broken'] as const;
 const BILLING = [
@@ -41,7 +58,10 @@ const BILLING = [
 	'inactive',
 	'returning',
 	'no-billing',
-	'just-finished'
+	'just-finished',
+	'compliance',
+	'compliance-problems',
+	'compliance-empty'
 ] as const;
 type Scenario = (typeof SIGNED_IN)[number] | (typeof BILLING)[number];
 
@@ -73,6 +93,8 @@ interface OrgModel {
 	billing: boolean;
 	/** Checkout finished but Stripe's webhook has not arrived: the subscription appears after a few session reads. */
 	pendingCheckout: number | null;
+	/** Set on the Stripe customer when the trial starts. */
+	billingEmail?: string;
 }
 
 interface State {
@@ -163,6 +185,10 @@ function orgsFor(scenario: Scenario): OrgModel[] {
 			return acme({ members: 12, billing: false });
 		case 'just-finished':
 			return acme({ members: 3, slug: null });
+		case 'compliance':
+		case 'compliance-problems':
+		case 'compliance-empty':
+			return acme({ members: 12, sub: paid(), trialUsed: true });
 		default: {
 			// acme is listed only because it has installed the reader App (GitHub user tokens see nothing else).
 			const role = scenario === 'member' ? 'member' : 'admin';
@@ -410,9 +436,151 @@ const catalog: CatalogEntry[] = [
 		'the storage repository does not have immutable releases enabled',
 		409
 	],
+	[
+		'billing::email_invalid',
+		'{email} is not a valid email address. Stripe sends the trial reminder and invoices there',
+		422
+	],
 	['registry::not_found', 'not found', 404],
 	['github::rate_limited', 'GitHub’s rate limit was reached; please try again in a few minutes', 503]
 ].map(([code, message, http_status]) => ({ code, message, http_status }) as CatalogEntry);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Compliance
+
+const AUDIT_PAGE = 25;
+const HOUR = 3_600_000;
+
+function publishersFor(org: string, problems: boolean): Publisher[] {
+	const p = (
+		crate: string,
+		repo: string,
+		workflows: string[],
+		environment: string | null,
+		manual = false
+	): Publisher => ({ crate, repository: `${org}/${repo}`, workflows, environment, manual_publish: manual });
+	return [
+		p('story_engine', 'story-engine', ['release.yml'], 'crates'),
+		p('story_macros', 'story-engine', ['release.yml'], 'crates'),
+		p('ledger_core', 'ledger', ['publish.yml'], 'crates'),
+		p('http_retry', 'platform', ['publish.yml', 'hotfix.yml'], null),
+		p('serde_utils', 'platform', ['publish.yml'], null),
+		p('tools', 'dev-tools', ['publish.yml'], null, problems)
+	];
+}
+
+/** The whole audit log, newest first: one publish per version, plus the odd yank and owners change. */
+function auditFor(org: string, publishers: Publisher[], versions: number, problems: boolean): AuditEntry[] {
+	// A fixed clock, so pages stay stable while the mock is open.
+	const start = Date.UTC(2026, 8, 27, 14, 20, 1);
+	const entries: AuditEntry[] = [];
+	const counters: Record<string, number> = {};
+	let t = start;
+	for (let i = 0; i < versions; i++) {
+		const pub = publishers[i % publishers.length];
+		const n = (counters[pub.crate] = (counters[pub.crate] ?? 0) + 1);
+		const version = `0.${Math.floor((200 - n) / 10)}.${(200 - n) % 10}`;
+		const manual = problems && pub.manual_publish && n <= 3;
+		const workflow = pub.workflows[0];
+		entries.push({
+			at: new Date(t).toISOString(),
+			action: 'publish',
+			crate: pub.crate,
+			version,
+			by: manual
+				? 'alice (manual publish)'
+				: `workflow ${pub.repository}/.github/workflows/${workflow}@refs/tags/v${version} (run ${900 - i})`,
+			provenance: !manual && !(problems && pub.crate === 'http_retry' && n === 1),
+			commit: ((i * 2654435761) >>> 0).toString(16).padStart(8, '0').slice(0, 7)
+		});
+		t -= 7 * HOUR + (i % 5) * 1_380_000;
+		if (i % 23 === 11) {
+			entries.push({
+				at: new Date(t).toISOString(),
+				action: 'yank',
+				crate: pub.crate,
+				version,
+				by: 'alice',
+				commit: ((i * 40503) >>> 0).toString(16).padStart(7, '0').slice(0, 7)
+			});
+			t -= 3 * HOUR;
+		}
+		if (i % 31 === 30) {
+			entries.push({
+				at: new Date(t).toISOString(),
+				action: 'owners',
+				crate: pub.crate,
+				by: 'bob (commit to owners/)',
+				commit: ((i * 69069) >>> 0).toString(16).padStart(7, '0').slice(0, 7)
+			});
+			t -= 5 * HOUR;
+		}
+	}
+	if (versions > 0)
+		entries.push({
+			at: new Date(t - 24 * HOUR).toISOString(),
+			action: 'settings',
+			by: `privatecrates-storage[bot], set up by alice (registry ${org})`,
+			commit: 'a1b2c3d'
+		});
+	return entries;
+}
+
+function compliance(o: OrgModel, scenario: Scenario, before: string | null): Compliance {
+	const kind =
+		scenario === 'compliance-problems' ? 'problems' : scenario === 'compliance-empty' ? 'empty' : 'clean';
+	const problems = kind === 'problems';
+	const versions = kind === 'empty' ? 0 : 142;
+	const publishers = kind === 'empty' ? [] : publishersFor(o.login, problems);
+	const all = auditFor(o.login, publishers, versions, problems);
+	const older = before ? all.filter((e) => e.at < before) : all;
+	return {
+		org: { id: o.id, login: o.login },
+		generated_at: new Date(Date.now() - 4 * 60_000).toISOString(),
+		integrity: problems
+			? {
+					versions,
+					immutable: 141,
+					digest_matches: 142,
+					provenance: 138,
+					manual: 3,
+					problems: [
+						{
+							severity: 'error',
+							subject: 'ledger_core@0.18.4',
+							message:
+								'the release is not immutable: immutable releases were off in the storage repository when it was published'
+						},
+						{
+							severity: 'warning',
+							subject: 'http_retry@0.19.9',
+							message:
+								'no provenance, and http_retry does not allow manual publishing: the provenance file is missing from the release'
+						}
+					]
+				}
+			: {
+					versions,
+					immutable: versions,
+					digest_matches: versions,
+					provenance: versions,
+					manual: 0,
+					problems: []
+				},
+		publishers,
+		risks: problems
+			? [
+					{ code: 'name_clash', crate: 'serde_utils', detail: 'a crate with this name exists on crates.io' },
+					{ code: 'manual_publish_allowed', crate: 'tools' },
+					{ code: 'missing_provenance', crate: 'http_retry', detail: '1 version without provenance' },
+					{ code: 'no_verify_workflow' }
+				]
+			: kind === 'empty'
+				? [{ code: 'no_verify_workflow' }]
+				: [],
+		audit: older.slice(0, AUDIT_PAGE)
+	};
+}
 
 function delay<T>(value: T, ms = 350): Promise<T> {
 	return new Promise((resolve) => setTimeout(() => resolve(value), ms));
@@ -448,7 +616,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	}
 	if (path === '/api/session') return delay(json(session(state)));
 
-	const m = path.match(/^\/api\/orgs\/([^/]+)\/(onboarding|settings|trial|checkout|portal)$/);
+	const m = path.match(/^\/api\/orgs\/([^/]+)\/(onboarding|settings|trial|checkout|portal|compliance)$/);
 	if (!m) return delay(error(404, 'not found', 'registry::not_found'));
 	if (state.scenario === 'signed-out' || state.scenario === 'no-orgs')
 		return delay(error(401, 'Sign in to continue.', 'session::required'));
@@ -457,6 +625,10 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	if (!o) return delay(error(404, `You are not a member of ${login}.`, 'account::org_not_found'));
 
 	if (action === 'onboarding' && method === 'GET') return delay(json(onboarding(o)));
+	if (action === 'compliance' && method === 'GET') {
+		if (!o.slug) return delay(error(404, `${login} has no registry yet.`, 'registry::not_found'));
+		return delay(json(compliance(o, state.scenario, url.searchParams.get('before'))), 500);
+	}
 	if (method !== 'POST') return delay(error(405, 'method not allowed', 'registry::method'));
 	if (o.role !== 'admin')
 		return delay(error(403, `Only admins of ${login} can do this.`, 'account::admin_required'));
@@ -489,6 +661,18 @@ export const mockFetch: typeof fetch = async (input, init) => {
 		return delay(json(onboarding(o)), 700);
 	}
 	if (action === 'trial') {
+		const body = JSON.parse(String(init?.body ?? '{}')) as { billing_email?: string };
+		const email = (body.billing_email ?? '').trim();
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+			return delay(
+				error(
+					422,
+					email
+						? `${email} is not a valid email address. Stripe sends the trial reminder and invoices there.`
+						: 'Enter a billing email address: Stripe sends the trial reminder and invoices there.',
+					'billing::email_invalid'
+				)
+			);
 		if (o.members <= LIMIT)
 			return delay(
 				error(409, `${login} has ${o.members} members, so it is on the free plan.`, 'billing::free_plan')
@@ -501,6 +685,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
 			return delay(error(503, 'Billing is not configured on this server.', 'billing::not_configured'));
 		o.sub = trialing(TRIAL_DAYS);
 		o.trialUsed = true;
+		o.billingEmail = email;
 		save(state);
 		return delay(json(onboarding(o)), 700);
 	}

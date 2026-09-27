@@ -2,7 +2,7 @@
 	<p class="title">Draft: not yet legal terms</p>
 	<p>
 		This page is a placeholder showing the intended structure. It is not an agreement and has not been
-		reviewed by a lawyer. Items marked TODO are not decided yet.
+		reviewed by a lawyer. Highlighted items are not decided yet.
 	</p>
 </div>
 

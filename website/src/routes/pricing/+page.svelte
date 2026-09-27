@@ -93,6 +93,10 @@
 				</div>
 			{/each}
 		</dl>
+		<p class="note trust-link">
+			Evaluating us for your security team? The <a href="/trust">trust centre</a> lists what we hold, our subprocessors
+			and our security controls.
+		</p>
 	</section>
 
 	<section class="faq" aria-labelledby="pricing-faq">
@@ -242,6 +246,11 @@
 	.note {
 		margin-bottom: 1.5rem;
 		max-width: 40rem;
+	}
+	.trust-link {
+		margin: 1.75rem 0 0;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--rule);
 	}
 	dl {
 		display: grid;

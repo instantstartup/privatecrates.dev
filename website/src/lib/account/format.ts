@@ -9,6 +9,22 @@ export function formatDate(iso: string | null | undefined): string | null {
 	return Number.isNaN(d.getTime()) ? null : dateFormat.format(d);
 }
 
+const dateTimeFormat = new Intl.DateTimeFormat('en-GB', {
+	day: 'numeric',
+	month: 'short',
+	year: 'numeric',
+	hour: '2-digit',
+	minute: '2-digit',
+	timeZone: 'UTC'
+});
+
+/** "27 Sept 2026, 14:20", in UTC: audit logs are compared across time zones. */
+export function formatDateTime(iso: string | null | undefined): string | null {
+	if (!iso) return null;
+	const d = new Date(iso);
+	return Number.isNaN(d.getTime()) ? null : dateTimeFormat.format(d);
+}
+
 export function addDays(iso: string, days: number): string {
 	return new Date(new Date(iso).getTime() + days * 86_400_000).toISOString();
 }

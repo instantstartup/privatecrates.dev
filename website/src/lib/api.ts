@@ -68,6 +68,79 @@ export interface Onboarding {
 	suggested_slug?: string;
 }
 
+/**
+ * One integrity failure the server's checks found (the verifier's checks, run server-side). The plan leaves its
+ * shape open, so this accepts the verifier's finding (`severity`, `subject`, `message`) as well as a coded form.
+ */
+export interface ComplianceProblem {
+	severity?: 'error' | 'warning' | 'info' | string;
+	/** What it is about, e.g. `story_engine@0.2.0`. */
+	subject?: string;
+	message?: string;
+	code?: string;
+	crate?: string;
+	version?: string;
+	detail?: string;
+}
+
+export interface Integrity {
+	versions: number;
+	/** Versions whose release exists and is immutable. */
+	immutable: number;
+	/** Versions whose .crate digest on GitHub matches the index `cksum`. */
+	digest_matches: number;
+	/** Versions with valid GitHub-signed provenance. */
+	provenance: number;
+	/** Versions published manually (crates that allow it): no provenance, listed for review. */
+	manual: number;
+	problems: ComplianceProblem[];
+}
+
+/** Who may publish a crate, from its owners file. */
+export interface Publisher {
+	crate: string;
+	/** `owner/name` on GitHub. */
+	repository: string;
+	workflows: string[];
+	environment: string | null;
+	manual_publish: boolean;
+}
+
+export type RiskCode = 'name_clash' | 'manual_publish_allowed' | 'missing_provenance' | 'no_verify_workflow';
+
+export interface Risk {
+	code: RiskCode | string;
+	crate?: string;
+	detail?: string;
+}
+
+export interface AuditEntry {
+	at: string;
+	/** publish, yank, unyank, owners, settings, … */
+	action: string;
+	crate?: string;
+	version?: string;
+	by: string;
+	provenance?: boolean;
+	commit?: string;
+}
+
+/** GET /api/orgs/{org}/compliance (docs/trust-and-status.md §4). */
+export interface Compliance {
+	org: { id: number; login: string };
+	generated_at: string;
+	integrity: Integrity;
+	publishers: Publisher[];
+	risks: Risk[];
+	/** Newest first; one page. */
+	audit: AuditEntry[];
+	/**
+	 * The `?before=` value for the next (older) page, when the server sends one; null when there are no older
+	 * entries. Without it, the page passes the oldest entry's `at`.
+	 */
+	audit_next_before?: string | null;
+}
+
 export interface CatalogEntry {
 	code: string;
 	message: string;
@@ -156,13 +229,28 @@ export const api = {
 	onboarding: (login: string) => request<Onboarding>('GET', `${org(login)}/onboarding`),
 	saveSettings: (login: string, slug: string) =>
 		request<Onboarding>('POST', `${org(login)}/settings`, { slug }),
-	/** Starts the no-card free trial; returns the onboarding document. */
-	trial: (login: string) => request<Onboarding>('POST', `${org(login)}/trial`),
+	/**
+	 * Starts the no-card free trial; returns the onboarding document. Stripe sends the trial-ending reminder and
+	 * invoices to the billing email.
+	 */
+	trial: (login: string, billingEmail: string) =>
+		request<Onboarding>('POST', `${org(login)}/trial`, { billing_email: billingEmail }),
+	/** The compliance dashboard; `before` pages back through the audit log. */
+	compliance: (login: string, before?: string) =>
+		request<Compliance>(
+			'GET',
+			`${org(login)}/compliance${before ? `?before=${encodeURIComponent(before)}` : ''}`
+		),
 	checkout: (login: string) => request<{ url: string }>('POST', `${org(login)}/checkout`),
 	portal: (login: string) => request<{ url: string }>('POST', `${org(login)}/portal`),
 	logout: () => request<void>('POST', '/auth/logout'),
 	errors: () => request<CatalogEntry[]>('GET', '/api/errors')
 };
+
+/** The audit log as CSV, for auditors: a plain download with the session cookie. */
+export function auditCsvUrl(login: string): string {
+	return `${org(login)}/compliance/audit.csv`;
+}
 
 /** Where "Sign in with GitHub" goes. */
 export function loginUrl(returnTo = '/account'): string {

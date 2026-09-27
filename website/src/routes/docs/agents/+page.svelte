@@ -53,7 +53,7 @@
 		{
 			step: `Start the trial (over ${FREE_MEMBER_LIMIT} members)`,
 			who: 'agent',
-			how: `cargo privatecrates setup --start-trial: ${TRIAL_MONTHS} months, no card.`
+			how: `cargo privatecrates setup --start-trial --billing-email: ${TRIAL_MONTHS} months, no card. The agent asks you for the billing email first.`
 		},
 		{
 			step: 'Configure each crate repository',
@@ -173,7 +173,8 @@
 <h3 id="cli-setup">setup</h3>
 <p>
 	Prints the organisation’s set-up checklist, each step’s status, and a link where a person must act.
-	<code>--slug</code> saves the registry name, <code>--start-trial</code> starts the no-card trial, and
+	<code>--slug</code> saves the registry name, <code>--start-trial --billing-email &lt;address&gt;</code>
+	starts the no-card trial (Stripe sends the trial-ending reminder and invoices to that address), and
 	<code>--json</code> prints the checklist for agents and scripts.
 </p>
 <CodeBlock caption="shell" code={setupCommands(org, org)} />

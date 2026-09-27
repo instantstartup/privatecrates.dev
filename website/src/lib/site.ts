@@ -21,7 +21,8 @@ export interface NavLink {
 
 export const primaryNav: NavLink[] = [
 	{ href: '/docs', label: 'Docs' },
-	{ href: '/pricing', label: 'Pricing' }
+	{ href: '/pricing', label: 'Pricing' },
+	{ href: '/trust', label: 'Trust' }
 ];
 
 export const docsNav: NavLink[] = [
@@ -41,8 +42,11 @@ export const sitemapPaths = [
 	'/pricing',
 	...docsNav.map((l) => l.href).filter((h) => h !== '/docs'),
 	'/docs',
+	'/trust',
+	'/security',
 	'/legal/terms',
-	'/legal/privacy'
+	'/legal/privacy',
+	'/legal/dpa'
 ];
 
 /** Registry name used in examples throughout the docs. */

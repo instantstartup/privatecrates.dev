@@ -1,0 +1,420 @@
+<script lang="ts">
+	import Seo from '$lib/components/Seo.svelte';
+	import Todo from '$lib/components/Todo.svelte';
+	import type { TocItem } from '$lib/components/Toc.svelte';
+	import TocLayout from '$lib/components/TocLayout.svelte';
+	import Lighthouse from '$lib/illustrations/Lighthouse.svelte';
+	import { SECURITY_EMAIL, STATUS_URL, subprocessors } from '$lib/trust';
+
+	const toc: TocItem[] = [
+		['what-we-hold', 'What we hold'],
+		['where-it-runs', 'Where it runs'],
+		['subprocessors', 'Subprocessors'],
+		['security', 'Security controls'],
+		['certifications', 'Certifications'],
+		['incidents', 'Incident response'],
+		['disclosure', 'Vulnerability disclosure'],
+		['documents', 'Documents']
+	];
+</script>
+
+<Seo
+	title="Trust centre"
+	description="What PrivateCrates holds (nothing durable), where it runs, who else touches your data, our security controls, certifications, incident response and vulnerability disclosure."
+	path="/trust"
+/>
+
+<div class="page">
+	<header class="hero">
+		<div>
+			<h1>Trust centre</h1>
+			<p class="lede">
+				What we hold, who else touches it, and how you can check us. The short answer: your crates live in
+				your own GitHub organisation, and we keep nothing about you on disk.
+			</p>
+		</div>
+		<Lighthouse class="hero-art" />
+	</header>
+
+	<!-- The one thing a security reviewer asks first, answered before anything else. -->
+	<section class="manifest panel" aria-labelledby="manifest-title">
+		<h2 id="manifest-title">Held by PrivateCrates</h2>
+		<dl>
+			<div class="row nothing">
+				<dt>Stored durably</dt>
+				<dd><strong>Nothing.</strong> No database, no disk. Restarting the service loses only caches.</dd>
+			</div>
+			<div class="row">
+				<dt>In transit</dt>
+				<dd>Callers’ GitHub and registry tokens, and crate files while they are being published.</dd>
+			</div>
+			<div class="row">
+				<dt>In memory</dt>
+				<dd>
+					Caches keyed by a hash of the token, never the token: who can read what, index files, crate metadata
+					for search, member counts.
+				</dd>
+			</div>
+			<div class="row">
+				<dt>In logs</dt>
+				<dd>
+					GitHub logins, organisation and registry names, crate names and versions, errors. Never tokens.
+				</dd>
+			</div>
+		</dl>
+	</section>
+
+	<div class="body">
+		<TocLayout {toc}>
+			<h2 id="what-we-hold">What we hold</h2>
+			<p>
+				PrivateCrates runs the Cargo registry protocol in front of a repository your organisation owns. The
+				index and every crate file are stored there, by GitHub, as commits and immutable releases. The service
+				itself is stateless: everything it knows is on GitHub or Stripe, or can be rebuilt from them.
+			</p>
+			<h3>Passes through, not kept</h3>
+			<ul>
+				<li>
+					<strong>Tokens.</strong> Developers’ GitHub tokens and CI’s one-hour registry tokens arrive with each
+					request. We use them only to ask GitHub what the caller may access, and never store, log or forward them
+					anywhere else.
+				</li>
+				<li>
+					<strong>Crate files</strong> during <code>cargo publish</code>: we check the file, compute its
+					SHA-256 and upload it to your storage repository.
+				</li>
+				<li>
+					<strong>Your website sign-in</strong> lives in an encrypted cookie in your browser for 8 hours. Nothing
+					is kept on our side.
+				</li>
+			</ul>
+			<h3>Cached in memory</h3>
+			<p>
+				Caches make the registry fast and are lost on every restart. They are keyed by a hash of the token,
+				never the token itself: which repositories a token can read (5 minutes, and dropped by webhook when
+				membership changes), index files, crate metadata for <code>cargo search</code>, and each
+				organisation’s member count (up to 24 hours, a number only).
+			</p>
+			<h3>Logged</h3>
+			<p>
+				The service writes structured logs: GitHub logins of people who set up or publish, organisation and
+				registry names, crate names and versions, the workflow that published them, and error codes and
+				messages. Tokens and crate contents are never logged.
+			</p>
+			<p>
+				Logs are kept for Railway’s log retention period <Todo
+					>confirm the retention period of our Railway plan</Todo
+				>.
+			</p>
+
+			<h2 id="where-it-runs">Where it runs</h2>
+			<div class="table-scroll">
+				<table>
+					<thead>
+						<tr><th scope="col">Part</th><th scope="col">Runs on</th></tr>
+					</thead>
+					<tbody>
+						<tr>
+							<th scope="row">The service and this website</th>
+							<td>
+								Railway, one replica per environment, in the US East region <Todo
+									>confirm the region selected in Railway</Todo
+								>. Railway terminates TLS for our domains.
+							</td>
+						</tr>
+						<tr>
+							<th scope="row">DNS</th>
+							<td>
+								Cloudflare, DNS only. Records are not proxied, so requests go straight to Railway and
+								Cloudflare never sees their contents.
+							</td>
+						</tr>
+						<tr>
+							<th scope="row">Your crates and index</th>
+							<td>
+								GitHub, in a private repository in your own organisation, under your agreement with GitHub.
+								Deleting that repository deletes your registry’s data.
+							</td>
+						</tr>
+						<tr>
+							<th scope="row">Billing</th>
+							<td>Stripe. Card details are entered on Stripe’s pages and never reach us.</td>
+						</tr>
+						<tr>
+							<th scope="row">Status page</th>
+							<td>
+								A Cloudflare Worker at <a href={STATUS_URL}>status.privatecrates.dev</a>, deliberately
+								separate from Railway so it stays up when we are down.
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<h2 id="subprocessors">Subprocessors</h2>
+			<p>
+				The companies that process customer data on our behalf. We will announce a new subprocessor here
+				before it starts <Todo>decide the notice period and how customers are told</Todo>.
+			</p>
+			<div class="table-scroll">
+				<table class="subprocessors table-cards">
+					<thead>
+						<tr>
+							<th scope="col">Subprocessor</th>
+							<th scope="col">Purpose</th>
+							<th scope="col">Data</th>
+							<th scope="col">Location</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each subprocessors as s (s.name)}
+							<tr>
+								<th scope="row"><a href={s.url}>{s.name}</a></th>
+								<td data-label="Purpose">{s.purpose}</td>
+								<td data-label="Data">{s.data}</td>
+								<td data-label="Location">{s.location}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+
+			<h2 id="security">Security controls</h2>
+			<p>
+				GitHub is the root of trust. The service is designed so that stealing our keys, or taking it over,
+				does not let anyone change a published crate without your own verifier noticing. The
+				<a href="/docs/security">security model</a> has the threat table in full.
+			</p>
+			<h3>Access</h3>
+			<ul>
+				<li>
+					<strong>Permissions are GitHub’s.</strong> A caller may read a crate if they can read the repository that
+					owns it, and publish if they can push to it. Removing someone on GitHub cuts off their access by webhook
+					within seconds.
+				</li>
+				<li>
+					<strong>Two least-privilege GitHub Apps.</strong> The reader App has metadata read and members read. The
+					storage App can write only to your storage repository. Neither has repository administration, so neither
+					can turn immutable releases off.
+				</li>
+				<li>
+					<strong>Narrow tokens.</strong> Developers hold reader App tokens that can list metadata and nothing else.
+					CI holds one-hour registry tokens with no GitHub access at all.
+				</li>
+			</ul>
+			<h3>Integrity</h3>
+			<ul>
+				<li>
+					<strong>Immutable releases:</strong> a published crate file can never be changed or deleted, whoever holds
+					our keys.
+				</li>
+				<li>
+					<strong>Checksums at publish:</strong> we compare our SHA-256 with the digest GitHub computes before the
+					release goes live.
+				</li>
+				<li>
+					<strong>Provenance:</strong> each CI publish stores a token signed by GitHub, not by us, naming the repository,
+					workflow, crate, version and checksum.
+				</li>
+				<li>
+					<strong>Append-only index, and every write a verified commit</strong> in your repository, with the publisher
+					in the message.
+				</li>
+				<li>
+					<strong>The open-source verifier</strong> checks all of this from your own CI.
+					<a href="/docs/verify">Set up the verifier</a>.
+				</li>
+			</ul>
+			<h3>Transport, sessions and secrets</h3>
+			<ul>
+				<li>
+					<strong>HTTPS only</strong>, with HSTS for a year on every subdomain. The website sends a strict
+					Content-Security-Policy with no inline scripts, and refuses to be framed.
+				</li>
+				<li>
+					<strong>Session cookie</strong> <code>pc_session</code>: encrypted with AES-256-GCM,
+					<code>HttpOnly</code>,
+					<code>Secure</code>, <code>SameSite=Lax</code>, 8 hours.
+				</li>
+				<li>
+					<strong>Secrets</strong> (GitHub App keys, signing and session keys, Stripe keys) are generated per environment
+					and held as encrypted Railway variables, never in the repository. Each has a rotation procedure. Moving
+					the App keys and the token signing key into a cloud key management service is on the roadmap below; today
+					they are not in one.
+				</li>
+				<li>
+					<strong>Limits:</strong> capped request sizes, a publish rate limit per token, and timeouts on every call
+					to GitHub.
+				</li>
+				<li>
+					<strong>Changes:</strong> production deploys only from a protected branch, after CI passes on the exact
+					commit.
+				</li>
+			</ul>
+			<h3>Source code</h3>
+			<p>
+				The credential provider, the set-up CLI and the verifier are open source under MIT or Apache-2.0. The
+				hosted service is source-available under the Business Source License 1.1, so you can audit what runs.
+			</p>
+
+			<h2 id="certifications">Certifications</h2>
+			<p>
+				<strong>None yet.</strong> PrivateCrates has no SOC 2 report, no ISO 27001 certificate and has not had an
+				independent penetration test. We would rather say so than imply otherwise. Until then, the design is the
+				assurance: your data stays on GitHub, whose own reports cover it, and the verifier lets you check our writes
+				yourself.
+			</p>
+			<p>What we plan, in this order:</p>
+			<ol>
+				<li>Move the GitHub App keys and the token signing key into a cloud key management service.</li>
+				<li>An independent penetration test, with a summary published here.</li>
+				<li>A SOC 2 Type I report, then Type II.</li>
+			</ol>
+			<p><Todo>dates for each roadmap item</Todo></p>
+			<p>
+				GitHub’s and Stripe’s own reports cover the data they hold: see the
+				<a href="https://github.com/security">GitHub Security</a> and
+				<a href="https://stripe.com/docs/security">Stripe security</a> pages.
+			</p>
+
+			<h2 id="incidents">Incident response</h2>
+			<ul>
+				<li>
+					<strong>Detection:</strong> the status page probes the website, the account API and a registry from outside
+					Railway every minute, and watches GitHub’s and Stripe’s own status.
+				</li>
+				<li>
+					<strong>Communication:</strong> incidents are posted on
+					<a href={STATUS_URL}>status.privatecrates.dev</a>, with an Atom feed to subscribe to. When GitHub is
+					the cause, the page says so and links GitHub’s incident. For a security incident affecting your
+					organisation, we email its billing email address.
+				</li>
+				<li>
+					<strong>Target times:</strong>
+					<Todo>time to acknowledge, time to first update, and breach notification deadline</Todo>
+				</li>
+				<li>
+					<strong>Limiting the damage:</strong> nothing durable to leak, and your verifier reports any write we
+					could not have made honestly. Rotating the token signing key revokes every outstanding CI token at once.
+				</li>
+			</ul>
+
+			<h2 id="disclosure">Vulnerability disclosure</h2>
+			<p>
+				Report security problems to <a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a>. Our
+				<a href="/security">disclosure policy</a> covers scope, safe harbour and what to include. The same
+				contact is published in <a href="/.well-known/security.txt" data-sveltekit-reload>security.txt</a> (RFC
+				9116).
+			</p>
+
+			<h2 id="documents">Documents</h2>
+			<ul class="documents">
+				<li>
+					<a href="/legal/dpa">Data processing agreement</a>: a template, in draft for legal review.
+				</li>
+				<li><a href="#subprocessors">Subprocessor list</a>, above.</li>
+				<li><a href="/security">Vulnerability disclosure policy</a>.</li>
+				<li><a href="/docs/security">Security model</a>, with the threat table.</li>
+				<li>
+					<a href="/legal/terms">Terms of service</a> and <a href="/legal/privacy">privacy notice</a>, both
+					drafts.
+				</li>
+				<li>
+					Licences: MIT or Apache-2.0 for the client tools and the verifier; Business Source License 1.1 for
+					the service, converting to Apache-2.0 four years after each release.
+				</li>
+			</ul>
+			<p>
+				Need something else for a security review, such as a questionnaire?
+				<a href="mailto:{SECURITY_EMAIL}">Email {SECURITY_EMAIL}</a>.
+			</p>
+		</TocLayout>
+	</div>
+</div>
+
+<style>
+	.hero {
+		display: grid;
+		gap: 1.5rem;
+		align-items: end;
+		padding-top: 3rem;
+	}
+	@media (min-width: 44rem) {
+		.hero {
+			grid-template-columns: minmax(0, 1fr) 11rem;
+		}
+	}
+	h1 {
+		font-size: var(--text-display);
+		margin-bottom: 1rem;
+	}
+	.hero :global(.hero-art) {
+		width: 8rem;
+		height: auto;
+		justify-self: center;
+	}
+	@media (min-width: 44rem) {
+		.hero :global(.hero-art) {
+			width: 11rem;
+		}
+	}
+
+	/* The manifest: a ledger of what we hold, with "nothing" stamped on the first line. */
+	.manifest {
+		margin-top: 2rem;
+		padding: 1.5rem 1.25rem;
+		border: 2px solid var(--ink);
+	}
+	@media (min-width: 40rem) {
+		.manifest {
+			padding: 1.75rem 2rem;
+		}
+	}
+	.manifest h2 {
+		font-size: var(--text-xl);
+		margin-bottom: 0.75rem;
+	}
+	.manifest dl {
+		display: grid;
+	}
+	.row {
+		display: grid;
+		gap: 0.5rem 1.5rem;
+		padding-block: 0.75rem;
+		border-top: 1px dashed var(--rule);
+	}
+	@media (min-width: 40rem) {
+		.row {
+			grid-template-columns: 10rem minmax(0, 1fr);
+			align-items: baseline;
+		}
+	}
+	.row dt {
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: var(--text-lg);
+		line-height: 1.2;
+	}
+	.nothing {
+		border-top: 0;
+	}
+	.nothing strong {
+		display: inline-block;
+		font-family: var(--font-display);
+		font-size: var(--text-2xl);
+		line-height: 1;
+		padding: 0.1rem 0.5rem 0.2rem;
+		margin-right: 0.35rem;
+		border: 3px solid var(--ok);
+		border-radius: 4px;
+		color: var(--ok);
+		transform: rotate(-2deg);
+	}
+
+	.body {
+		margin-top: 3rem;
+	}
+	.subprocessors th[scope='row'] {
+		white-space: nowrap;
+	}
+</style>

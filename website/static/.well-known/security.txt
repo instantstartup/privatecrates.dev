@@ -1,0 +1,5 @@
+Contact: mailto:security@privatecrates.dev
+Expires: 2027-09-27T00:00:00Z
+Preferred-Languages: en
+Canonical: https://privatecrates.dev/.well-known/security.txt
+Policy: https://privatecrates.dev/security

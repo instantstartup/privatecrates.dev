@@ -91,8 +91,10 @@
 		registry tokens with no GitHub access at all.
 	</li>
 	<li>
-		<strong>Keys in a KMS:</strong> both Apps’ private keys and the key that signs registry tokens live in a cloud
-		key management service. The service asks it to sign; the keys never exist in our environment.
+		<strong>Secrets:</strong> both Apps’ private keys and the key that signs registry tokens are held as
+		encrypted variables at our hosting provider, never in the repository. Moving them into a cloud key
+		management service, so the keys never exist in our environment at all, is on the
+		<a href="/trust#certifications">roadmap</a>.
 	</li>
 	<li><strong>Transport:</strong> HTTPS only, with HSTS.</li>
 	<li>
@@ -127,6 +129,12 @@
 		<strong>The verifier</strong> checks all of the above in your CI. <a href="/docs/verify">Set it up</a>.
 	</li>
 </ul>
+
+<h2 id="trust">Trust centre</h2>
+<p>
+	Where the service runs, our subprocessors, certifications, incident response and how to report a
+	vulnerability are on the <a href="/trust">trust centre</a>.
+</p>
 
 <h2 id="source">Source code</h2>
 <p>

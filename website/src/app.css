@@ -249,6 +249,44 @@
 	.table-scroll {
 		overflow-x: auto;
 	}
+	/*
+	 * A table whose rows become labelled cards on phones, instead of scrolling sideways. Each <td> carries its
+	 * column name in data-label; the first cell of a row is a <th scope="row">.
+	 */
+	@media (max-width: 40rem) {
+		.table-cards thead {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+		}
+		.table-cards,
+		.table-cards tbody,
+		.table-cards tr,
+		.table-cards th,
+		.table-cards td {
+			display: block;
+		}
+		.table-cards tr {
+			padding-block: 0.75rem;
+			border-bottom: 1px solid var(--rule);
+		}
+		.prose .table-cards th,
+		.prose .table-cards td,
+		.table-cards th,
+		.table-cards td {
+			border: 0;
+			padding: 0.2rem 0;
+		}
+		.table-cards th[scope='row'] {
+			font-size: var(--text-base);
+		}
+		.table-cards td[data-label]::before {
+			content: attr(data-label) ': ';
+			font-weight: 700;
+		}
+	}
 
 	.btn {
 		display: inline-flex;

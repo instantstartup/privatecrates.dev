@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Anchor from '$lib/illustrations/Anchor.svelte';
 	import { docsNav } from '$lib/site';
+	import { STATUS_URL } from '$lib/trust';
 </script>
 
 <footer class="site-footer">
@@ -25,8 +26,17 @@
 			<ul>
 				<li><a href="/pricing">Pricing</a></li>
 				<li><a href="/account">Account and billing</a></li>
+				<li><a href={STATUS_URL}>Status</a></li>
+			</ul>
+		</nav>
+		<nav aria-label="Trust">
+			<h2>Trust</h2>
+			<ul>
+				<li><a href="/trust">Trust centre</a></li>
+				<li><a href="/security">Report a vulnerability</a></li>
 				<li><a href="/legal/terms">Terms (draft)</a></li>
 				<li><a href="/legal/privacy">Privacy (draft)</a></li>
+				<li><a href="/legal/dpa">DPA (draft)</a></li>
 			</ul>
 		</nav>
 	</div>
@@ -44,9 +54,20 @@
 		display: grid;
 		gap: 2rem;
 	}
-	@media (min-width: 48rem) {
+	@media (min-width: 36rem) {
 		.grid {
-			grid-template-columns: 2fr 1fr 1fr;
+			grid-template-columns: repeat(3, 1fr);
+		}
+		.about {
+			grid-column: 1 / -1;
+		}
+	}
+	@media (min-width: 60rem) {
+		.grid {
+			grid-template-columns: 2fr 1fr 1fr 1fr;
+		}
+		.about {
+			grid-column: auto;
 		}
 	}
 	.about {
