@@ -2,9 +2,12 @@
 name = "privatecrates-testkit"
 version = "0.1.0"
 publish = false
+description = "Fake GitHub and test fixtures for the PrivateCrates test suites."
+license = "MIT OR Apache-2.0"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 axum = "0.8.9"

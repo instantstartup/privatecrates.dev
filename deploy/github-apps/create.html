@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create PrivateCrates GitHub Apps</title>
+<!--
+  Registers a PrivateCrates GitHub App from a manifest (GitHub's "manifest flow"):
+  https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest
+
+  Serve this directory locally, so that the page can read the manifests next to it and GitHub can
+  redirect back here with the one-time code:
+
+      cd deploy/github-apps && python3 -m http.server 8765 --bind 127.0.0.1
+      open http://127.0.0.1:8765/create.html
+
+  Nothing here talks to anything except github.com (the form POST). The code conversion, which returns
+  the App's secrets, is done with curl so that the private key goes straight to a file.
+-->
+<style>
+  :root { color-scheme: light dark; --bg: #fff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0; --accent: #0969da; --code: #f6f8fa; --warn: #9a6700; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #3d444d; --accent: #4493f8; --code: #151b23; --warn: #d29922; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .5rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .5rem; }
+  p, li { color: var(--fg); }
+  .muted { color: var(--muted); }
+  label { display: block; font-weight: 600; margin: 1rem 0 .25rem; }
+  select, button, textarea { font: inherit; color: inherit; }
+  select { padding: .4rem .5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); min-width: 16rem; }
+  textarea { width: 100%; min-height: 22rem; padding: .75rem; border: 1px solid var(--border); border-radius: 6px; background: var(--code); font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  button { margin-top: 1rem; padding: .55rem 1rem; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  pre { overflow-x: auto; padding: .75rem; border: 1px solid var(--border); border-radius: 6px; background: var(--code); font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+  .warn { color: var(--warn); font-weight: 600; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Create PrivateCrates GitHub Apps</h1>
+  <p class="muted">Registers an App owned by the <strong>worldbuilding-dev</strong> organisation from one of the manifests in this directory. You must be an owner of that organisation.</p>
+
+  <section id="create">
+    <label for="manifest-choice">Manifest</label>
+    <select id="manifest-choice">
+      <option value="dev-reader">dev: PrivateCrates Dev Reader</option>
+      <option value="dev-storage">dev: PrivateCrates Dev Storage</option>
+      <option value="prod-reader">production: PrivateCrates Reader</option>
+      <option value="prod-storage">production: PrivateCrates Storage</option>
+    </select>
+
+    <label for="manifest">Manifest JSON (sent as-is; <code>redirect_url</code> points back to this page)</label>
+    <textarea id="manifest" spellcheck="false"></textarea>
+    <p id="load-error" class="warn" hidden></p>
+
+    <form id="form" method="post">
+      <input type="hidden" name="manifest" id="manifest-field">
+      <button type="submit">Create this App on GitHub</button>
+    </form>
+  </section>
+
+  <section id="result" hidden>
+    <h2>App created: convert the code within one hour</h2>
+    <p>GitHub returned a one-time code. Exchange it for the App's credentials with the command below (no authentication needed; the code is the credential). It writes the full response, which includes the client secret, webhook secret and private key, to files readable only by you.</p>
+    <pre id="curl"></pre>
+    <p>Then follow <em>docs/deploy.md → GitHub Apps</em> for the settings a manifest cannot express (device flow, webhook secret) and for the Railway variables.</p>
+    <p class="muted"><a id="again" href="#">Create another App</a></p>
+  </section>
+</main>
+<script>
+(() => {
+  const ORG = "worldbuilding-dev";
+  const $ = (id) => document.getElementById(id);
+  const here = location.origin + location.pathname;
+  const params = new URLSearchParams(location.search);
+
+  function store(key, value) { try { sessionStorage.setItem(key, value); } catch { /* storage unavailable */ } }
+  function load(key) { try { return sessionStorage.getItem(key); } catch { return null; } }
+
+  if (params.has("code")) {
+    const code = params.get("code");
+    const expected = load("pc-manifest-state");
+    const name = load("pc-manifest-name") || "app";
+    $("create").hidden = true;
+    $("result").hidden = false;
+    if (!expected || expected !== params.get("state")) {
+      $("result").insertAdjacentHTML("afterbegin", '<p class="warn">The state parameter does not match the one this page sent. Only continue if you started this flow yourself, just now.</p>');
+    }
+    if (!/^[A-Za-z0-9_-]+$/.test(code)) {
+      $("curl").textContent = "Unexpected code format; not generating a command.";
+      return;
+    }
+    $("curl").textContent = [
+      `umask 077 && mkdir -p ~/privatecrates-secrets && cd ~/privatecrates-secrets`,
+      `curl -fsS -X POST \\`,
+      `  -H "Accept: application/vnd.github+json" \\`,
+      `  -H "X-GitHub-Api-Version: 2022-11-28" \\`,
+      `  https://api.github.com/app-manifests/${code}/conversions > ${name}.json`,
+      `jq -r .pem ${name}.json > ${name}.private-key.pem`,
+      `jq '{id, slug, name, client_id, html_url}' ${name}.json`,
+    ].join("\n");
+    $("again").href = here;
+    history.replaceState(null, "", here);
+    return;
+  }
+
+  if (location.protocol === "file:") {
+    $("load-error").hidden = false;
+    $("load-error").textContent = "Serve this directory over http (python3 -m http.server 8765 --bind 127.0.0.1) so that the page can load the manifests and GitHub can redirect back here.";
+  }
+
+  async function show(choice) {
+    try {
+      const res = await fetch(`${choice}.json`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const manifest = await res.json();
+      if (location.protocol !== "file:") manifest.redirect_url = here;
+      $("manifest").value = JSON.stringify(manifest, null, 2);
+      $("load-error").hidden = location.protocol !== "file:";
+    } catch (e) {
+      $("manifest").value = "";
+      $("load-error").hidden = false;
+      $("load-error").textContent = `Could not load ${choice}.json: ${e.message}. Serve this directory over http.`;
+    }
+  }
+
+  $("manifest-choice").addEventListener("change", (e) => show(e.target.value));
+  show($("manifest-choice").value);
+
+  $("form").addEventListener("submit", (e) => {
+    let manifest;
+    try { manifest = JSON.parse($("manifest").value); } catch (err) {
+      e.preventDefault();
+      alert(`The manifest is not valid JSON: ${err.message}`);
+      return;
+    }
+    const state = crypto.getRandomValues(new Uint8Array(16)).reduce((s, b) => s + b.toString(16).padStart(2, "0"), "");
+    store("pc-manifest-state", state);
+    store("pc-manifest-name", $("manifest-choice").value);
+    $("manifest-field").value = JSON.stringify(manifest);
+    $("form").action = `https://github.com/organizations/${ORG}/settings/apps/new?state=${state}`;
+  });
+})();
+</script>
+</body>
+</html>

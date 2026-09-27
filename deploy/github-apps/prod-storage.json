@@ -1,0 +1,20 @@
+{
+  "name": "PrivateCrates Storage",
+  "url": "https://privatecrates.dev",
+  "description": "Reads and writes the registry index and crate releases in the one storage repository you install it on.",
+  "hook_attributes": {
+    "url": "https://privatecrates.dev/webhooks/github",
+    "active": true
+  },
+  "redirect_url": "https://privatecrates.dev/",
+  "setup_url": "https://privatecrates.dev/account",
+  "setup_on_update": false,
+  "request_oauth_on_install": false,
+  "public": true,
+  "default_permissions": {
+    "contents": "write"
+  },
+  "default_events": [
+    "push"
+  ]
+}

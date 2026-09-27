@@ -1,0 +1,539 @@
+# Deploying PrivateCrates
+
+This guide sets up the two hosted environments from nothing: one Railway project with a `dev` and a `production`
+environment, DNS on Cloudflare, two GitHub Apps per environment, and Stripe. Every command is meant to be copied
+and pasted. Values in `<angle brackets>` are yours to fill in.
+
+| | dev | production |
+|---|---|---|
+| Deploys from | `main` branch | `production` branch |
+| Apex (website, account API, webhooks) | `https://dev.privatecrates.dev` | `https://privatecrates.dev` (+ `www.` redirect) |
+| Tenant registries | `https://{slug}.dev.privatecrates.dev` | `https://{slug}.privatecrates.dev` |
+| GitHub Apps | PrivateCrates Dev Reader / Dev Storage | PrivateCrates Reader / Storage |
+| Stripe | test mode | live mode |
+
+Contents:
+
+1. [Decisions](#1-decisions)
+2. [Accounts you need](#2-accounts-you-need)
+3. [Secrets you generate](#3-secrets-you-generate)
+4. [GitHub Apps](#4-github-apps)
+5. [Stripe](#5-stripe)
+6. [Railway](#6-railway)
+7. [Environment variables](#7-environment-variables)
+8. [Custom domains and Cloudflare DNS](#8-custom-domains-and-cloudflare-dns)
+9. [Verify a deployment](#9-verify-a-deployment)
+10. [Promote to production](#10-promote-to-production)
+11. [Roll back](#11-roll-back)
+12. [Rotate secrets](#12-rotate-secrets)
+13. [Release the client tools](#13-release-the-client-tools)
+14. [Sources](#14-sources)
+
+---
+
+## 1. Decisions
+
+**Production deploys from a `production` branch, not from tags.** Railway's GitHub integration deploys the latest
+commit of one branch per environment; it has no tag trigger [R3]. Promoting is a fast-forward of `production` to a
+commit on `main` that already runs in dev (§10), and with Railway's *Wait for CI* the deploy starts only once CI has
+passed on that commit [R3]. Tags (`vX.Y.Z`) are used only to release the open-source client tools (§13).
+
+**Exactly one replica per environment.** The server keeps tenants, permission caches and subscription state in
+memory and updates them from webhooks; a second replica would miss the webhooks the first received. Do not raise
+the replica count or enable App Sleeping (serverless).
+
+**Cloudflare DNS only ("grey cloud") for every record; Railway terminates TLS.** Railway supports custom domains and
+wildcard custom domains at any single level, including nested ones such as `*.dev.privatecrates.dev`, and issues
+their certificates itself; for a wildcard it needs an `_acme-challenge` CNAME delegated to `authorize.railwaydns.net`,
+which must not be proxied [R1]. With Cloudflare proxying instead:
+
+- Railway requires SSL/TLS mode **Full**, and says Full (Strict) "will not work as intended" [R1], so the hop
+  from Cloudflare to Railway would not verify certificates.
+- Cloudflare's free Universal SSL certificate covers only one subdomain level, so `*.dev.privatecrates.dev` would
+  need Advanced Certificate Manager (a paid add-on) with Universal SSL disabled [R1][R6].
+- Cloudflare's bot and WAF features can challenge `cargo`, CI and webhook traffic, which cannot solve challenges.
+
+What DNS-only gives up: Cloudflare's caching and DDoS shielding in front of the origin, and hiding the origin. The
+registry's responses are per-user and authenticated, so there is little to cache. If shielding is ever needed,
+proxy only the apex and `www` (first-level names, covered by Universal SSL) and set SSL/TLS to Full.
+
+**Railway plan.** Production needs three custom domains on one service (`privatecrates.dev`, `www.privatecrates.dev`,
+`*.privatecrates.dev`). Railway allows two custom domains per service on Hobby and 20 on Pro [R1], so the project
+must be on **Pro**.
+
+## 2. Accounts you need
+
+- **Railway**, Pro plan, with the Railway GitHub App installed on `worldbuilding-dev` with access to
+  `worldbuilding-dev/privatecrates.dev` (Railway → Account → Integrations → GitHub).
+- **Cloudflare**, with the `privatecrates.dev` zone active (nameservers moved to Cloudflare).
+- **GitHub**: an owner of the `worldbuilding-dev` organisation (the Apps belong to it), plus a throwaway test
+  organisation for onboarding tests, e.g. `privatecrates-test`.
+- **Stripe**, one account; test mode for dev, live mode (account activated) for production.
+- **crates.io**, for the client tools (§13).
+
+Local tools: `git`, `curl`, `jq`, `openssl`, `python3` (to serve the App manifest page), and the Railway CLI:
+
+```sh
+brew install railway        # or: npm install -g @railway/cli
+railway login
+```
+
+## 3. Secrets you generate
+
+Generate these once per environment; never reuse a dev secret in production. Keep a copy in the team's password
+manager: Railway is where they live, but it is not a backup.
+
+| Name | Generate with | Notes |
+|---|---|---|
+| `REGISTRY_TOKEN_SECRET` | `openssl rand -base64 48` | Signs read-only registry tokens (`pcr_…`). At least 32 bytes. Rotating it invalidates every outstanding `pcr_` token (CI re-exchanges within the hour). |
+| `SESSION_SECRET` | `openssl rand -base64 48` | Encrypts the `pc_session` cookie (AES-256-GCM). Rotating it signs everyone out. |
+| `WEBHOOK_SECRET` | `openssl rand -hex 32` | Verifies GitHub webhook deliveries. The server has one secret, so **both** Apps of an environment must be set to it (§4.3). |
+
+For example:
+
+```sh
+umask 077; mkdir -p ~/privatecrates-secrets/dev ~/privatecrates-secrets/production
+for env in dev production; do
+  openssl rand -base64 48 | tr -d '\n' > ~/privatecrates-secrets/$env/REGISTRY_TOKEN_SECRET
+  openssl rand -base64 48 | tr -d '\n' > ~/privatecrates-secrets/$env/SESSION_SECRET
+  openssl rand -hex 32    | tr -d '\n' > ~/privatecrates-secrets/$env/WEBHOOK_SECRET
+done
+```
+
+## 4. GitHub Apps
+
+Each environment has a **reader** App and a **storage** App (SPEC §6.1), owned by `worldbuilding-dev` and
+installable by any organisation. Their manifests are in [`deploy/github-apps/`](../deploy/github-apps):
+
+| File | App | Permissions | Webhook events |
+|---|---|---|---|
+| `dev-reader.json`, `prod-reader.json` | reader | Metadata: read; Organisation members: read | `member`, `membership`, `organization`, `repository`, `team` |
+| `dev-storage.json`, `prod-storage.json` | storage | Contents: read and write (Metadata: read is added by GitHub for every App) | `push` |
+
+`installation`, `installation_repositories` and `github_app_authorization` (SPEC §7) are delivered to every App
+automatically and cannot be subscribed to, so they are not listed [G3]. `marketplace_purchase` is not used (billing
+is Stripe). Every event the reader subscribes to needs the *Members* organisation permission, except `repository`,
+which needs *Metadata* [G3].
+
+What each manifest sets [G1]: name, homepage (`url`), `hook_attributes.url` = `https://{apex}/webhooks/github`,
+`callback_urls` = `https://{apex}/auth/github/callback` (reader only), `setup_url` = `https://{apex}/account` (where
+GitHub sends an admin after installing), `request_oauth_on_install: false`, `public: true`, `default_permissions`,
+`default_events`. What a manifest **cannot** set is done by hand in §4.3: device flow, the webhook secret, and the
+expiry of user tokens (on by default for new Apps [G4]).
+
+### 4.1 Create the Apps (manifest flow)
+
+GitHub's manifest flow: POST the manifest to
+`https://github.com/organizations/worldbuilding-dev/settings/apps/new`, confirm the name on GitHub, and GitHub
+redirects to `redirect_url` with a one-time `code` valid for one hour [G1]. `create.html` does the POST and, as its
+own `redirect_url`, shows the command to convert the code.
+
+```sh
+cd deploy/github-apps
+python3 -m http.server 8765 --bind 127.0.0.1
+# open http://127.0.0.1:8765/create.html in a browser signed in to GitHub as a worldbuilding-dev owner
+```
+
+For each of `dev-reader`, `dev-storage` (and later `prod-reader`, `prod-storage`): choose it, press **Create this
+App on GitHub**, confirm on GitHub. Back on the page, run the command it shows. It is equivalent to:
+
+```sh
+umask 077 && mkdir -p ~/privatecrates-secrets && cd ~/privatecrates-secrets
+curl -fsS -X POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  https://api.github.com/app-manifests/<code>/conversions > dev-reader.json
+jq -r .pem dev-reader.json > dev-reader.private-key.pem
+jq '{id, slug, name, client_id, html_url}' dev-reader.json
+```
+
+The conversion needs no authentication (the code is the credential) and returns `id`, `slug`, `client_id`,
+`client_secret`, `webhook_secret` and `pem` (the private key) [G2]. The key cannot be downloaded again; if it is lost,
+generate a new one in the App's settings.
+
+If GitHub gives an App a different slug than expected (for example because the name is taken), use the name it
+accepted everywhere below: the slug goes into `READER_APP_SLUG` / `STORAGE_APP_SLUG`, and the storage App's bot login
+(`<slug>[bot]`) is what `privatecrates-verify --storage-app` must be given.
+
+### 4.2 Without the helper page
+
+The same form works from any page: an HTML form with `method="post"`,
+`action="https://github.com/organizations/worldbuilding-dev/settings/apps/new?state=<random>"` and one field named
+`manifest` holding the JSON [G1]. Or create the App by hand under *Organisation settings → Developer settings →
+GitHub Apps → New GitHub App* with the values from the JSON file.
+
+### 4.3 Settings a manifest cannot express
+
+Open each App at `https://github.com/organizations/worldbuilding-dev/settings/apps/<slug>`.
+
+Reader App, *General*:
+- Tick **Enable Device Flow** (the credential provider signs developers in with it; GitHub requires it to be enabled
+  in the App's settings [G4]).
+- Check **Expire user authorization tokens** is ticked (the default; user tokens then last 8 hours with a refresh
+  token [G4]).
+- Check **Request user authorization (OAuth) during installation** is not ticked.
+- Callback URL is `https://{apex}/auth/github/callback`.
+
+Both Apps, *General → Webhook*:
+- **Webhook secret**: replace the generated one with this environment's `WEBHOOK_SECRET` (§3), because the server
+  verifies both Apps' deliveries with one secret. Active, URL `https://{apex}/webhooks/github`.
+
+Both Apps: *Where can this GitHub App be installed?* already shows **Any account** (`public: true`). Optionally
+upload a logo under *Display information*.
+
+## 5. Stripe
+
+`scripts/stripe-setup.sh` creates, or updates if they exist: the product `privatecrates` ("PrivateCrates"), a
+USD 100.00 monthly price with lookup key `privatecrates_org_monthly`, a webhook endpoint for
+`https://{apex}/webhooks/stripe` with `checkout.session.completed` and `customer.subscription.created|updated|deleted`,
+and the default customer portal configuration (cancel at period end, update payment method, invoice history). It
+pins Stripe API version `2026-08-26.dahlia` for its calls and for the webhook payloads (override with
+`STRIPE_API_VERSION`); keep that equal to the version the server's Stripe client sends. The 14-day trial is set per
+Checkout Session by the server (`subscription_data.trial_period_days`), not on the price.
+
+1. In the Stripe Dashboard, **test mode**: open *Settings → Billing → Customer portal*
+   (`https://dashboard.stripe.com/test/settings/billing/portal`) and click **Save** once. Stripe creates the default
+   portal configuration then; the API can update it but cannot make one the default [S4].
+2. Run the script with a test-mode secret key (Developers → API keys):
+
+   ```sh
+   read -rs STRIPE_SECRET_KEY && export STRIPE_SECRET_KEY   # paste sk_test_…
+   scripts/stripe-setup.sh dev
+   ```
+
+   It prints `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` and the `railway variable set` commands. The webhook signing
+   secret is returned only when the endpoint is created [S3]; on a re-run it is left unchanged (reveal it in the
+   Dashboard, or pass `--recreate-webhook` and update Railway).
+3. For production, repeat in **live mode** with an `sk_live_…` key once the Stripe account is activated:
+   `scripts/stripe-setup.sh production`.
+
+For the server's key you may use a restricted key (`rk_…`) instead of the secret key: it needs write access to
+Checkout Sessions, Customers and Customer portal, and read access to Subscriptions, Prices and Products.
+
+## 6. Railway
+
+### 6.1 Project, service and environments
+
+```sh
+cd <your clone of worldbuilding-dev/privatecrates.dev>
+railway init --name privatecrates                 # new project; its first environment is "production"
+railway add --service privatecrates --repo worldbuilding-dev/privatecrates.dev
+railway environment new dev --duplicate production
+railway link                                      # choose privatecrates / dev / privatecrates
+```
+
+Then in the dashboard, for the `privatecrates` service, **in each environment** (the environment switcher is at the
+top):
+
+| Setting | dev | production |
+|---|---|---|
+| Settings → Source → Branch | `main` | `production` |
+| Settings → Source → Wait for CI | on | on |
+| Settings → Deploy → Replicas | 1 | 1 |
+| Settings → Deploy → Serverless (App Sleeping) | off | off |
+| Settings → Region | same region in both, close to GitHub's API (US East) | same |
+
+The build and deploy settings come from [`railway.json`](../railway.json) in the repository and override the
+dashboard [R2]: Dockerfile builder, health check `GET /healthz` (up to 120 s; the server answers once tenant
+discovery at start-up has finished), restart on failure (up to 10 times), 30 s draining, and watch patterns so that
+changes to docs alone do not redeploy. Railway sets `PORT` and routes the domains to it; the image defaults to 8080.
+
+Create the `production` branch before the first production deploy (§10).
+
+### 6.2 Set the variables
+
+Set the variables in §7 for each environment. With the CLI, `--stdin` keeps values out of the process list and shell
+history, and `--skip-deploys` avoids a deploy per variable [R4]. For dev:
+
+```sh
+E=dev S=privatecrates D=~/privatecrates-secrets
+railway variable set -e $E -s $S --skip-deploys BASE_DOMAIN=dev.privatecrates.dev
+railway variable set -e $E -s $S --skip-deploys REGISTRY_TOKEN_SECRET --stdin < $D/$E/REGISTRY_TOKEN_SECRET
+railway variable set -e $E -s $S --skip-deploys SESSION_SECRET        --stdin < $D/$E/SESSION_SECRET
+railway variable set -e $E -s $S --skip-deploys WEBHOOK_SECRET        --stdin < $D/$E/WEBHOOK_SECRET
+
+# From the manifest conversions (§4.1)
+R=$D/dev-reader.json T=$D/dev-storage.json
+railway variable set -e $E -s $S --skip-deploys READER_APP_ID="$(jq -r .id $R)" READER_APP_SLUG="$(jq -r .slug $R)" READER_APP_CLIENT_ID="$(jq -r .client_id $R)"
+jq -r .client_secret $R | tr -d '\n' | railway variable set -e $E -s $S --skip-deploys READER_APP_CLIENT_SECRET --stdin
+jq -r .pem $R           | railway variable set -e $E -s $S --skip-deploys READER_APP_PRIVATE_KEY --stdin
+railway variable set -e $E -s $S --skip-deploys STORAGE_APP_ID="$(jq -r .id $T)" STORAGE_APP_SLUG="$(jq -r .slug $T)"
+jq -r .pem $T           | railway variable set -e $E -s $S --skip-deploys STORAGE_APP_PRIVATE_KEY --stdin
+
+# From scripts/stripe-setup.sh (§5)
+railway variable set -e $E -s $S --skip-deploys STRIPE_PRICE_ID=<price_…>
+printf '%s' '<whsec_…>'        | railway variable set -e $E -s $S --skip-deploys STRIPE_WEBHOOK_SECRET --stdin
+printf '%s' "$STRIPE_SECRET_KEY" | railway variable set -e $E -s $S STRIPE_SECRET_KEY --stdin   # this one deploys
+```
+
+For production, repeat with `E=production`, `BASE_DOMAIN=privatecrates.dev`, the `prod-*.json` conversions and the
+live-mode Stripe values. Check with `railway variable list -e $E -s $S` (it prints values: mind your screen).
+
+Once the variables are in, delete the local copies of the private keys and client secrets, or move them into the
+password manager.
+
+## 7. Environment variables
+
+`dev` / `production` values; *secret* means treat as a credential (Railway stores all variables encrypted, but
+secrets must never be logged, committed or shared).
+
+| Variable | Secret | dev | production | Purpose, source |
+|---|---|---|---|---|
+| `BASE_DOMAIN` | no | `dev.privatecrates.dev` | `privatecrates.dev` | Apex host; tenants are `{slug}.BASE_DOMAIN`. |
+| `REGISTRY_TOKEN_SECRET` | **yes** | generated | generated | §3. Signs `pcr_` tokens; ≥ 32 bytes. |
+| `SESSION_SECRET` | **yes** | generated | generated | §3. Encrypts the `pc_session` cookie. |
+| `WEBHOOK_SECRET` | **yes** | generated | generated | §3. GitHub webhook signatures; set on both Apps. |
+| `READER_APP_ID` | no | conversion `id` | conversion `id` | Reader App ID. |
+| `READER_APP_SLUG` | no | `privatecrates-dev-reader` | `privatecrates-reader` | Conversion `slug`; builds `https://github.com/apps/{slug}/installations/new`. |
+| `READER_APP_CLIENT_ID` | no | conversion `client_id` | conversion `client_id` | Web sign-in and the credential provider's device flow. |
+| `READER_APP_CLIENT_SECRET` | **yes** | conversion `client_secret` | conversion `client_secret` | Web sign-in code exchange. |
+| `READER_APP_PRIVATE_KEY` | **yes** | conversion `pem` | conversion `pem` | PEM, multi-line; App JWTs. |
+| `STORAGE_APP_ID` | no | conversion `id` | conversion `id` | Storage App ID. |
+| `STORAGE_APP_SLUG` | no | `privatecrates-dev-storage` | `privatecrates-storage` | Conversion `slug`; install link in onboarding. |
+| `STORAGE_APP_PRIVATE_KEY` | **yes** | conversion `pem` | conversion `pem` | PEM, multi-line; App JWTs. |
+| `STRIPE_SECRET_KEY` | **yes** | `sk_test_…` / `rk_test_…` | `sk_live_…` / `rk_live_…` | Stripe API key (§5). |
+| `STRIPE_WEBHOOK_SECRET` | **yes** | `whsec_…` (test endpoint) | `whsec_…` (live endpoint) | From `stripe-setup.sh`. |
+| `STRIPE_PRICE_ID` | no | `price_…` (test) | `price_…` (live) | From `stripe-setup.sh`. |
+
+Leave these unset (the defaults are right for both environments):
+
+| Variable | Default | Notes |
+|---|---|---|
+| `PORT` | set by Railway (image default 8080) | The server binds `0.0.0.0:$PORT`. |
+| `WEBSITE_DIR` | `/app/website` (set in the image) | The static website build. |
+| `PUBLIC_SCHEME` | `https` | `http` only for local testing. |
+| `GITHUB_API_URL`, `GITHUB_WEB_URL` | `https://api.github.com`, `https://github.com` | Tests point these at a fake. |
+| `STRIPE_API_URL` | Stripe's API | Tests point this at a fake. |
+| `OIDC_ISSUER`, `OIDC_JWKS_URL` | GitHub Actions' | |
+| `CRATES_IO_API_URL` | `https://crates.io` | |
+| `MAX_CRATE_BYTES` | 20 MiB | |
+| `PUBLISH_RATE_PER_MINUTE` | 30 | Per token. |
+| `PERMISSION_TTL_SECS`, `TENANT_REFRESH_SECS`, `STORAGE_REFRESH_SECS` | 300, 600, 60 | Cache lifetimes (SPEC §8). |
+| `RUST_LOG` | `info,tower_http=info` (set in the image) | e.g. `debug` while investigating. |
+
+## 8. Custom domains and Cloudflare DNS
+
+### 8.1 Add the domains in Railway
+
+```sh
+railway domain dev.privatecrates.dev   -e dev        -s privatecrates
+railway domain '*.dev.privatecrates.dev' -e dev      -s privatecrates
+
+railway domain privatecrates.dev       -e production -s privatecrates
+railway domain www.privatecrates.dev   -e production -s privatecrates
+railway domain '*.privatecrates.dev'   -e production -s privatecrates
+```
+
+(Or *Settings → Networking → Custom Domain* in the dashboard.) Each command prints the records to create: a CNAME to
+a Railway target such as `<random>.up.railway.app`, a TXT verification record, and for wildcards a second CNAME for
+`_acme-challenge` [R1][R5]. Both the CNAME and the TXT record are required; the domain does not verify with the CNAME
+alone [R1].
+
+### 8.2 Create the records in Cloudflare
+
+In Cloudflare → `privatecrates.dev` → *DNS → Records*. **Every record: Proxy status = DNS only (grey cloud).** Names
+are relative to the zone; the targets are what Railway printed.
+
+| Type | Name | Target | For |
+|---|---|---|---|
+| CNAME | `@` | `<prod-apex>.up.railway.app` | `privatecrates.dev` (Cloudflare flattens a CNAME at the apex [R1]) |
+| CNAME | `www` | `<prod-www>.up.railway.app` | `www.privatecrates.dev` |
+| CNAME | `*` | `<prod-wildcard>.up.railway.app` | `*.privatecrates.dev` |
+| CNAME | `_acme-challenge` | `authorize.railwaydns.net` (as printed) | certificate for `*.privatecrates.dev` |
+| TXT | as printed by Railway | as printed | production domain verification (one per domain) |
+| CNAME | `dev` | `<dev-apex>.up.railway.app` | `dev.privatecrates.dev` |
+| CNAME | `*.dev` | `<dev-wildcard>.up.railway.app` | `*.dev.privatecrates.dev` |
+| CNAME | `_acme-challenge.dev` | `authorize.railwaydns.net` (as printed) | certificate for `*.dev.privatecrates.dev` |
+| TXT | as printed by Railway | as printed | dev domain verification (one per domain) |
+
+Notes:
+- The explicit `dev` records take precedence over the `*` wildcard in DNS, and `*.privatecrates.dev` does not match
+  `x.dev.privatecrates.dev`, so the two environments never overlap. `dev` and `www` are reserved slugs, so no tenant
+  can claim them.
+- SSL/TLS settings in Cloudflare do not apply to DNS-only records; nothing to change there.
+- If you add CAA records to the zone, they must allow the CA Railway uses for both `issue` and `issuewild`
+  (Let's Encrypt at the time of writing [R5]), or wildcard issuance fails.
+
+Railway shows each domain as verified, then issues its certificate; wildcard certificates can take a few minutes
+after the `_acme-challenge` record resolves. Check:
+
+```sh
+dig +short CNAME _acme-challenge.dev.privatecrates.dev
+dig +short CNAME anything.dev.privatecrates.dev
+echo | openssl s_client -connect dev.privatecrates.dev:443 -servername probe.dev.privatecrates.dev 2>/dev/null \
+  | openssl x509 -noout -subject -ext subjectAltName
+```
+
+## 9. Verify a deployment
+
+Run for `A=https://dev.privatecrates.dev` (then `A=https://privatecrates.dev`):
+
+```sh
+A=https://dev.privatecrates.dev
+curl -fsS $A/healthz; echo                                   # "ok"; no GitHub calls
+curl -fsS $A/api/session                                     # {"user":null,"orgs":[]}
+curl -sS -o /dev/null -w '%{http_code}\n' $A/                # 200, the website
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST $A/webhooks/github -d '{}'   # 4xx: unsigned delivery refused
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST $A/webhooks/stripe -d '{}'   # 4xx: unsigned delivery refused
+curl -sS -o /dev/null -w '%{http_code}\n' https://nosuchtenant.dev.privatecrates.dev/index/config.json  # 404
+curl -sSI https://www.privatecrates.dev | grep -i '^location'  # production only: redirect to the apex
+railway logs -e dev -s privatecrates                         # JSON logs; "tenants discovered", no errors
+```
+
+Webhooks:
+- GitHub: each App's *Advanced → Recent Deliveries* shows the `ping` sent at creation (it failed if the service was
+  not up yet: press **Redeliver**; expect 2xx).
+- Stripe: Dashboard → *Developers → Webhooks* → the endpoint → **Send test event**
+  (`customer.subscription.updated`); expect 2xx.
+
+Sign-in and onboarding, with the test organisation (dev first; in production use a real card and cancel afterwards,
+or a 100% coupon):
+
+1. Open `$A/account`, **Sign in with GitHub**; authorise the reader App. The account page lists your organisations.
+2. Choose the test organisation. Follow the checklist:
+   1. install the reader App on all repositories;
+   2. create a private storage repository (e.g. `privatecrates-test/crates-store`) and enable **immutable
+      releases** in its *Settings → General → Releases*;
+   3. install the storage App on **only** that repository;
+   4. choose the registry name (slug); this creates `privatecrates.toml` in the storage repository (check the
+      commit is by the storage App and verified);
+   5. start the subscription: Stripe Checkout, test card `4242 4242 4242 4242`, any future expiry and CVC. The
+      status becomes *trialing*.
+3. The registry answers:
+
+   ```sh
+   curl -fsS -H "Authorization: $(gh auth token)" https://<slug>.dev.privatecrates.dev/index/config.json
+   ```
+
+4. With the credential provider (built from this repository: `cargo install --path crates/cargo-credential-privatecrates`),
+   in a scratch project:
+
+   ```toml
+   # .cargo/config.toml
+   [registries.test]
+   index = "sparse+https://<slug>.dev.privatecrates.dev/index/"
+   credential-provider = ["cargo-credential-privatecrates"]
+   ```
+
+   `cargo login --registry test` runs the device flow; `cargo search --registry test hello` then succeeds.
+   Publishing uses a GitHub Actions workflow in a repository of the test organisation (SPEC §3.4).
+5. Billing: *Manage billing* opens the Stripe portal; cancel the subscription and check the account page shows it
+   ending at the period end.
+6. Remove a member from the test organisation and check they lose access at once (the `organization` webhook).
+
+## 10. Promote to production
+
+After a commit has run in dev and CI is green on it:
+
+```sh
+git fetch origin
+git push origin origin/main:production      # fast-forward only; fails if production has diverged
+```
+
+The first time, this creates the branch. Protect it in *GitHub → Settings → Rules*: restrict updates to
+maintainers, block force pushes and deletion, and require the CI status checks. Railway deploys production once CI
+has passed on the commit (Wait for CI). Then run §9 against `https://privatecrates.dev`.
+
+To promote an older commit: `git push origin <sha>:production` (must still be a fast-forward).
+
+## 11. Roll back
+
+The service is stateless (all durable state is on GitHub and Stripe), so rolling back is always safe.
+
+- **Fastest:** Railway dashboard → the service → *Deployments* → the last good deployment → **⋮ → Rollback**. This
+  restores that deployment's image **and its variables** [R3]; deployments older than the plan's retention window
+  cannot be rolled back.
+- **Then make git agree**, or the next push redeploys the bad commit: revert on `main`, and promote the revert
+  (`git revert <bad-sha>` on `main`, push, then §10). Avoid force-pushing `production`.
+- A bad variable: fix it with `railway variable set …`; Railway redeploys.
+- A deployment that fails its health check never receives traffic; the previous one keeps serving.
+
+Railway keeps the previous deployment serving until the new one passes `/healthz`, so a failed deploy needs no
+action beyond fixing it.
+
+## 12. Rotate secrets
+
+| Secret | How | Effect |
+|---|---|---|
+| `REGISTRY_TOKEN_SECRET` | new value, set, deploy | outstanding `pcr_` tokens stop working; CI jobs re-exchange |
+| `SESSION_SECRET` | new value, set, deploy | everyone is signed out of the website |
+| `WEBHOOK_SECRET` | set the new value on both Apps and in Railway, close together | deliveries in between fail and are redelivered from *Recent Deliveries* |
+| App private key | App settings → *Generate a private key*; set; deploy; then delete the old key in the App settings | none |
+| `READER_APP_CLIENT_SECRET` | App settings → *Generate a new client secret*; set; deploy; delete the old one | none |
+| `STRIPE_WEBHOOK_SECRET` | Dashboard → webhook → *Roll secret* (Stripe keeps the old one valid for a period you choose) | none |
+| `STRIPE_SECRET_KEY` | Dashboard → API keys → *Roll key* | none if set before the old key expires |
+
+## 13. Release the client tools
+
+`cargo-credential-privatecrates` and `privatecrates-verify` (with `privatecrates-common`) are released by
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) when a tag `vX.Y.Z` is pushed: binaries for Linux
+(x86_64, aarch64), macOS (aarch64, x86_64) and Windows (x86_64) with GitHub build-provenance attestations, a GitHub
+release with the archives and `SHA256SUMS` (where `cargo binstall` finds them), then crates.io.
+
+One-time setup:
+
+1. **crates.io requires the first version of each crate to be published by hand**; trusted publishing can only be
+   configured for a crate that exists [C1][C2]. From a clean checkout of the release commit, with a crates.io API
+   token that has the `publish-new` scope (crates.io → Account Settings → API Tokens; expire it after a day):
+
+   ```sh
+   cargo login                     # paste the token
+   cargo publish --locked -p privatecrates-common -p cargo-credential-privatecrates -p privatecrates-verify
+   cargo logout
+   ```
+
+   Then push the tag `v0.1.0`; the workflow builds the binaries and release and skips the crates already on crates.io.
+2. On crates.io, for **each** of the three crates, *Settings → Trusted Publishing → Add*: GitHub, repository owner
+   `worldbuilding-dev`, repository `privatecrates.dev`, workflow `release.yml`, environment `crates-io` [C1].
+3. In GitHub → repository *Settings → Environments*, create `crates-io`; optionally add required reviewers (a manual
+   approval before anything is published) and restrict it to tags `v*`.
+4. Revoke the API token; from now on no crates.io secret exists anywhere.
+
+Each release:
+
+```sh
+# bump version = "X.Y.Z" in crates/privatecrates-common, cargo-credential-privatecrates and privatecrates-verify
+# (and privatecrates-common's version in the other two's [dependencies]); commit on main; CI green
+git tag -s vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
+```
+
+The workflow refuses a tag that does not match the three crate versions. Verify an artefact with
+`gh attestation verify <file> --repo worldbuilding-dev/privatecrates.dev`.
+
+## 14. Sources
+
+Consulted in September 2026.
+
+- [R1] Railway, *Working with Domains* (custom domains, wildcard domains, Cloudflare, plan limits):
+  <https://docs.railway.com/networking/domains/working-with-domains>
+- [R2] Railway, *Config as Code*: <https://docs.railway.com/reference/config-as-code>
+- [R3] Railway, *GitHub Autodeploys* (trigger branch, Wait for CI) and *Deployment actions* (rollback):
+  <https://docs.railway.com/deployments/github-autodeploys>, <https://docs.railway.com/deployments/deployment-actions>
+- [R4] Railway CLI: <https://docs.railway.com/cli/variable>, <https://docs.railway.com/cli/domain>,
+  <https://docs.railway.com/cli/environment>, <https://docs.railway.com/cli/add>
+- [R5] Railway Help Station, wildcard certificates with Cloudflare (`_acme-challenge` DNS only, CAA for Let's Encrypt):
+  <https://station.railway.com/questions/wildcard-domain-ratioiq-app-525-ssl-ha-951f62cd>,
+  <https://station.railway.com/questions/wildcard-custom-domain-brimwise-com-fa-4721f68b>,
+  and *Troubleshooting SSL*: <https://docs.railway.com/networking/troubleshooting/ssl>
+- [R6] Cloudflare, Universal SSL covers the apex and one level of subdomain; Advanced Certificate Manager for deeper
+  names: <https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/limitations/>
+- [G1] GitHub, *Registering a GitHub App from a manifest*:
+  <https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest>
+- [G2] GitHub REST, *Create a GitHub App from a manifest*:
+  <https://docs.github.com/en/rest/apps/apps#create-a-github-app-from-a-manifest>
+- [G3] GitHub, *Webhook events and payloads* (availability and required permissions per event):
+  <https://docs.github.com/en/webhooks/webhook-events-and-payloads>
+- [G4] GitHub, *Generating a user access token for a GitHub App* (device flow must be enabled in settings; expiring
+  tokens): <https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app>
+- [S1] Stripe API: products <https://docs.stripe.com/api/products/create>, prices
+  <https://docs.stripe.com/api/prices/create>
+- [S2] Stripe, API versions: <https://docs.stripe.com/upgrades>
+- [S3] Stripe API, *Create a webhook endpoint* (secret returned on creation, `api_version`):
+  <https://docs.stripe.com/api/webhook_endpoints/create>
+- [S4] Stripe API, customer portal configurations and sessions (default configuration):
+  <https://docs.stripe.com/api/customer_portal/configurations/create>,
+  <https://docs.stripe.com/api/customer_portal/sessions/create>
+- [C1] crates.io, *Trusted Publishing*: <https://crates.io/docs/trusted-publishing>, and
+  `rust-lang/crates-io-auth-action`: <https://github.com/rust-lang/crates-io-auth-action>
+- [C2] RFC 3691, *Trusted Publishing for crates.io*:
+  <https://rust-lang.github.io/rfcs/3691-trusted-publishing-cratesio.html>

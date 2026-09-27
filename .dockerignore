@@ -1,0 +1,19 @@
+# Keep the build context to what the Dockerfile copies: Cargo.toml, Cargo.lock, crates/ and website/.
+.git
+.github
+.claude
+**/target
+docs
+deploy
+scripts
+LICENSE-*
+.privatecrates-verify.json
+.env
+.env.*
+
+# Website build artefacts and dependencies (rebuilt inside the image)
+website/node_modules
+website/build
+website/.svelte-kit
+website/.vercel
+website/.netlify

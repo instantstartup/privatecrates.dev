@@ -1,0 +1,182 @@
+# Releases the open-source client tools, cargo-credential-privatecrates and privatecrates-verify (with
+# privatecrates-common), when a tag `vX.Y.Z` is pushed. X.Y.Z must equal the version of all three crates.
+#
+#   1. build binaries for five targets on native runners, and attest their build provenance;
+#   2. create the GitHub release `vX.Y.Z` with the archives and SHA256SUMS (the URLs cargo-binstall uses);
+#   3. publish the three crates to crates.io with trusted publishing (no stored token).
+#
+# The server is not released here: it is deployed by Railway from the `production` branch (docs/deploy.md).
+
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: "1.98.0"
+  CRATES: privatecrates-common cargo-credential-privatecrates privatecrates-verify
+  BINARIES: cargo-credential-privatecrates privatecrates-verify
+
+jobs:
+  check:
+    name: Check the tag matches the crate versions
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          for crate in $CRATES; do
+            actual="$(cargo metadata --no-deps --format-version 1 --locked \
+              | jq -r --arg c "$crate" '.packages[] | select(.name == $c) | .version')"
+            if [[ "$actual" != "$version" ]]; then
+              echo "::error::$crate is at version '$actual', but the tag is $TAG"
+              exit 1
+            fi
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: check
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write # attestations
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux binaries are built on the oldest supported Ubuntu, for the widest glibc compatibility.
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04, archive: tgz }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm, archive: tgz }
+          - { target: aarch64-apple-darwin, os: macos-15, archive: tgz }
+          - { target: x86_64-apple-darwin, os: macos-15-intel, archive: tgz }
+          - { target: x86_64-pc-windows-msvc, os: windows-2025, archive: zip }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-09-12
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+      - name: Build
+        run: |
+          args=()
+          for bin in $BINARIES; do args+=(-p "$bin"); done
+          cargo build --release --locked --target "${{ matrix.target }}" "${args[@]}"
+      - name: Package
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          ext=""
+          [[ "$TARGET" == *windows* ]] && ext=".exe"
+          mkdir -p dist bin
+          for name in $BINARIES; do
+            dir="$name-$TARGET"
+            mkdir -p "$dir"
+            cp "target/$TARGET/release/$name$ext" "$dir/"
+            cp "target/$TARGET/release/$name$ext" "bin/$name-$TARGET$ext"
+            cp -L LICENSE-MIT LICENSE-APACHE "$dir/"
+            cp "crates/$name/README.md" "$dir/"
+            if [[ "$ARCHIVE" == zip ]]; then
+              7z a -tzip "dist/$dir.zip" "$dir" >/dev/null
+            else
+              tar -czf "dist/$dir.tgz" "$dir"
+            fi
+          done
+          ls -l dist bin
+      - name: Attest build provenance (archives and bare binaries)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*
+            bin/*
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: GitHub release
+    needs: [check, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # gh uploads the assets to a draft and then publishes it, which also works with immutable releases.
+          # --notes is combined with the generated notes.
+          gh release create "$TAG" dist/* \
+            --verify-tag \
+            --title "$TAG" \
+            --generate-notes \
+            --notes "Binaries of cargo-credential-privatecrates and privatecrates-verify (install with \`cargo binstall\`). Verify any archive or binary with: \`gh attestation verify <file> --repo $GH_REPO\`"
+
+  publish:
+    name: Publish to crates.io
+    needs: [check, release]
+    runs-on: ubuntu-24.04
+    # Configure this environment (Settings -> Environments) and name it in each crate's trusted publisher on
+    # crates.io. Add required reviewers to it for a manual approval before publishing.
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write # crates.io trusted publishing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-09-12
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+        id: auth
+      - name: Publish (in dependency order; skips versions already on crates.io, so re-runs are safe)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          for crate in $CRATES; do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' \
+              -A "privatecrates-release (https://github.com/${{ github.repository }})" \
+              "https://crates.io/api/v1/crates/$crate/$VERSION")"
+            if [[ "$status" == 200 ]]; then
+              echo "$crate $VERSION is already on crates.io"
+              continue
+            fi
+            cargo publish --locked -p "$crate"
+          done
