@@ -15,6 +15,7 @@
 //   ?mock=over-limit     12 members, set up, before its trial: the plan step offers the trial
 //   ?mock=trial          mid-trial, no card
 //   ?mock=trial-ending   9 days of trial left, no card: the banner
+//   ?mock=auto-trial     the trial started by itself (grew past 5): asks an admin for a billing email
 //   ?mock=paid           subscribed, card on file
 //   ?mock=past-due       a payment failed; Stripe is retrying
 //   ?mock=inactive       the trial ended 3 days ago without a card
@@ -61,7 +62,8 @@ const BILLING = [
 	'just-finished',
 	'compliance',
 	'compliance-problems',
-	'compliance-empty'
+	'compliance-empty',
+	'auto-trial'
 ] as const;
 type Scenario = (typeof SIGNED_IN)[number] | (typeof BILLING)[number];
 
@@ -163,6 +165,9 @@ function orgsFor(scenario: Scenario): OrgModel[] {
 			return acme({ members: 12, sub: trialing(52), trialUsed: true });
 		case 'trial-ending':
 			return acme({ members: 12, sub: trialing(9), trialUsed: true });
+		case 'auto-trial':
+			// Grew past the limit: the trial started by itself, so Stripe has no address yet.
+			return acme({ members: 7, sub: trialing(88), trialUsed: true, billingEmail: '' });
 		case 'paid':
 			return acme({ members: 12, sub: paid(), trialUsed: true });
 		case 'past-due':
@@ -312,6 +317,7 @@ function toOrg(o: OrgModel): Org {
 		plan: planOf(o),
 		trial_ends_at: iso(o.sub?.trialEnd ?? null),
 		has_payment_method: o.sub?.card ?? false,
+		billing_email_missing: !!o.sub && o.billingEmail === '',
 		current_period_end: iso(o.sub?.periodEnd ?? null),
 		trial_available: trialAvailable(o),
 		tenant: tenantOf(o)
@@ -616,7 +622,9 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	}
 	if (path === '/api/session') return delay(json(session(state)));
 
-	const m = path.match(/^\/api\/orgs\/([^/]+)\/(onboarding|settings|trial|checkout|portal|compliance)$/);
+	const m = path.match(
+		/^\/api\/orgs\/([^/]+)\/(onboarding|settings|trial|checkout|portal|compliance|billing-email)$/
+	);
 	if (!m) return delay(error(404, 'not found', 'registry::not_found'));
 	if (state.scenario === 'signed-out' || state.scenario === 'no-orgs')
 		return delay(error(401, 'Sign in to continue.', 'session::required'));
@@ -659,6 +667,22 @@ export const mockFetch: typeof fetch = async (input, init) => {
 		o.slug = slug;
 		save(state);
 		return delay(json(onboarding(o)), 700);
+	}
+	if (action === 'billing-email') {
+		const body = JSON.parse(String(init?.body ?? '{}')) as { billing_email?: string };
+		const email = (body.billing_email ?? '').trim();
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+			return delay(
+				error(
+					400,
+					`${email || 'That'} is not a valid email address. Stripe sends the trial reminder and invoices there.`,
+					'billing::email_invalid'
+				)
+			);
+		if (!o.sub) return delay(error(409, `${login} has no subscription yet.`, 'billing::no_subscription'));
+		o.billingEmail = email;
+		save(state);
+		return delay(json(onboarding(o)), 500);
 	}
 	if (action === 'trial') {
 		const body = JSON.parse(String(init?.body ?? '{}')) as { billing_email?: string };

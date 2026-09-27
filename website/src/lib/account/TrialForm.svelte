@@ -5,11 +5,16 @@
 
 	interface Props {
 		org: string;
-		/** Called with the onboarding document once the trial has started. */
+		/**
+		 * `trial` starts the no-card trial with the address; `email` only saves it, for a trial that started by
+		 * itself when the organisation grew past the free limit.
+		 */
+		purpose?: 'trial' | 'email';
+		/** Called with the onboarding document once the trial has started or the address is saved. */
 		onstarted: (doc: Onboarding) => void;
 	}
 
-	let { org, onstarted }: Props = $props();
+	let { org, purpose = 'trial', onstarted }: Props = $props();
 
 	// Prefilled with nothing: we do not know the user's email, and the billing contact may be someone else.
 	let email = $state('');
@@ -31,7 +36,9 @@
 		starting = true;
 		error = null;
 		try {
-			onstarted(await api.trial(org, email.trim()));
+			onstarted(
+				await (purpose === 'trial' ? api.trial(org, email.trim()) : api.billingEmail(org, email.trim()))
+			);
 		} catch (e) {
 			error = e instanceof ApiError ? e : new ApiError(0, [{ detail: String(e) }]);
 		} finally {
@@ -75,16 +82,25 @@
 		{/if}
 	</div>
 	{#if otherError}
-		<ErrorNotice error={otherError} title="The free trial could not start" />
+		<ErrorNotice
+			error={otherError}
+			title={purpose === 'trial' ? 'The free trial could not start' : 'The billing email could not be saved'}
+		/>
 	{/if}
 	<div class="row">
 		<button class="btn btn-primary" type="submit" disabled={starting}>
-			{starting ? 'Starting the trial…' : `Start ${TRIAL_MONTHS}-month free trial`}
+			{#if purpose === 'trial'}
+				{starting ? 'Starting the trial…' : `Start ${TRIAL_MONTHS}-month free trial`}
+			{:else}
+				{starting ? 'Saving…' : 'Save billing email'}
+			{/if}
 		</button>
-		<span class="fine"
-			>No card needed. Afterwards ${PRICE_USD} per organisation per month; add a card any time under Manage billing.
-			One free trial per organisation.</span
-		>
+		{#if purpose === 'trial'}
+			<span class="fine"
+				>No card needed. Afterwards ${PRICE_USD} per organisation per month; add a card any time under Manage billing.
+				One free trial per organisation.</span
+			>
+		{/if}
 	</div>
 </form>
 

@@ -57,7 +57,8 @@
 				"id": "dev",
 				"name": "Development",
 				"apex": "dev.privatecrates.dev",
-				"canary": "canary",
+				// A real registry; the probe only makes an anonymous request, which reveals nothing about it.
+				"canary": "uxlint-net",
 				"path": "/dev"
 			}
 		],

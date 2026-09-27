@@ -1,6 +1,6 @@
 [package]
 name = "cargo-credential-privatecrates"
-version = "0.2.0"
+version = "0.2.1"
 description = "Cargo credential provider for PrivateCrates private registries: GitHub device flow on developer machines, Actions OIDC in CI."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -13,8 +13,8 @@ homepage.workspace = true
 
 [dependencies]
 cargo-credential = "0.4.10"
-privatecrates-auth = { version = "0.2.0", path = "../privatecrates-auth" }
-privatecrates-common = { version = "0.2.0", path = "../privatecrates-common" }
+privatecrates-auth = { version = "0.2.1", path = "../privatecrates-auth" }
+privatecrates-common = { version = "0.2.1", path = "../privatecrates-common" }
 reqwest = { version = "0.13.5", features = ["blocking", "json", "query", "form"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"

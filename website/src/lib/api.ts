@@ -32,6 +32,8 @@ export interface Org {
 	current_period_end?: string | null;
 	/** Whether POST /trial will work (over the limit, never had a trial, billing configured). */
 	trial_available?: boolean;
+	/** A trial started by itself (the organisation grew past the free limit) and Stripe has no address to remind. */
+	billing_email_missing?: boolean;
 	tenant: Tenant | null;
 }
 
@@ -243,6 +245,9 @@ export const api = {
 		),
 	checkout: (login: string) => request<{ url: string }>('POST', `${org(login)}/checkout`),
 	portal: (login: string) => request<{ url: string }>('POST', `${org(login)}/portal`),
+	/** Sets the address Stripe sends the trial reminder and invoices to; returns the onboarding document. */
+	billingEmail: (login: string, billingEmail: string) =>
+		request<Onboarding>('POST', `${org(login)}/billing-email`, { billing_email: billingEmail }),
 	logout: () => request<void>('POST', '/auth/logout'),
 	errors: () => request<CatalogEntry[]>('GET', '/api/errors')
 };

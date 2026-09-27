@@ -165,8 +165,9 @@
 		publish: 'Published',
 		yank: 'Yanked',
 		unyank: 'Unyanked',
-		owners: 'Owners changed',
-		settings: 'Settings changed'
+		owners_change: 'Owners changed',
+		settings_change: 'Settings changed',
+		index_change: 'Index edited by a person'
 	};
 </script>
 

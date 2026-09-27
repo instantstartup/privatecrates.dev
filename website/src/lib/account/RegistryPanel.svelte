@@ -93,6 +93,15 @@
 {/snippet}
 
 <div class="registry">
+	{#if org.billing_email_missing && admin}
+		<Callout tone="warn" role="status" title="Add a billing email">
+			<p>
+				{org.login}’s free trial started by itself when it grew past {limit} members. Stripe needs an address to
+				send the reminder before the trial ends.
+			</p>
+			<TrialForm org={org.login} purpose="email" onstarted={() => onchange?.()} />
+		</Callout>
+	{/if}
 	{#if trialEnding}
 		<Callout
 			tone="warn"
