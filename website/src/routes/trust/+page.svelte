@@ -117,9 +117,8 @@
 						<tr>
 							<th scope="row">The service and this website</th>
 							<td>
-								Railway, one replica per environment, in the US East region <Todo
-									>confirm the region selected in Railway</Todo
-								>. Railway terminates TLS for our domains.
+								Railway, one replica per environment, in the US East (Virginia) region, close to GitHub’s API.
+								Railway terminates TLS for our domains.
 							</td>
 						</tr>
 						<tr>

@@ -22,7 +22,7 @@ export const subprocessors: Subprocessor[] = [
 		purpose:
 			'Hosts the PrivateCrates service: it runs the server, terminates TLS for our domains and keeps its logs.',
 		data: 'Everything in transit through the service (tokens, crate files during publishing), the in-memory caches, and the service’s logs.',
-		location: 'United States, US East region (TODO: confirm the region selected in Railway)',
+		location: 'United States, US East (Virginia) region',
 		url: 'https://railway.com/legal/privacy'
 	},
 	{

@@ -199,7 +199,7 @@
 
 			<h2 id="transfers">8. International transfers</h2>
 			<p>
-				The service runs in the United States <Todo>confirm against the Railway region</Todo>.
+				The service runs in the United States, in Railway’s US East (Virginia) region.
 				<Todo>transfer mechanism, e.g. the EU Standard Contractual Clauses and the UK addendum</Todo>
 			</p>
 

@@ -249,7 +249,7 @@ top):
 | Settings → Source → Wait for CI | on | on |
 | Settings → Deploy → Replicas | 1 | 1 |
 | Settings → Deploy → Serverless (App Sleeping) | off | off |
-| Settings → Region | same region in both, close to GitHub's API (US East) | same |
+| Settings → Region | US East (Virginia), close to GitHub's API | US East (Virginia) |
 
 The build and deploy settings come from [`railway.json`](../railway.json) in the repository and override the
 dashboard [R2]: Dockerfile builder, health check `GET /healthz` (up to 120 s; the server answers once tenant

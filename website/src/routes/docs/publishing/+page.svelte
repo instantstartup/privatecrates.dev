@@ -105,6 +105,26 @@ cargo yank --registry acme --version 0.2.0 --undo story_engine`;
 	</p>
 </Callout>
 
+<h3 id="remove">Removing a version in an emergency</h3>
+<p>
+	Yanking stops new builds choosing a version but leaves it downloadable. If a published crate contains
+	something that must not be downloaded, such as a secret:
+</p>
+<ol>
+	<li>Rotate the secret. Anyone who downloaded the version already has it; removal does not change that.</li>
+	<li>Yank the version, so no new build picks it.</li>
+	<li>
+		An organisation admin deletes that version’s release in the storage repository on GitHub. Immutable
+		releases cannot be changed, but an admin can delete one; PrivateCrates’ Apps cannot. Builds whose
+		<code>Cargo.lock</code> pins the version then fail to download it, and its version number can never be used
+		again.
+	</li>
+	<li>
+		Expect <a href="/docs/verify">the verifier</a> to report the missing release: it is a deliberate, audited removal,
+		and the report records it.
+	</li>
+</ol>
+
 <h2 id="clashes">Names that exist on crates.io</h2>
 <p>
 	A private crate whose name also exists on crates.io is a dependency-confusion risk. Publishing such a name
