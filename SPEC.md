@@ -21,7 +21,9 @@ separate accounts, keys or access lists.
 - **Security is GitHub's.** Authentication, SAML SSO, SCIM provisioning and offboarding all apply with nothing to
   configure, because every permission decision is GitHub's. Competitors charge heavily for SSO; here it is included.
 - **We hold nothing that matters.** Customer data lives in the customer's own organisation. The tokens we see are
-  narrow (§6), and everything we write is an auditable, verifiable commit in the customer's repository (§10).
+  narrow (§6), and everything we write is an auditable, verifiable commit in the customer's repository (§10). The
+  only thing we store ourselves is the record of who accepted our terms, for which organisation, and when
+  (`docs/preview.md`); no registry data, code or tokens.
 - **Don't trust us, verify us.** Every version is an immutable GitHub release carrying GitHub-signed proof of the
   workflow that built it. Even a fully compromised PrivateCrates cannot publish or alter a crate without the
   customer's own verifier noticing (§10.3).
@@ -71,8 +73,8 @@ The set of tenants is derived at start-up and kept current by webhooks (§7). Th
   needs no card**. An organisation that grows past 5 members has its trial started automatically, so growth never
   breaks anything. SSO and every other feature are included at every level: no SSO tax.
 - Billed through **Stripe**. Stripe is the source of truth: each subscription's metadata names the GitHub
-  organisation, and the server loads subscriptions at start-up and keeps them current from Stripe webhooks, so there
-  is still no database. Member counts come from GitHub.
+  organisation, and the server loads subscriptions at start-up and keeps them current from Stripe webhooks, so
+  billing needs no database of ours. Member counts come from GitHub.
 - A tenant is active while free, or while its subscription is trialing, active or past due. Once it ends, publishing
   is refused at once and reads continue for 14 days, then stop, both with an error pointing to the account page.
 - The full model, and the website's account API, are in `docs/website-api.md`.

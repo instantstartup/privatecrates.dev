@@ -63,7 +63,7 @@ tokens. `tenants` is a count only.
 
 ## 3. Trust centre: `/trust` (website, public)
 
-- **What we hold**: nothing durable. What passes through us (tokens in transit, crate bytes during publish), what we
+- **What we hold**: durably, only terms acceptance records (`docs/preview.md`). What passes through us (tokens in transit, crate bytes during publish), what we
   cache in memory (permissions by token hash, index files, member counts), what we log (GitHub logins, organisation
   names, request paths and error codes; never tokens) and for how long (Railway's log retention; state it).
 - **Where it runs**: Railway (region), Cloudflare (DNS only, not proxied), GitHub (customer data stays in the
