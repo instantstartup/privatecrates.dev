@@ -227,13 +227,15 @@ fn edit_toml(
 }
 
 /// Adds `[registries.<slug>]` with the index and the credential provider. `Ok(false)` when it is already there; an
-/// error describing the difference when the registry is configured otherwise, unless `force`.
+/// error describing the difference when the registry is configured otherwise, unless `force`. A new table gets a
+/// comment for teammates who clone the repository: what to install, and the registry's page on joining.
 pub fn add_registry(
     doc: &mut DocumentMut,
     slug: &str,
     index: &str,
     force: bool,
 ) -> Result<bool, String> {
+    let blank_line = if doc.as_table().is_empty() { "" } else { "\n" };
     let registries = doc
         .entry("registries")
         .or_insert_with(|| {
@@ -245,7 +247,15 @@ pub fn add_registry(
         .ok_or("`registries` is not a table")?;
     let entry = registries
         .entry(slug)
-        .or_insert(Item::Table(Table::new()))
+        .or_insert_with(|| {
+            let mut table = Table::new();
+            table.decor_mut().set_prefix(format!(
+                "{blank_line}# Needs `cargo install cargo-credential-privatecrates`; the first build signs you in on \
+                 GitHub.\n# Joining the team, editors and troubleshooting: {}\n",
+                login_url(index)
+            ));
+            Item::Table(table)
+        })
         .as_table_like_mut()
         .ok_or_else(|| format!("`registries.{slug}` is not a table"))?;
     let current_index = entry.get("index").and_then(Item::as_str);
@@ -278,6 +288,14 @@ pub fn add_registry(
         }
     }
     Ok(changed)
+}
+
+/// The registry's page for developers, from its index URL.
+fn login_url(index: &str) -> String {
+    let base = index.strip_prefix("sparse+").unwrap_or(index);
+    let base = base.trim_end_matches('/');
+    let base = base.strip_suffix("/index").unwrap_or(base);
+    format!("{base}/login")
 }
 
 /// Whether a `credential-provider` value runs this registry's provider, by name or by path.
@@ -545,6 +563,8 @@ mod tests {
              [registries.other]\n\
              index = \"sparse+https://other.example/index/\"\n\
              \n\
+             # Needs `cargo install cargo-credential-privatecrates`; the first build signs you in on GitHub.\n\
+             # Joining the team, editors and troubleshooting: https://acme.privatecrates.dev/login\n\
              [registries.acme]\n\
              index = \"sparse+https://acme.privatecrates.dev/index/\"\n\
              credential-provider = [\"cargo-credential-privatecrates\"]\n"
@@ -561,7 +581,9 @@ mod tests {
         assert_eq!(add_registry(&mut config, "acme", INDEX, false), Ok(true));
         assert_eq!(
             config.to_string(),
-            "[registries.acme]\n\
+            "# Needs `cargo install cargo-credential-privatecrates`; the first build signs you in on GitHub.\n\
+             # Joining the team, editors and troubleshooting: https://acme.privatecrates.dev/login\n\
+             [registries.acme]\n\
              index = \"sparse+https://acme.privatecrates.dev/index/\"\n\
              credential-provider = [\"cargo-credential-privatecrates\"]\n"
         );

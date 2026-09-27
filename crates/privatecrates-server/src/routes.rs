@@ -348,28 +348,56 @@ pub async fn login_page(
     TenantHost(tenant): TenantHost,
 ) -> Html<String> {
     let base = state.config.tenant_base_url(&tenant.slug);
+    let apex = state.config.apex_url();
     let slug = &tenant.slug;
     let org = &tenant.org_login;
     Html(format!(
         r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{slug} · PrivateCrates</title>
-<style>body{{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}}pre{{background:#f4f4f4;padding:1rem;overflow-x:auto}}</style>
+<style>body{{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}}pre{{background:#f4f4f4;padding:1rem;overflow-x:auto}}@media (prefers-color-scheme:dark){{body{{background:#111;color:#eee}}pre{{background:#222}}a{{color:#8cf}}}}</style>
 </head><body>
 <h1>Private crates for {org}</h1>
-<p>Access follows your GitHub permissions: you can use a crate if you can read its repository on GitHub.</p>
-<h2 id="setup">Set up</h2>
-<pre>cargo install cargo-credential-privatecrates</pre>
-<p>In <code>.cargo/config.toml</code>:</p>
+<p>This is the <code>{slug}</code> registry, for the <strong>{org}</strong> organisation on GitHub. Access follows your
+GitHub permissions: you can use a crate if you can read its repository on GitHub. There is no separate account.</p>
+
+<h2 id="setup">Joining the team</h2>
+<p>If a project already uses this registry, you need one thing: the credential provider.</p>
+<pre>cargo install cargo-credential-privatecrates --locked</pre>
+<p>Then build as usual. The first time, Cargo shows a code: approve it on GitHub, and you are signed in for every
+project using {org}'s registry. To sign in before building (for example, before opening the project in an editor):</p>
+<pre>cargo login --registry {slug}</pre>
+<p>A project that does not use the registry yet needs it in <code>.cargo/config.toml</code>:</p>
 <pre>[registries.{slug}]
 index = "sparse+{base}/index/"
 credential-provider = ["cargo-credential-privatecrates"]</pre>
-<p>The first build asks you to approve a sign-in on GitHub. In <code>Cargo.toml</code>:</p>
+<p>and dependencies that name it, in <code>Cargo.toml</code>:</p>
 <pre>my_crate = {{ version = "1", registry = "{slug}" }}</pre>
+
+<h2 id="editors">Editors and background builds</h2>
+<p>Editors such as rust-analyzer run Cargo without a terminal, where there is nowhere to show a sign-in code. If you
+are not signed in, the build stops at once with <em>not signed in … run <code>cargo login --registry {slug}</code> in a
+terminal</em>. Run that once, then reload the editor.</p>
+
+<h2 id="troubleshooting">When something does not work</h2>
+<ul>
+<li><strong>A crate is "not found".</strong> Either it does not exist, or you cannot read the repository it is
+published from; the registry does not say which, so private names stay private. Ask someone in {org} for read access
+to that repository. <code>cargo privatecrates doctor --crate NAME</code> checks your setup and sign-in.</li>
+<li><strong>"no matching package" right after someone published.</strong> Retry after a minute, or run
+<code>cargo update</code>.</li>
+<li><strong>Signed in as the wrong GitHub account.</strong> <code>cargo logout --registry {slug}</code>, then
+<code>cargo login --registry {slug}</code>.</li>
+<li><strong>Signed in, but every crate is "not found".</strong> Your GitHub account must be a member of {org}; if
+it is, sign out and in again, and on GitHub grant the PrivateCrates app access to {org} when asked.</li>
+</ul>
+
 <h2 id="ci">GitHub Actions</h2>
 <p>Add <code>permissions: id-token: write</code> to the job and install the credential provider. No secrets are needed.</p>
+
 <h2 id="publish">Publishing</h2>
-<p>Crates are published from GitHub Actions, so every version has verifiable provenance:</p>
+<p>Crates are published from GitHub Actions, so every version has verifiable provenance. Only people who can create
+releases in the crate's repository (write access or above) can trigger a publish.</p>
 <pre>on:
   push:
     tags: ["v*"]
@@ -381,10 +409,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: cargo-bins/cargo-binstall@main  # pin to a commit
-      - run: cargo binstall --no-confirm cargo-credential-privatecrates
+      - run: cargo install cargo-credential-privatecrates --locked
       - run: cargo publish --registry {slug}</pre>
-<p>The crate's <code>package.repository</code> must be the repository the workflow runs in.</p>
+<p>The crate's <code>package.repository</code> must be the repository the workflow runs in.
+<code>cargo privatecrates init</code> sets all of this up.</p>
+<p>More: <a href="{apex}/docs/joining">joining a team</a>, <a href="{apex}/docs">all documentation</a>.</p>
 </body></html>"#
     ))
 }

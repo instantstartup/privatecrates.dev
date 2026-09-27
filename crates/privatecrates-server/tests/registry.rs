@@ -728,3 +728,21 @@ async fn an_index_edited_elsewhere_is_picked_up_on_conflict() {
     assert_eq!(index.lines().count(), 2);
     assert!(index.lines().next().unwrap().contains("\"yanked\":true"));
 }
+
+#[tokio::test]
+async fn the_login_page_guides_a_developer_joining_the_team() {
+    let h = Harness::start().await;
+    let response = h.get("/login", None).await;
+    assert_eq!(response.status(), 200);
+    let page = response.text().await.unwrap();
+    for expected in [
+        "cargo install cargo-credential-privatecrates --locked",
+        "cargo login --registry acme",
+        "id=\"editors\"",
+        "id=\"troubleshooting\"",
+        "id=\"publish\"",
+        &format!("sparse+{}/index/", h.base()),
+    ] {
+        assert!(page.contains(expected), "missing {expected}");
+    }
+}
