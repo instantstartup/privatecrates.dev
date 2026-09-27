@@ -175,7 +175,15 @@ async fn init_publish_from_ci_then_doctor() {
     let output = env
         .cli(
             dir,
-            &["init", "--registry", "acme", "--url", &h.base(), "--json"],
+            &[
+                "init",
+                "--yes",
+                "--registry",
+                "acme",
+                "--url",
+                &h.base(),
+                "--json",
+            ],
         )
         .await;
     assert!(output.status.success(), "{}", describe(&output));
@@ -203,7 +211,10 @@ async fn init_publish_from_ci_then_doctor() {
 
     // Idempotent.
     let output = env
-        .cli(dir, &["init", "--registry", "acme", "--url", &h.base()])
+        .cli(
+            dir,
+            &["init", "--yes", "--registry", "acme", "--url", &h.base()],
+        )
         .await;
     assert!(output.status.success(), "{}", describe(&output));
     assert!(
@@ -380,6 +391,7 @@ async fn init_configures_a_workspace() {
             dir,
             &[
                 "init",
+                "--yes",
                 "--registry",
                 "acme",
                 "--domain",
@@ -408,6 +420,7 @@ async fn init_configures_a_workspace() {
             dir,
             &[
                 "init",
+                "--yes",
                 "--registry",
                 "acme",
                 "--domain",
@@ -447,7 +460,14 @@ async fn init_configures_a_workspace() {
     let output = env
         .cli(
             &dir.join("crates/story_core"),
-            &["init", "--registry", "acme", "--domain", &h.apex("")],
+            &[
+                "init",
+                "--yes",
+                "--registry",
+                "acme",
+                "--domain",
+                &h.apex(""),
+            ],
         )
         .await;
     assert!(

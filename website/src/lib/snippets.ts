@@ -156,7 +156,7 @@ export const cliUsage = `cargo privatecrates login
 cargo privatecrates logout
 cargo privatecrates setup <org> [--slug <name> --accept-terms <version>]${PREVIEW ? '' : ' [--start-trial --billing-email <address>]'} [--json]
 cargo privatecrates terms <org> --accept <version>
-cargo privatecrates init --registry <name> [--domain <domain> | --url <url>]
+cargo privatecrates init --registry <name> [--dry-run | --yes] [--no-workflow] [--domain <domain> | --url <url>]
 cargo privatecrates doctor [--json]`;
 
 /** Creates the storage repository and turns on immutable releases, with the admin's own gh login. */
@@ -331,7 +331,7 @@ Steps:
 ${numbered([
 	`Install the CLI if it is missing: ${INSTALL_CLI}`,
 	`List ${org}'s repositories that contain Rust crates (gh repo list ${org} --limit 500, then look for Cargo.toml). Show me the list and ask which crates to publish before changing anything.`,
-	`In each chosen repository, on a new branch: run ${cli(`init --registry ${slug}`, apex)}, which also sets publish = ["${slug}"] on each crate; set publish = false on any crate that should not be published, commit, and open a pull request with gh pr create. Do not merge it: I review and merge.`,
+	`In each chosen repository, on a new branch: run ${cli(`init --registry ${slug} --dry-run`, apex)} and show me the plan, then ${cli(`init --registry ${slug} --yes`, apex)}, which also sets publish = ["${slug}"] on each crate; set publish = false on any crate that should not be published, commit, and open a pull request with gh pr create. Do not merge it: I review and merge.`,
 	`Once a pull request is merged, publish a first version from CI by pushing a tag that matches the crate's version, e.g. git tag v0.1.0 && git push origin v0.1.0; in a workspace, tag one crate with <crate>-v<version> (e.g. story_engine-v0.1.0), since v<version> publishes every crate. The publish workflow runs in GitHub Actions; follow it with gh run watch.`,
 	`Run ${cli('doctor', apex)} in each repository, and fix or report anything it flags.`
 ])}

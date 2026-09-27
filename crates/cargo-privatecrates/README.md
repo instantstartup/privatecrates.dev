@@ -8,7 +8,7 @@ cargo privatecrates login                                   # GitHub device flow
 cargo privatecrates logout
 cargo privatecrates setup <org> [--slug <name> --accept-terms <version>] [--start-trial --billing-email <email>] [--json]
 cargo privatecrates terms <org> [--accept <version>] [--json]
-cargo privatecrates init --registry <name> [--workflow-name publish.yml] [--force]
+cargo privatecrates init --registry <name> [--dry-run | --yes] [--no-workflow] [--workflow-name publish.yml] [--force]
 cargo privatecrates doctor [--registry <name> …] [--crate <name> …] [--json]
 ```
 
@@ -32,6 +32,9 @@ cargo privatecrates doctor [--registry <name> …] [--crate <name> …] [--json]
   `.github/workflows/publish.yml`, which publishes on tags `v*` with GitHub Actions' OIDC token (in a workspace,
   also on `<crate>-v*`, publishing just that crate, while `v*` publishes them all). Running it again
   changes nothing; a file it did not write is replaced only with `--force`.
+  It prints what it will do and asks before writing anything, with a separate question for the workflow
+  (`--no-workflow` leaves it out). Without a terminal it prints the plan and exits 1: `--dry-run` only shows the
+  plan, and `--yes` applies it without asking.
 - **`doctor`**: checks that the credential provider is installed, the registry is configured and answers, you can
   read it, `package.repository` matches the `origin` remote, publishing is restricted to the registry, a workflow
   publishes with `id-token: write`, and the current version is in the index. Each check passes, warns or fails,

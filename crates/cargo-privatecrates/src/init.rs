@@ -1,9 +1,11 @@
 //! `cargo privatecrates init`: configures a crate repository or workspace to use and publish to a registry.
 //!
 //! Every edit is a merge that keeps the file's formatting and comments, and running it again changes nothing. A file
-//! it did not write is replaced only with `--force`.
+//! it did not write is replaced only with `--force`. [`run`] only plans: the edits are held in [`Staged`] until the
+//! person (or `--yes`) agrees, and [`Staged::apply`] writes them.
 
 use std::{
+    collections::BTreeMap,
     fmt,
     path::{Path, PathBuf},
 };
@@ -25,6 +27,8 @@ pub struct Options<'a> {
     /// The registry's base URL, e.g. `https://acme.privatecrates.dev`.
     pub url: &'a str,
     pub workflow_name: &'a str,
+    /// Also write the GitHub Actions workflow that publishes.
+    pub workflow: bool,
     pub force: bool,
 }
 
@@ -38,6 +42,67 @@ pub struct Report {
     pub repository: Option<String>,
     pub changes: Vec<Change>,
     pub warnings: Vec<String>,
+    /// Whether the changes were written, or are only planned.
+    pub applied: bool,
+}
+
+impl Report {
+    /// Whether applying would write anything.
+    pub fn has_changes(&self) -> bool {
+        self.changes
+            .iter()
+            .any(|c| matches!(c.action, Action::Created | Action::Updated))
+    }
+
+    /// The publish workflow, when this plan creates or replaces it.
+    pub fn workflow_change(&self) -> Option<&Change> {
+        self.changes
+            .iter()
+            .find(|c| c.workflow && matches!(c.action, Action::Created | Action::Updated))
+    }
+
+    /// Leaves the publish workflow out of the plan.
+    pub fn drop_workflow(&mut self, staged: &mut Staged) {
+        self.changes.retain(|c| {
+            if c.workflow {
+                staged.0.remove(&c.path);
+            }
+            !c.workflow
+        });
+    }
+}
+
+/// Files to write, held in memory until applied.
+#[derive(Default)]
+pub struct Staged(BTreeMap<PathBuf, String>);
+
+impl Staged {
+    /// The file as it will be: staged, or on disk. `None` when it does not exist.
+    fn read(&self, path: &Path) -> Result<Option<String>, Error> {
+        if let Some(text) = self.0.get(path) {
+            return Ok(Some(text.clone()));
+        }
+        match std::fs::read_to_string(path) {
+            Ok(text) => Ok(Some(text)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(Error::io("read", path)(e)),
+        }
+    }
+
+    fn write(&mut self, path: &Path, content: String) {
+        self.0.insert(path.to_owned(), content);
+    }
+
+    /// Writes every staged file.
+    pub fn apply(&self) -> Result<(), Error> {
+        for (path, content) in &self.0 {
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir).map_err(Error::io("create", dir))?;
+            }
+            std::fs::write(path, content).map_err(Error::io("write", path))?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Serialize)]
@@ -45,6 +110,9 @@ pub struct Change {
     pub path: PathBuf,
     pub action: Action,
     pub detail: String,
+    /// This is the publish workflow.
+    #[serde(skip)]
+    pub workflow: bool,
 }
 
 #[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -68,18 +136,45 @@ impl fmt::Display for Action {
     }
 }
 
+impl Action {
+    /// What applying the plan will do.
+    fn planned(self) -> &'static str {
+        match self {
+            Self::Created => "create",
+            Self::Updated => "update",
+            Self::Unchanged => "unchanged",
+            Self::Kept => "keep",
+        }
+    }
+}
+
 impl fmt::Display for Report {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(
-            f,
-            "Configured {} for the registry {} ({}):",
-            self.root.display(),
-            self.registry,
-            self.registry_url
-        )?;
+        if self.applied {
+            writeln!(
+                f,
+                "Configured {} for the registry {} ({}):",
+                self.root.display(),
+                self.registry,
+                self.registry_url
+            )?;
+        } else {
+            writeln!(
+                f,
+                "To configure {} for the registry {} ({}), init will:",
+                self.root.display(),
+                self.registry,
+                self.registry_url
+            )?;
+        }
         for change in &self.changes {
             let path = change.path.strip_prefix(&self.root).unwrap_or(&change.path);
-            write!(f, "  {:<9} {}", change.action.to_string(), path.display())?;
+            let action = if self.applied {
+                change.action.to_string()
+            } else {
+                change.action.planned().to_owned()
+            };
+            write!(f, "  {action:<9} {}", path.display())?;
             if !change.detail.is_empty() {
                 write!(f, ": {}", change.detail)?;
             }
@@ -88,8 +183,17 @@ impl fmt::Display for Report {
         for warning in &self.warnings {
             writeln!(f, "warning: {warning}")?;
         }
-        if self.changes.iter().all(|c| c.action == Action::Unchanged) {
+        if !self.has_changes() {
             write!(f, "Nothing to change.")
+        } else if !self.applied {
+            write!(f, "Nothing has been written yet.")
+        } else if !self.changes.iter().any(|c| c.workflow) {
+            write!(
+                f,
+                "Next: commit this and open a pull request. Crates are published from GitHub Actions: run init \
+                 again without --no-workflow to add the workflow, or see {}/login#publish.",
+                self.registry_url
+            )
         } else {
             write!(
                 f,
@@ -100,7 +204,8 @@ impl fmt::Display for Report {
     }
 }
 
-pub fn run(dir: &Path, options: &Options<'_>) -> Result<Report, Error> {
+/// Plans the changes: nothing is written until the caller applies the [`Staged`] files.
+pub fn run(dir: &Path, options: &Options<'_>) -> Result<(Report, Staged), Error> {
     if !privatecrates_common::slug_is_valid(options.slug) {
         return Err(Error::Invalid(format!(
             "`{}` is not a registry name: 1 to 63 lowercase letters, digits or hyphens",
@@ -114,10 +219,11 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Result<Report, Error> {
         )));
     }
     let mut warnings = Vec::new();
+    let mut staged = Staged::default();
     let index = target::index_url(options.url);
-    let configure = |root: &Path| {
+    let configure = |staged: &mut Staged, root: &Path| {
         let config = root.join(".cargo/config.toml");
-        edit_toml(&config, |doc| {
+        edit_toml(staged, &config, |doc| {
             add_registry(doc, options.slug, &index, options.force)
                 .map_err(|detail| Error::Conflict {
                     path: config.clone(),
@@ -126,15 +232,17 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Result<Report, Error> {
                 .map(|changed| changed.then(|| format!("[registries.{}] → {index}", options.slug)))
         })
     };
-    let (project, configured) = match Project::load(dir) {
+    let (project, configured) = match Project::load(dir, None) {
         Ok(project) => {
-            let configured = configure(&project.root)?;
+            let configured = configure(&mut staged, &project.root)?;
             (project, configured)
         }
-        // Cargo cannot read manifests that depend on the registry's crates until the registry is configured.
+        // Cargo cannot read manifests that depend on the registry's crates until the registry is configured, and
+        // nothing is written yet: tell Cargo about it on the command line.
         Err(e) if dir.join("Cargo.toml").is_file() => {
-            let configured = configure(dir)?;
-            (Project::load(dir).map_err(|_| e)?, configured)
+            let configured = configure(&mut staged, dir)?;
+            let project = Project::load(dir, Some((options.slug, &index))).map_err(|_| e)?;
+            (project, configured)
         }
         Err(e) => return Err(e),
     };
@@ -148,6 +256,7 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Result<Report, Error> {
         );
     }
     changes.extend(edit_packages(
+        &mut staged,
         &project,
         repository.as_deref(),
         options.slug,
@@ -167,35 +276,39 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Result<Report, Error> {
         project.workspace,
         working_directory.as_deref(),
     );
-    changes.push(write_workflow(
-        &path,
-        &content,
-        options.slug,
-        options.force,
-    )?);
+    if options.workflow {
+        changes.push(write_workflow(
+            &mut staged,
+            &path,
+            &content,
+            options.slug,
+            options.force,
+        )?);
+    }
 
-    Ok(Report {
-        root: project.root,
-        registry: options.slug.to_owned(),
-        registry_url: options.url.to_owned(),
-        workspace: project.workspace,
-        repository,
-        changes,
-        warnings,
-    })
+    Ok((
+        Report {
+            root: project.root,
+            registry: options.slug.to_owned(),
+            registry_url: options.url.to_owned(),
+            workspace: project.workspace,
+            repository,
+            changes,
+            warnings,
+            applied: false,
+        },
+        staged,
+    ))
 }
 
 /// Applies `edit` to a TOML file (or a new one), writing it only if the edit changed something. `edit` returns a
 /// description of the change, or `None` when there was nothing to do.
 fn edit_toml(
+    staged: &mut Staged,
     path: &Path,
     edit: impl FnOnce(&mut DocumentMut) -> Result<Option<String>, Error>,
 ) -> Result<Change, Error> {
-    let existing = match std::fs::read_to_string(path) {
-        Ok(text) => Some(text),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => return Err(Error::io("read", path)(e)),
-    };
+    let existing = staged.read(path)?;
     let mut doc = existing
         .as_deref()
         .unwrap_or_default()
@@ -209,12 +322,10 @@ fn edit_toml(
             path: path.to_owned(),
             action: Action::Unchanged,
             detail: String::new(),
+            workflow: false,
         });
     };
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(Error::io("create", dir))?;
-    }
-    std::fs::write(path, doc.to_string()).map_err(Error::io("write", path))?;
+    staged.write(path, doc.to_string());
     Ok(Change {
         path: path.to_owned(),
         action: if existing.is_some() {
@@ -223,6 +334,7 @@ fn edit_toml(
             Action::Created
         },
         detail,
+        workflow: false,
     })
 }
 
@@ -316,6 +428,7 @@ pub fn is_privatecrates_provider(value: Option<&toml_edit::Value>) -> bool {
 ///   `repository.workspace = true` in the members of a workspace, or directly in a single crate;
 /// - restricts `publish` to the registry where it is unset, so a crate can never go to crates.io by accident.
 fn edit_packages(
+    staged: &mut Staged,
     project: &Project,
     repository: Option<&str>,
     slug: &str,
@@ -324,13 +437,13 @@ fn edit_packages(
     let mut changes = Vec::new();
     let root_manifest = project.root.join("Cargo.toml");
     if let (true, Some(repository)) = (project.workspace, repository) {
-        changes.push(edit_toml(&root_manifest, |doc| {
+        changes.push(edit_toml(staged, &root_manifest, |doc| {
             Ok(set_workspace_repository(doc, repository)
                 .then(|| format!("workspace.package.repository = \"{repository}\"")))
         })?);
     }
     for package in &project.packages {
-        let change = edit_toml(&package.manifest_path, |doc| {
+        let change = edit_toml(staged, &package.manifest_path, |doc| {
             let repository_change = repository.and_then(|repository| {
                 if project.workspace {
                     inherit_repository(doc)
@@ -515,17 +628,20 @@ jobs:
 }
 
 /// Writes the workflow, unless an existing one already publishes to the registry or `force` is not given.
-fn write_workflow(path: &Path, content: &str, slug: &str, force: bool) -> Result<Change, Error> {
+fn write_workflow(
+    staged: &mut Staged,
+    path: &Path,
+    content: &str,
+    slug: &str,
+    force: bool,
+) -> Result<Change, Error> {
     let change = |action, detail: &str| Change {
         path: path.to_owned(),
         action,
         detail: detail.to_owned(),
+        workflow: true,
     };
-    let existing = match std::fs::read_to_string(path) {
-        Ok(text) => Some(text),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => return Err(Error::io("read", path)(e)),
-    };
+    let existing = staged.read(path)?;
     let action = match existing.as_deref() {
         Some(text) if text == content => return Ok(change(Action::Unchanged, "")),
         Some(text) if !force && publishes_to(text, slug) => {
@@ -543,10 +659,7 @@ fn write_workflow(path: &Path, content: &str, slug: &str, force: bool) -> Result
         Some(_) => Action::Updated,
         None => Action::Created,
     };
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(Error::io("create", dir))?;
-    }
-    std::fs::write(path, content).map_err(Error::io("write", path))?;
+    staged.write(path, content.to_owned());
     let tags = if content.contains("*-v*") {
         "publishes on tags <crate>-v* (one crate) and v* (the workspace)"
     } else {
@@ -738,7 +851,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(".github/workflows/publish.yml");
         let content = workflow("acme", false, None);
-        let write = |force| write_workflow(&path, &content, "acme", force).map(|c| c.action);
+        // Plans, and applies the plan, as `init` does once the person agrees.
+        let write = |force| {
+            let mut staged = Staged::default();
+            let change = write_workflow(&mut staged, &path, &content, "acme", force)?;
+            staged.apply()?;
+            Ok::<_, Error>(change.action)
+        };
         assert_eq!(write(false).unwrap(), Action::Created);
         assert_eq!(write(false).unwrap(), Action::Unchanged);
 

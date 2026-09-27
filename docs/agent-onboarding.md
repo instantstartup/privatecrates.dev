@@ -16,7 +16,7 @@ on one.
 | Accept the terms | **human** | the agent shows the admin the terms link and asks them to accept on behalf of the organisation; it never accepts for them |
 | Choose the registry name | agent, once the admin accepted | `cargo privatecrates setup {org} --slug {slug} --accept-terms {version}` (records the acceptance, then our API creates `privatecrates.toml`) |
 | Start the trial (orgs over 5 members; not during the preview) | agent, with the admin's billing email | `cargo privatecrates setup {org} --start-trial --billing-email {email}` |
-| Configure each crate repository | agent | `cargo privatecrates init --registry {slug}`, then a pull request |
+| Configure each crate repository | agent | `cargo privatecrates init --registry {slug} --dry-run`, shown to the person, then `--yes` and a pull request |
 | Publish a first version | agent | push a tag; `cargo privatecrates doctor` confirms the result |
 
 Our Apps keep their least-privilege shape throughout: everything that needs administration rights is done with the
@@ -59,7 +59,9 @@ URL), and exits non-zero on failure.
 - `init --registry <slug> [--url URL]`, run in a crate repository or workspace: merges the registry into
   `.cargo/config.toml` (preserving formatting, with `toml_edit`); sets `package.repository` from the git remote where
   missing (in `[workspace.package]` with `repository.workspace = true` in members, for workspaces); writes
-  `.github/workflows/publish.yml`; idempotent; prints what it changed.
+  `.github/workflows/publish.yml` (unless `--no-workflow`); idempotent. It prints the plan and asks before writing (the
+  workflow separately); without a terminal it prints the plan and exits 1. `--dry-run` shows the plan, `--yes`
+  applies it without asking: an agent shows the person the dry run first.
 - `doctor [--registry S …] [--json]`: checks the provider is installed and configured, the registry answers (401
   without a token, 200 with the stored one), `package.repository` matches the git remote, `publish` is restricted to
   the registry, the workflow exists with `id-token: write`, and that the current version is in the index. Whether

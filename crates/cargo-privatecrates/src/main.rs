@@ -16,7 +16,11 @@ mod init;
 mod project;
 mod target;
 
-use std::{path::PathBuf, process::ExitCode};
+use std::{
+    io::{IsTerminal, Write},
+    path::PathBuf,
+    process::ExitCode,
+};
 
 use clap::{Parser, Subcommand};
 use serde::Serialize;
@@ -102,6 +106,15 @@ enum Command {
         /// Replace a registry configuration or workflow that differs.
         #[arg(long)]
         force: bool,
+        /// Apply the changes without asking (for scripts and coding agents, once a person has seen the plan).
+        #[arg(long, short = 'y')]
+        yes: bool,
+        /// Show the changes and write nothing.
+        #[arg(long, conflicts_with = "yes")]
+        dry_run: bool,
+        /// Leave out the GitHub Actions workflow that publishes.
+        #[arg(long)]
+        no_workflow: bool,
     },
     /// Check the current crate repository: the credential provider, the registry, package.repository, the publish
     /// workflow and the published versions.
@@ -200,20 +213,65 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
             registry,
             workflow_name,
             force,
+            yes,
+            dry_run,
+            no_workflow,
         } => {
             let url = match &cli.url {
                 Some(url) => url.trim_end_matches('/').to_owned(),
                 None => domain.registry(registry),
             };
-            let report = init::run(
+            let (mut report, mut staged) = init::run(
                 &cwd,
                 &init::Options {
                     slug: registry,
                     url: &url,
                     workflow_name,
+                    workflow: !no_workflow,
                     force: *force,
                 },
             )?;
+            if !report.has_changes() || *dry_run {
+                return Ok(Outcome::new(&report, true));
+            }
+            if !yes {
+                // Without a person to ask, show the plan and write nothing.
+                if cli.json || !std::io::stdin().is_terminal() {
+                    let mut outcome = Outcome::new(&report, false);
+                    outcome
+                        .text
+                        .push_str(" Run it again with --yes to apply these changes.");
+                    return Ok(outcome);
+                }
+                eprintln!("{report}\n");
+                if let Some(change) = report.workflow_change() {
+                    let path = change
+                        .path
+                        .strip_prefix(&report.root)
+                        .unwrap_or(&change.path);
+                    eprintln!(
+                        "{} makes GitHub Actions publish your crates when you push a version tag. The job's OIDC \
+                         token is the credential, so there are no secrets to store, and every version gets \
+                         provenance signed by GitHub. A crate's first version can only be published this way.",
+                        path.display()
+                    );
+                    if !confirm(&format!("Write {}?", path.display()))? {
+                        report.drop_workflow(&mut staged);
+                    }
+                }
+                if !report.has_changes() {
+                    return Ok(Outcome::new(&report, true));
+                }
+                if !confirm("Apply these changes?")? {
+                    return Ok(Outcome {
+                        json: serde_json::to_value(&report).expect("reports serialise"),
+                        text: "Nothing was written.".into(),
+                        ok: false,
+                    });
+                }
+            }
+            staged.apply()?;
+            report.applied = true;
             Outcome::new(&report, true)
         }
         Command::Doctor { registries, crates } => {
@@ -230,6 +288,26 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
             Outcome::new(&report, ok)
         }
     })
+}
+
+/// Asks a yes-or-no question on the terminal; Enter means yes.
+fn confirm(question: &str) -> Result<bool, Error> {
+    loop {
+        eprint!("{question} [Y/n] ");
+        std::io::stderr().flush().ok();
+        let mut answer = String::new();
+        let read = std::io::stdin()
+            .read_line(&mut answer)
+            .map_err(Error::io("read", PathBuf::from("standard input")))?;
+        if read == 0 {
+            return Ok(false);
+        }
+        match answer.trim().to_ascii_lowercase().as_str() {
+            "" | "y" | "yes" => return Ok(true),
+            "n" | "no" => return Ok(false),
+            _ => {}
+        }
+    }
 }
 
 fn main() -> ExitCode {

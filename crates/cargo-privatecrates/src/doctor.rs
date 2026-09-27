@@ -88,7 +88,7 @@ pub struct Options<'a> {
 
 pub fn run(dir: &Path, options: &Options<'_>) -> Report {
     let mut checks = Vec::new();
-    let project = match Project::load(dir) {
+    let project = match Project::load(dir, None) {
         Ok(project) => Some(project),
         Err(e) => {
             checks.push(

@@ -32,7 +32,9 @@ pub struct Package {
 
 impl Project {
     /// The project containing `dir`, from `cargo metadata`.
-    pub fn load(dir: &Path) -> Result<Self, Error> {
+    /// Reads the project with `cargo metadata`. `registry` (name and index) tells Cargo about a registry that is not
+    /// configured on disk yet.
+    pub fn load(dir: &Path, registry: Option<(&str, &str)>) -> Result<Self, Error> {
         #[derive(Deserialize)]
         struct Metadata {
             packages: Vec<Package>,
@@ -45,12 +47,16 @@ impl Project {
             )));
         }
         // Cargo reads `.cargo/config.toml` from the current directory, so run it there.
-        let output = run(
-            Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
-                .args(["metadata", "--no-deps", "--format-version", "1"])
-                .current_dir(dir),
-            "cargo metadata",
-        )?;
+        let mut command = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
+        command
+            .args(["metadata", "--no-deps", "--format-version", "1"])
+            .current_dir(dir);
+        if let Some((name, index)) = registry {
+            command
+                .arg("--config")
+                .arg(format!("registries.{name}.index={index:?}"));
+        }
+        let output = run(&mut command, "cargo metadata")?;
         let metadata: Metadata = serde_json::from_str(&output).map_err(|e| Error::Command {
             command: "cargo metadata".into(),
             detail: e.to_string(),
