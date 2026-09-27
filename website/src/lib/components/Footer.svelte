@@ -25,7 +25,7 @@
 			<h2>Product</h2>
 			<ul>
 				<li><a href="/pricing">Pricing</a></li>
-				<li><a href="/account">Account and billing</a></li>
+				<li><a href="/account">Account</a></li>
 				<li><a href={STATUS_URL}>Status</a></li>
 			</ul>
 		</nav>
@@ -34,7 +34,7 @@
 			<ul>
 				<li><a href="/trust">Trust centre</a></li>
 				<li><a href="/security">Report a vulnerability</a></li>
-				<li><a href="/legal/terms">Terms (draft)</a></li>
+				<li><a href="/legal/terms">Preview terms</a></li>
 				<li><a href="/legal/privacy">Privacy (draft)</a></li>
 				<li><a href="/legal/dpa">DPA (draft)</a></li>
 			</ul>

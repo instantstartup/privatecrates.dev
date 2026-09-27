@@ -1,24 +1,30 @@
 <script lang="ts">
 	import type { Org } from '$lib/api';
-	import { memberCount, planBadge, setupLabel } from './format';
+	import { memberCount, planBadge, plural, setupLabel } from './format';
 
 	interface Props {
 		orgs: Org[];
 		selected: string | null;
 		/** Whether an organisation's registry works (decided by the account page). */
 		isLive: (org: Org) => boolean;
+		/** The preview: every organisation is free, so no plan badges. */
+		preview?: boolean;
 	}
 
-	let { orgs, selected, isLive }: Props = $props();
+	let { orgs, selected, isLive, preview = false }: Props = $props();
 </script>
 
 <nav aria-label="Your organisations">
 	<h2 class="title">Organisations</h2>
+	{#if preview}
+		<!-- One line for all of them, in place of a plan badge on each. -->
+		<p class="preview">Free during the preview</p>
+	{/if}
 	<ul>
 		{#each orgs as org (org.id)}
-			{@const badge = planBadge(org)}
+			{@const badge = preview ? null : planBadge(org)}
 			{@const setup = setupLabel(org, isLive(org))}
-			{@const members = memberCount(org)}
+			{@const members = preview && org.members != null ? plural(org.members, 'member') : memberCount(org)}
 			<li class={['row', org.login === selected && 'selected']}>
 				<span class="monogram" aria-hidden="true">{org.login.slice(0, 1).toUpperCase()}</span>
 				<span class="text">
@@ -29,8 +35,11 @@
 					<span class="meta">{org.role === 'admin' ? 'Admin' : 'Member'}{members ? `, ${members}` : ''}</span>
 					<span class="badges">
 						<span class={['badge', setup === 'Live' ? 'live' : 'idle']}>{setup}</span>
-						<span class={['badge', badge.tone]}><span class="visually-hidden">Plan: </span>{badge.label}</span
-						>
+						{#if badge}
+							<span class={['badge', badge.tone]}
+								><span class="visually-hidden">Plan: </span>{badge.label}</span
+							>
+						{/if}
 					</span>
 				</span>
 			</li>
@@ -42,6 +51,17 @@
 	.title {
 		font-size: var(--text-xl);
 		margin-bottom: 0.5rem;
+	}
+	.preview {
+		display: inline-block;
+		margin-bottom: 0.6rem;
+		font-size: var(--text-sm);
+		font-weight: 700;
+		padding: 0.15rem 0.5rem;
+		border-radius: 999px;
+		border: 1.5px solid currentColor;
+		color: var(--ok);
+		background: var(--ok-bg);
 	}
 	ul {
 		display: grid;

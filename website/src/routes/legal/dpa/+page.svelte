@@ -86,7 +86,8 @@
 							<td>
 								GitHub logins, names and avatars (shown at sign-in, not stored); organisation membership and
 								roles; the GitHub login of each publisher, written into the customer’s repository; the billing
-								email address, held by Stripe; GitHub tokens, in transit only. <Todo
+								email address, held by Stripe; the GitHub ID and login of the admin who accepted the terms, in
+								the processor’s record of the acceptance; GitHub tokens, in transit only. <Todo
 									>confirm whether client IP addresses appear in Railway’s logs</Todo
 								>
 							</td>
@@ -108,8 +109,8 @@
 				<li>Apply the security measures in section 5.</li>
 				<li>
 					Help the customer respond to data subjects’ requests and meet its obligations on security, breach
-					notification and impact assessments, taking into account that the service stores no personal data
-					durably.
+					notification and impact assessments, taking into account that the only personal data the service
+					stores durably is the record of an admin accepting the terms.
 				</li>
 				<li>
 					Make available the information needed to show compliance, and allow audits <Todo
@@ -157,7 +158,10 @@
 				The measures in force are described on the <a href="/trust#security">trust centre</a>. In summary:
 			</p>
 			<ul>
-				<li>No durable storage of customer data; in-memory caches keyed by token hashes.</li>
+				<li>
+					No durable storage of registry data or code; in-memory caches keyed by token hashes. The only
+					durable record is terms acceptances.
+				</li>
 				<li>Tokens never logged, stored or sent anywhere but GitHub’s API.</li>
 				<li>Least-privilege GitHub Apps; no repository administration permission.</li>
 				<li>HTTPS only with HSTS; an encrypted, <code>HttpOnly</code> session cookie.</li>
@@ -190,6 +194,10 @@
 				</li>
 				<li>
 					<strong>Logs</strong> are deleted by the hosting provider after 30 days.
+				</li>
+				<li>
+					<strong>Terms acceptances</strong> are kept for as long as the customer uses the service, then for
+					<Todo>6 years, subject to legal review</Todo>, as evidence of the agreement.
 				</li>
 				<li>
 					<strong>Billing records</strong> at Stripe are kept as the law requires <Todo

@@ -4,6 +4,7 @@
 	import bodyLatin from '@fontsource-variable/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-wght-normal.woff2?url';
 	import Footer from '$lib/components/Footer.svelte';
 	import Header from '$lib/components/Header.svelte';
+	import PreviewNotice from '$lib/components/PreviewNotice.svelte';
 
 	let { children } = $props();
 </script>
@@ -14,6 +15,7 @@
 </svelte:head>
 
 <a class="skip" href="#main">Skip to content</a>
+<PreviewNotice />
 <Header />
 <main id="main" tabindex="-1">
 	{@render children()}

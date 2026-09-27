@@ -35,9 +35,16 @@
 				cookie in your browser, valid for 8 hours. Nothing is stored on our side.
 			</li>
 			<li>
+				<strong>Terms acceptance:</strong> when an admin accepts the terms for an organisation, we record the organisation’s
+				GitHub ID and login, the admin’s GitHub ID and login, the terms version, the time, whether they accepted
+				on the website or with the CLI, and the exact statement accepted. This is the only record we store durably,
+				in a Postgres database at Railway (US East), with Railway’s backups. It is never shared.
+			</li>
+			<li>
 				<strong>Billing:</strong> we count your organisation’s active members through GitHub, to tell whether it
 				is on the free plan; we keep the count for up to 24 hours and not the members’ names. Stripe processes payment
-				details; we receive the subscription status and the organisation it belongs to.
+				details; we receive the subscription status and the organisation it belongs to. Billing is off during the
+				preview, so nothing is sent to Stripe.
 			</li>
 			<li>
 				<strong>Crates:</strong> crate files pass through the service while being published and are stored in your
@@ -54,14 +61,17 @@
 		<h2>4. Processors</h2>
 		<ul>
 			<li>GitHub, which stores your crates and provides identity.</li>
-			<li>Stripe, for payments.</li>
-			<li><mark>TODO: hosting provider and key management service.</mark></li>
+			<li>Stripe, for payments, from general availability; not used during the preview.</li>
+			<li>Railway, which hosts the service, its logs and the database of terms acceptances.</li>
+			<li>Cloudflare, for DNS and the status page.</li>
 		</ul>
 
 		<h2>5. Retention</h2>
 		<p>
-			Service logs are deleted after 30 days. Nothing else about you is stored by us: caches live in memory
-			and expire within minutes. <mark>TODO: retention period for billing records held by Stripe.</mark>
+			Service logs are deleted after 30 days. Terms acceptances are kept for as long as the organisation uses
+			PrivateCrates, then for <mark>TODO: 6 years, subject to legal review</mark>, as evidence of the
+			agreement. Nothing else about you is stored by us: caches live in memory and expire within minutes.
+			<mark>TODO: retention period for billing records held by Stripe.</mark>
 		</p>
 
 		<h2>6. Your rights</h2>

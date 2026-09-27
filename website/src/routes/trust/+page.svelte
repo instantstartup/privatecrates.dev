@@ -1,10 +1,39 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
 	import Todo from '$lib/components/Todo.svelte';
+	import { GA_TARGET, TERMS_PATH } from '$lib/site';
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
 	import Lighthouse from '$lib/illustrations/Lighthouse.svelte';
 	import { SECURITY_EMAIL, STATUS_URL, subprocessors } from '$lib/trust';
+
+	/** docs/preview.md §4, in order: [item, why]. */
+	const roadmap: [string, string][] = [
+		['Form a company; publish its name, number and address', 'The operator for terms, DPA and billing'],
+		[
+			'Legal review of the terms, privacy notice and DPA; choose governing law and jurisdiction',
+			'Terms fit for paying customers'
+		],
+		[
+			'International transfer mechanism (EU SCCs and the UK addendum)',
+			'EU customers’ data processed in the US'
+		],
+		[
+			'Turn on billing (Stripe live mode), with at least 30 days’ notice to existing organisations',
+			'Revenue'
+		],
+		[
+			'Incident commitments: time to first status update, breach notification deadline (72 hours)',
+			'Enterprise reviews ask'
+		],
+		[
+			'Security response targets by severity; a PGP key or other encrypted channel',
+			'Disclosure policy completeness'
+		],
+		['App keys and the token-signing key in a KMS', 'Least exposure of the most sensitive keys'],
+		['Independent penetration test, with a summary on the trust centre', 'Evidence for reviewers'],
+		['SOC 2 Type I, then Type II', 'The usual enterprise gate']
+	];
 
 	const toc: TocItem[] = [
 		['what-we-hold', 'What we hold'],
@@ -12,6 +41,7 @@
 		['subprocessors', 'Subprocessors'],
 		['security', 'Security controls'],
 		['certifications', 'Certifications'],
+		['roadmap', 'Roadmap'],
 		['incidents', 'Incident response'],
 		['disclosure', 'Vulnerability disclosure'],
 		['documents', 'Documents']
@@ -20,7 +50,7 @@
 
 <Seo
 	title="Trust centre"
-	description="What PrivateCrates holds (nothing durable), where it runs, who else touches your data, our security controls, certifications, incident response and vulnerability disclosure."
+	description="What PrivateCrates holds (only a record of who accepted the terms), where it runs, who else touches your data, our security controls, certifications, incident response and vulnerability disclosure."
 	path="/trust"
 />
 
@@ -30,7 +60,7 @@
 			<h1>Trust centre</h1>
 			<p class="lede">
 				What we hold, who else touches it, and how you can check us. The short answer: your crates live in
-				your own GitHub organisation, and we keep nothing about you on disk.
+				your own GitHub organisation, and the only thing we store is a record of who accepted our terms.
 			</p>
 		</div>
 		<Lighthouse class="hero-art" />
@@ -42,7 +72,10 @@
 		<dl>
 			<div class="row nothing">
 				<dt>Stored durably</dt>
-				<dd><strong>Nothing.</strong> No database, no disk. Restarting the service loses only caches.</dd>
+				<dd>
+					<strong>Only terms acceptances</strong><br />Which organisation, which GitHub user, which terms
+					version, when. No registry data, no code, no tokens.
+				</dd>
 			</div>
 			<div class="row">
 				<dt>In transit</dt>
@@ -70,7 +103,20 @@
 			<p>
 				PrivateCrates runs the Cargo registry protocol in front of a repository your organisation owns. The
 				index and every crate file are stored there, by GitHub, as commits and immutable releases. The service
-				itself is stateless: everything it knows is on GitHub or Stripe, or can be rebuilt from them.
+				itself keeps one kind of record, terms acceptances; everything else it knows is on GitHub, or can be
+				rebuilt from it.
+			</p>
+			<h3>Stored: terms acceptances</h3>
+			<p>
+				When an admin accepts the <a href={TERMS_PATH}>terms</a> for an organisation, we record the organisation’s
+				GitHub ID and login, the admin’s GitHub ID and login, the terms version, the time, whether they accepted
+				on the website or with the CLI, and the exact statement they accepted. The record holds no secrets and is
+				never shared.
+			</p>
+			<p>
+				It is kept in a Postgres database in the same Railway project and region as the service (US East),
+				with Railway’s backups, for as long as the organisation uses PrivateCrates and then for
+				<Todo>6 years, subject to legal review</Todo>, as evidence of the agreement.
 			</p>
 			<h3>Passes through, not kept</h3>
 			<ul>
@@ -132,8 +178,18 @@
 							</td>
 						</tr>
 						<tr>
+							<th scope="row">Terms acceptances</th>
+							<td>
+								A Postgres database at Railway, in the same project and region as the service, with Railway’s
+								backups.
+							</td>
+						</tr>
+						<tr>
 							<th scope="row">Billing</th>
-							<td>Stripe. Card details are entered on Stripe’s pages and never reach us.</td>
+							<td>
+								Stripe, from general availability. Billing is off during the preview, so Stripe is listed but
+								not yet used. Card details will be entered on Stripe’s pages and never reach us.
+							</td>
 						</tr>
 						<tr>
 							<th scope="row">Status page</th>
@@ -148,10 +204,11 @@
 
 			<h2 id="subprocessors">Subprocessors</h2>
 			<p>
-				The companies that process customer data on our behalf. We announce a new subprocessor here, and email
-				each organisation’s billing address, at least 30 days before it starts. If you object and we cannot
-				accommodate it, you may cancel and get a prorated refund of anything prepaid. An urgent replacement,
-				after a failure or a breach, may happen at once, with notice as soon as we can give it.
+				The companies that process customer data on our behalf. We announce a new subprocessor here at least
+				30 days before it starts, and, once billing is on, email each organisation’s billing address too. If
+				you object and we cannot accommodate it, you may cancel and get a prorated refund of anything prepaid.
+				An urgent replacement, after a failure or a breach, may happen at once, with notice as soon as we can
+				give it.
 			</p>
 			<div class="table-scroll">
 				<table class="subprocessors table-cards">
@@ -261,18 +318,42 @@
 				assurance: your data stays on GitHub, whose own reports cover it, and the verifier lets you check our writes
 				yourself.
 			</p>
-			<p>What we plan, in this order:</p>
-			<ol>
-				<li>Move the GitHub App keys and the token signing key into a cloud key management service.</li>
-				<li>An independent penetration test, with a summary published here.</li>
-				<li>A SOC 2 Type I report, then Type II.</li>
-			</ol>
-			<p><Todo>dates for each roadmap item</Todo></p>
+			<p>
+				The penetration test and SOC 2 are on the <a href="#roadmap">roadmap to general availability</a>,
+				below.
+			</p>
 			<p>
 				GitHub’s and Stripe’s own reports cover the data they hold: see the
 				<a href="https://github.com/security">GitHub Security</a> and
 				<a href="https://stripe.com/docs/security">Stripe security</a> pages.
 			</p>
+
+			<h2 id="roadmap">Roadmap to general availability: {GA_TARGET}</h2>
+			<p>
+				PrivateCrates is in <a href={TERMS_PATH}>preview</a>: free, run by one person, and provided as is.
+				This is what has to happen before general availability, in order. We will do it if there is enough
+				interest.
+			</p>
+			<div class="table-scroll">
+				<table class="roadmap table-cards">
+					<thead>
+						<tr>
+							<th scope="col"><span class="visually-hidden">Order</span></th>
+							<th scope="col">Item</th>
+							<th scope="col">Why</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each roadmap as [item, why], i (item)}
+							<tr>
+								<td class="num">{i + 1}</td>
+								<th scope="row">{item}</th>
+								<td data-label="Why">{why}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 
 			<h2 id="incidents">Incident response</h2>
 			<ul>
@@ -284,15 +365,18 @@
 					<strong>Communication:</strong> incidents are posted on
 					<a href={STATUS_URL}>status.privatecrates.dev</a>, with an Atom feed to subscribe to. When GitHub is
 					the cause, the page says so and links GitHub’s incident. For a security incident affecting your
-					organisation, we email its billing email address.
+					organisation, we will also email its billing address once billing is on; during the preview there is
+					none, so the status page is where we say it.
 				</li>
 				<li>
 					<strong>Target times:</strong>
-					<Todo>time to acknowledge, time to first update, and breach notification deadline</Todo>
+					none are committed during the preview. Time to first status update and a 72-hour breach notification deadline
+					are on the <a href="#roadmap">roadmap</a>.
 				</li>
 				<li>
-					<strong>Limiting the damage:</strong> nothing durable to leak, and your verifier reports any write we
-					could not have made honestly. Rotating the token signing key revokes every outstanding CI token at once.
+					<strong>Limiting the damage:</strong> the only durable data is the terms acceptance record, which holds
+					no secrets. Your verifier reports any write we could not have made honestly. Rotating the token signing
+					key revokes every outstanding CI token at once.
 				</li>
 			</ul>
 
@@ -307,14 +391,16 @@
 			<h2 id="documents">Documents</h2>
 			<ul class="documents">
 				<li>
-					<a href="/legal/dpa">Data processing agreement</a>: a template, in draft for legal review.
+					<a href="/legal/dpa">Data processing agreement</a>: a template, in draft for legal review, not yet
+					in force during the preview.
 				</li>
 				<li><a href="#subprocessors">Subprocessor list</a>, above.</li>
 				<li><a href="/security">Vulnerability disclosure policy</a>.</li>
 				<li><a href="/docs/security">Security model</a>, with the threat table.</li>
+				<li><a href={TERMS_PATH}>Preview terms</a>, in force during the preview.</li>
 				<li>
-					<a href="/legal/terms">Terms of service</a> and <a href="/legal/privacy">privacy notice</a>, both
-					drafts.
+					<a href="/legal/privacy">Privacy notice</a> and the data processing agreement above: drafts, not yet in
+					force during the preview.
 				</li>
 				<li>
 					Licences: MIT or Apache-2.0 for the client tools and the verifier; Business Source License 1.1 for
@@ -356,7 +442,7 @@
 		}
 	}
 
-	/* The manifest: a ledger of what we hold, with "nothing" stamped on the first line. */
+	/* The manifest: a ledger of what we hold, with the one durable record stamped on the first line. */
 	.manifest {
 		margin-top: 2rem;
 		padding: 1.5rem 1.25rem;
@@ -398,9 +484,10 @@
 	.nothing strong {
 		display: inline-block;
 		font-family: var(--font-display);
-		font-size: var(--text-2xl);
+		font-size: var(--text-lg);
 		line-height: 1;
-		padding: 0.1rem 0.5rem 0.2rem;
+		padding: 0.15rem 0.45rem 0.2rem;
+		margin-bottom: 0.25rem;
 		margin-right: 0.35rem;
 		border: 3px solid var(--ok);
 		border-radius: 4px;
@@ -413,5 +500,26 @@
 	}
 	.subprocessors th[scope='row'] {
 		white-space: nowrap;
+	}
+	/* The order is the plan: a large numeral per step, like the landing page's manifest. */
+	.roadmap .num {
+		width: 2.5rem;
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: var(--text-xl);
+		line-height: 1.1;
+	}
+	.roadmap th[scope='row'] {
+		font-size: var(--text-base);
+		font-weight: 700;
+	}
+	@media (max-width: 40rem) {
+		.roadmap tr {
+			display: grid;
+			grid-template-columns: 2.25rem minmax(0, 1fr);
+		}
+		.roadmap .num {
+			grid-row: span 2;
+		}
 	}
 </style>

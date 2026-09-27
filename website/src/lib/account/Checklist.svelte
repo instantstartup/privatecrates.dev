@@ -1,6 +1,15 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { api, ApiError, hasSubscription, planOf, type Onboarding, type Org, type Step } from '$lib/api';
+	import {
+		api,
+		ApiError,
+		hasSubscription,
+		planOf,
+		type Onboarding,
+		type Org,
+		type Step,
+		type Terms
+	} from '$lib/api';
 	import AgentPrompt from '$lib/components/AgentPrompt.svelte';
 	import { FREE_MEMBER_LIMIT, PRICE_USD, TRIAL_MONTHS } from '$lib/site';
 	import { setupPrompt } from '$lib/snippets';
@@ -20,9 +29,23 @@
 		/** Called after the free trial starts, with the new onboarding document already passed to onchange. */
 		ontrialstarted?: () => void;
 		refreshing: boolean;
+		/** The terms to accept with the registry name (session.terms). */
+		terms?: Terms;
+		/** The preview (session.preview): every organisation is free, so the plan step offers nothing. */
+		preview?: boolean;
 	}
 
-	let { doc, org, admin, onrefresh, onchange, ontrialstarted, refreshing }: Props = $props();
+	let {
+		doc,
+		org,
+		admin,
+		onrefresh,
+		onchange,
+		ontrialstarted,
+		refreshing,
+		terms,
+		preview = false
+	}: Props = $props();
 
 	interface StepCopy {
 		title: string;
@@ -50,6 +73,10 @@
 			title: 'Choose your registry name',
 			body: 'Saved as privatecrates.toml in your storage repository, so later changes are a pull request.'
 		},
+		settingsWithTerms: {
+			title: 'Choose your registry name and accept the terms',
+			body: 'The name is saved as privatecrates.toml in your storage repository, so later changes are a pull request. An admin accepts the preview terms on behalf of the organisation at the same time.'
+		},
 		plan: {
 			title: 'Choose a plan',
 			body: ''
@@ -60,10 +87,22 @@
 	const members = $derived(org.members ?? null);
 	/** What the plan step offers an admin, per docs/website-api.md. */
 	const planAction = $derived<'trial' | 'checkout' | null>(
-		org.trial_available ? 'trial' : planOf(org) === 'inactive' && hasSubscription(org) ? 'checkout' : null
+		preview
+			? null
+			: org.trial_available
+				? 'trial'
+				: planOf(org) === 'inactive' && hasSubscription(org)
+					? 'checkout'
+					: null
 	);
 
 	function planCopy(step: Step): StepCopy {
+		if (preview)
+			return {
+				title: 'Plan: free during the preview',
+				// The server's detail says "Free during the preview.", which the title already does.
+				body: 'Nothing to choose: billing is off until general availability.'
+			};
 		const plan = planOf(org);
 		if (step.status === 'done') {
 			if (plan === 'free')
@@ -103,6 +142,7 @@
 
 	function stepCopy(step: Step): StepCopy {
 		if (step.id === 'plan' || step.id === 'subscription') return planCopy(step);
+		if (step.id === 'settings' && terms) return copy.settingsWithTerms;
 		return (
 			copy[step.id] ?? {
 				title: step.id.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
@@ -131,7 +171,9 @@
 				...s,
 				action_url: s.action_url ? new URL(s.action_url, location.origin).href : undefined
 			})),
-			plan: planAction === 'trial' ? 'trial' : planAction === 'checkout' ? 'subscribe' : null
+			plan: planAction === 'trial' ? 'trial' : planAction === 'checkout' ? 'subscribe' : null,
+			terms,
+			preview
 		})
 	);
 
@@ -235,6 +277,7 @@
 								<SlugForm
 									org={doc.org.login}
 									suggested={doc.suggested_slug}
+									{terms}
 									onsaved={onchange}
 									bind:slug={chosenSlug}
 								/>
@@ -291,8 +334,10 @@
 		<AgentPrompt id="agent-{doc.org.login}" title="Set up with your AI agent" prompt={agentPrompt}>
 			<p>
 				Or hand the rest to Claude Code or another coding agent. This prompt is filled in for
-				<strong>{doc.org.login}</strong>. The agent works with your own <code>gh</code> login, and stops to give
-				you a link when GitHub needs you: to approve its sign-in, and to install each App.
+				<strong>{doc.org.login}</strong>. The agent works with your own <code>gh</code> login, and stops to
+				give you a link when GitHub needs you: to approve its sign-in, and to install each App.{terms
+					? ' It also shows you the preview terms and waits for you to accept them: it never accepts for you.'
+					: ''}
 			</p>
 			<p><a href="/docs/agents">What the agent does, step by step</a></p>
 		</AgentPrompt>

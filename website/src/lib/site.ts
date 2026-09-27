@@ -2,6 +2,20 @@
 export const SITE_URL = 'https://privatecrates.dev';
 export const SITE_NAME = 'PrivateCrates';
 
+/**
+ * The preview (docs/preview.md): free, as is, at your own risk, operated by an individual until a company exists.
+ * Static pages read this; the account page follows the server's `session.preview`.
+ */
+export const PREVIEW = true;
+/** The current preview terms: the version an admin accepts, and when it was published. */
+export const TERMS_VERSION = 'preview-2026-09-27';
+export const TERMS_DATE = '27 September 2026';
+export const TERMS_PATH = '/legal/terms';
+/** The operator during the preview. */
+export const OPERATOR = 'Bryn Dyllan Cooke';
+/** When general availability, and so billing, is planned. */
+export const GA_TARGET = '2027, subject to demand';
+
 /** Price per GitHub organisation per month, in US dollars. */
 export const PRICE_USD = 100;
 /** Organisations with this many active members or fewer are free (FREE_MEMBER_LIMIT on the server). */

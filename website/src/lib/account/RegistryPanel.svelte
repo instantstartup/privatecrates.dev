@@ -1,5 +1,14 @@
 <script lang="ts">
-	import { api, ApiError, hasSubscription, isActive, planOf, type Org, type Tenant } from '$lib/api';
+	import {
+		api,
+		ApiError,
+		hasSubscription,
+		isActive,
+		planOf,
+		type Org,
+		type Tenant,
+		type Terms
+	} from '$lib/api';
 	import Callout from '$lib/components/Callout.svelte';
 	import { FREE_MEMBER_LIMIT, PRICE_USD, READ_GRACE_DAYS, TRIAL_REMINDER_DAYS } from '$lib/site';
 	import ErrorNotice from './ErrorNotice.svelte';
@@ -8,6 +17,7 @@
 	import Tabs, { tabIds, type Tab } from '$lib/components/Tabs.svelte';
 	import ComplianceView from './ComplianceView.svelte';
 	import GettingStarted from './GettingStarted.svelte';
+	import TermsBanner from './TermsBanner.svelte';
 	import TrialForm from './TrialForm.svelte';
 
 	interface Props {
@@ -22,9 +32,15 @@
 		live: boolean;
 		/** Re-reads the session, after starting a trial from here. */
 		onchange?: () => void;
+		/** The preview (session.preview): free for everyone, so no plan, trial or billing controls. */
+		preview?: boolean;
+		/** The current terms (session.terms), for a registry whose organisation has not accepted them. */
+		terms?: Terms;
+		/** Re-reads the session, after an admin accepts the terms here. */
+		onterms?: () => void;
 	}
 
-	let { org, tenant, planDetail, live, onchange }: Props = $props();
+	let { org, tenant, planDetail, live, onchange, preview = false, terms, onterms }: Props = $props();
 
 	const tabs: Tab[] = [
 		{ id: 'guide', label: 'Getting started' },
@@ -50,7 +66,7 @@
 	const hasCard = $derived(org.has_payment_method ?? plan === 'paid');
 	/** The last days of a trial with no card: the page and Cargo both remind (billing model). */
 	const trialEnding = $derived(
-		plan === 'trial' && !hasCard && trialDaysLeft !== null && trialDaysLeft <= TRIAL_REMINDER_DAYS
+		!preview && plan === 'trial' && !hasCard && trialDaysLeft !== null && trialDaysLeft <= TRIAL_REMINDER_DAYS
 	);
 	/** Free again with a subscription still running: admins may cancel it (we never cancel automatically). */
 	const freeAgain = $derived(plan === 'free' && isActive(tenant.status));
@@ -93,7 +109,10 @@
 {/snippet}
 
 <div class="registry">
-	{#if org.billing_email_missing && admin}
+	{#if terms && org.terms_accepted === false}
+		<TermsBanner org={org.login} {terms} {admin} onaccepted={() => onterms?.()} />
+	{/if}
+	{#if org.billing_email_missing && admin && !preview}
 		<Callout tone="warn" role="status" title="Add a billing email">
 			<p>
 				{org.login}’s free trial started by itself when it grew past {limit} members. Stripe needs an address to
@@ -123,7 +142,7 @@
 				<p>Ask an admin of {org.login} to add a card.</p>
 			{/if}
 		</Callout>
-	{:else if plan === 'past_due'}
+	{:else if plan === 'past_due' && !preview}
 		<Callout tone="warn" role="status" title="The last payment failed">
 			<p>
 				Your registry keeps working while Stripe retries the card.
@@ -177,83 +196,108 @@
 		</section>
 	{/if}
 
-	<section class="billing" aria-labelledby="billing-{org.login}">
-		<h3 id="billing-{org.login}">Plan and billing</h3>
-		<dl class="facts">
-			<div>
-				<dt>Plan</dt>
-				<dd>
-					{#if plan === 'free'}
-						Free. Every feature, no card.
-					{:else if plan === 'trial'}
-						Free trial{trialEnds ? ` until ${trialEnds}` : ''}{trialDaysLeft !== null
-							? ` (${plural(trialDaysLeft, 'day')} left)`
-							: ''}. Then ${PRICE_USD} per month{hasCard
-							? ', charged to the card on file'
-							: ' once you add a card'}.
-					{:else if plan === 'paid'}
-						${PRICE_USD} per month{periodEnd ? `, renews ${periodEnd}` : ''}.
-					{:else if plan === 'past_due'}
-						${PRICE_USD} per month. Payment overdue: Stripe is retrying the card.
-					{:else if live}
-						No subscription needed.
-					{:else}
-						No active subscription.
-					{/if}
-					{#if planDetail}<span class="detail">{planDetail}</span>{/if}
-				</dd>
-			</div>
-			<div>
-				<dt>Members</dt>
-				<dd>{@render memberLine()}</dd>
-			</div>
-		</dl>
+	{#if preview}
+		<section class="billing" aria-labelledby="billing-{org.login}">
+			<h3 id="billing-{org.login}">Plan</h3>
+			<dl class="facts">
+				<div>
+					<dt>Plan</dt>
+					<dd>
+						<strong>Free during the preview.</strong>
+						<span class="detail"
+							>Billing is off until general availability, and starts only after at least 30 days’ notice. See
+							the
+							<a href="/pricing">planned pricing</a>.</span
+						>
+					</dd>
+				</div>
+			</dl>
+		</section>
+	{:else}
+		<section class="billing" aria-labelledby="billing-{org.login}">
+			<h3 id="billing-{org.login}">Plan and billing</h3>
+			<dl class="facts">
+				<div>
+					<dt>Plan</dt>
+					<dd>
+						{#if plan === 'free'}
+							Free. Every feature, no card.
+						{:else if plan === 'trial'}
+							Free trial{trialEnds ? ` until ${trialEnds}` : ''}{trialDaysLeft !== null
+								? ` (${plural(trialDaysLeft, 'day')} left)`
+								: ''}. Then ${PRICE_USD} per month{hasCard
+								? ', charged to the card on file'
+								: ' once you add a card'}.
+						{:else if plan === 'paid'}
+							${PRICE_USD} per month{periodEnd ? `, renews ${periodEnd}` : ''}.
+						{:else if plan === 'past_due'}
+							${PRICE_USD} per month. Payment overdue: Stripe is retrying the card.
+						{:else if live}
+							No subscription needed.
+						{:else}
+							No active subscription.
+						{/if}
+						{#if planDetail}<span class="detail">{planDetail}</span>{/if}
+					</dd>
+				</div>
+				<div>
+					<dt>Members</dt>
+					<dd>{@render memberLine()}</dd>
+				</div>
+			</dl>
 
-		{#if freeAgain && admin}
-			<Callout title={`${org.login} is free again`}>
-				<p>
-					It has {members === null ? `${limit} or fewer members` : plural(members, 'member')}, so the registry
-					no longer needs a subscription. Yours is still running: cancel it under Manage billing if you do not
-					expect to grow past {limit} members. We never cancel it for you, because member counts go up and down.
-				</p>
-			</Callout>
-		{/if}
+			{#if freeAgain && admin}
+				<Callout title={`${org.login} is free again`}>
+					<p>
+						It has {members === null ? `${limit} or fewer members` : plural(members, 'member')}, so the
+						registry no longer needs a subscription. Yours is still running: cancel it under Manage billing if
+						you do not expect to grow past {limit} members. We never cancel it for you, because member counts go
+						up and down.
+					</p>
+				</Callout>
+			{/if}
 
-		{#if error && failed}
-			<ErrorNotice {error} title={errorTitles[failed]} />
-		{/if}
+			{#if error && failed}
+				<ErrorNotice {error} title={errorTitles[failed]} />
+			{/if}
 
-		{#if admin && !live && org.trial_available}
-			<TrialForm org={org.login} onstarted={() => onchange?.()} />
-		{/if}
-		{#if admin && (portal || (!live && !org.trial_available))}
-			<div class="row">
-				{#if !live && !org.trial_available && hasSubscription(org)}
-					<button
-						class="btn btn-primary"
-						type="button"
-						onclick={() => go('checkout')}
-						disabled={busy !== null}
-					>
-						{busy === 'checkout' ? 'Opening Stripe Checkout…' : `Subscribe, $${PRICE_USD} per month`}
-					</button>
-				{/if}
-				{#if portal}
-					{#if plan === 'trial' && !hasCard && !trialEnding}
-						<button class="btn btn-quiet" type="button" onclick={() => go('portal')} disabled={busy !== null}>
-							{busy === 'portal' ? 'Opening billing…' : 'Add a card'}
+			{#if admin && !live && org.trial_available}
+				<TrialForm org={org.login} onstarted={() => onchange?.()} />
+			{/if}
+			{#if admin && (portal || (!live && !org.trial_available))}
+				<div class="row">
+					{#if !live && !org.trial_available && hasSubscription(org)}
+						<button
+							class="btn btn-primary"
+							type="button"
+							onclick={() => go('checkout')}
+							disabled={busy !== null}
+						>
+							{busy === 'checkout' ? 'Opening Stripe Checkout…' : `Subscribe, $${PRICE_USD} per month`}
 						</button>
 					{/if}
-					<button class="btn btn-quiet" type="button" onclick={() => go('portal')} disabled={busy !== null}>
-						{busy === 'portal' ? 'Opening billing…' : 'Manage billing'}
-					</button>
-					<span class="fine">Cards, invoices and cancellation are on Stripe.</span>
-				{/if}
-			</div>
-		{:else if !admin && plan !== 'free'}
-			<p class="fine">Admins of {org.login} on GitHub manage billing.</p>
-		{/if}
-	</section>
+					{#if portal}
+						{#if plan === 'trial' && !hasCard && !trialEnding}
+							<button
+								class="btn btn-quiet"
+								type="button"
+								onclick={() => go('portal')}
+								disabled={busy !== null}
+							>
+								{busy === 'portal' ? 'Opening billing…' : 'Add a card'}
+							</button>
+						{/if}
+						<button class="btn btn-quiet" type="button" onclick={() => go('portal')} disabled={busy !== null}>
+							{busy === 'portal' ? 'Opening billing…' : 'Manage billing'}
+						</button>
+						<span class="fine">Cards, invoices and cancellation are on Stripe.</span>
+					{/if}
+				</div>
+			{:else if !admin && plan !== 'free'}
+				<p class="fine">Admins of {org.login} on GitHub manage billing.</p>
+			{/if}
+		</section>
+	{/if}
 </div>
 
 <style>
