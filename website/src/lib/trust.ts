@@ -2,6 +2,8 @@
 
 /** Where security reports go (also in static/.well-known/security.txt). */
 export const SECURITY_EMAIL = 'security@privatecrates.dev';
+/** Everything that is not a security report: terms, privacy, questions. */
+export const CONTACT_EMAIL = 'contact@privatecrates.dev';
 /** The public status page, a Cloudflare Worker independent of Railway (docs/trust-and-status.md §1). */
 export const STATUS_URL = 'https://status.privatecrates.dev';
 

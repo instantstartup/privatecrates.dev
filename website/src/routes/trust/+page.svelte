@@ -398,8 +398,8 @@
 				<li><a href="/docs/security">Security model</a>, with the threat table.</li>
 				<li><a href={TERMS_PATH}>Preview terms</a>, in force during the preview.</li>
 				<li>
-					<a href="/legal/privacy">Privacy notice</a> and the data processing agreement above: drafts, not yet in
-					force during the preview.
+					<a href="/legal/privacy">Privacy notice</a>, in force. The data processing agreement above: a draft,
+					not yet in force during the preview.
 				</li>
 				<li>
 					Licences: MIT or Apache-2.0 for the client tools and the verifier; Business Source License 1.1 for

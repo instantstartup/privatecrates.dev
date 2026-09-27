@@ -3,7 +3,6 @@
 	import Seo from '$lib/components/Seo.svelte';
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
-	import Todo from '$lib/components/Todo.svelte';
 	import { FREE_MEMBER_LIMIT } from '$lib/site';
 	import { SECURITY_EMAIL } from '$lib/trust';
 
@@ -96,7 +95,11 @@
 				against you for research that followed this policy, we will make it known that your work was
 				authorised.
 			</p>
-			<p><Todo>legal review of this section, and the name of the legal entity giving it</Todo></p>
+			<p>
+				During the preview this commitment is given by the operator named in the
+				<a href="/legal/terms">preview terms</a>. It will be reviewed by a lawyer, and given by the company
+				that runs PrivateCrates, before general availability.
+			</p>
 
 			<h2 id="report">What to include</h2>
 			<ul>
@@ -111,20 +114,20 @@
 				</li>
 				<li>How you would like to be credited, if at all.</li>
 			</ul>
-			<p>
-				Encrypted email is not offered yet <Todo
-					>publish a PGP key or another encrypted channel, and add it to security.txt</Todo
-				>.
-			</p>
+			<p>Encrypted email is not offered yet; it is on the roadmap for general availability.</p>
 
 			<h2 id="response">What happens next</h2>
 			<ul>
 				<li><strong>Acknowledgement:</strong> within 3 business days.</li>
-				<li><strong>Triage and first assessment:</strong> <Todo>target time</Todo></li>
+				<li>
+					<strong>Triage and first assessment:</strong> within 5 business days, on a best-effort basis during the
+					preview.
+				</li>
 				<li>
 					<strong>Fix:</strong>
-					<Todo>target times by severity</Todo>. We tell you when the fix is deployed, and post on the status
-					page if customers need to act.
+					critical problems (tokens, crates or another organisation’s data exposed, or publishing without permission)
+					within 7 days; others as soon as practical, on a best-effort basis during the preview. We tell you when
+					the fix is deployed, and post on the status page if customers need to act.
 				</li>
 				<li>
 					<strong>Credit:</strong> with your permission, we thank you by name in the release notes of the fix. We

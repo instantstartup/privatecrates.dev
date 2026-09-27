@@ -5,7 +5,7 @@
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
 	import Todo from '$lib/components/Todo.svelte';
-	import { SECURITY_EMAIL, subprocessors } from '$lib/trust';
+	import { CONTACT_EMAIL, SECURITY_EMAIL, subprocessors } from '$lib/trust';
 
 	const toc: TocItem[] = [
 		['parties', '1. Parties'],
@@ -215,7 +215,8 @@
 			<h2 id="general">9. General</h2>
 			<p><Todo>liability, governing law, jurisdiction, and order of precedence with the terms</Todo></p>
 			<p>
-				Questions about this agreement: <Todo>privacy or legal contact</Todo>. Security questions:
+				Questions about this agreement: <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>. Security
+				questions:
 				<a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a>.
 			</p>
 		</TocLayout>

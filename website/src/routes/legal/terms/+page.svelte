@@ -2,9 +2,8 @@
 	import Seo from '$lib/components/Seo.svelte';
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
-	import Todo from '$lib/components/Todo.svelte';
 	import { GA_TARGET, OPERATOR, PRICE_USD, TERMS_DATE, TERMS_VERSION } from '$lib/site';
-	import { SECURITY_EMAIL, STATUS_URL } from '$lib/trust';
+	import { CONTACT_EMAIL, SECURITY_EMAIL, STATUS_URL } from '$lib/trust';
 
 	// The ids are stable: the account page and agents link to them.
 	const toc: TocItem[] = [
@@ -213,11 +212,11 @@
 
 				<h2 id="privacy">12. Privacy and data processing</h2>
 				<p>
-					The <a href="/legal/privacy">privacy notice</a> and the
-					<a href="/legal/dpa">data processing agreement</a> are drafts, and are
+					The <a href="/legal/privacy">privacy notice</a> explains how we handle personal data. The
+					<a href="/legal/dpa">data processing agreement</a> is a draft, and is
 					<strong>not yet in force during the preview</strong>. How the service handles data today is
-					described, factually, on the <a href="/trust">trust centre</a>. Both documents will be reviewed and
-					put in force before general availability.
+					described, factually, on the <a href="/trust">trust centre</a>. Both documents will be reviewed by a
+					lawyer before general availability.
 				</p>
 
 				<h2 id="contact">13. Contact</h2>
@@ -226,7 +225,11 @@
 						Security problems: <a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a>, as described in the
 						<a href="/security">disclosure policy</a>.
 					</li>
-					<li>Everything else, including these terms: <Todo>general contact email address</Todo>.</li>
+					<li>
+						Everything else, including these terms and privacy: <a href="mailto:{CONTACT_EMAIL}"
+							>{CONTACT_EMAIL}</a
+						>.
+					</li>
 				</ul>
 			</TocLayout>
 		</div>

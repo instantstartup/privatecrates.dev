@@ -55,7 +55,9 @@ contents stay in the customer's organisation.
   preview, as is and at your own risk, no warranty, no availability or support commitment, limitation of liability to
   the extent the law allows, the service may change or end with notice where possible, your data stays in your GitHub
   organisation (so ending the service loses nothing), acceptable use, how terms change (a new version to accept),
-  contact. Keep the privacy notice and DPA as drafts, marked as not yet in force during the preview.
+  contact (`contact@privatecrates.dev`; security reports to `security@`). The privacy notice is in force for the
+  preview (the operator as controller, no postal address until the company exists); the DPA stays a draft, marked as
+  not yet in force during the preview.
 - **Onboarding:** the registry-name step has a required checkbox, "I have read and accept the preview terms
   (link), on behalf of {org}", sending `accept_terms`. Admins of an existing registry without acceptance see a banner
   with the same checkbox and button.

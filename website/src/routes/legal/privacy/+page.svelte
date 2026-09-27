@@ -1,23 +1,28 @@
 <script lang="ts">
-	import DraftBanner from '$lib/components/DraftBanner.svelte';
 	import Seo from '$lib/components/Seo.svelte';
+	import { OPERATOR } from '$lib/site';
+	import { CONTACT_EMAIL } from '$lib/trust';
 </script>
 
 <Seo
-	title="Privacy notice (draft)"
-	description="Draft privacy notice for PrivateCrates. A placeholder, not yet legal terms."
+	title="Privacy notice"
+	description="What personal data PrivateCrates processes during the preview, why, for how long, who else handles it, and your rights."
 	path="/legal/privacy"
 />
 
 <div class="page">
 	<article class="prose legal">
 		<h1>Privacy notice</h1>
-		<DraftBanner />
+		<p class="lede">
+			For the preview. It will be reviewed by a lawyer and reissued by the company that runs PrivateCrates
+			before general availability.
+		</p>
 
 		<h2>1. Controller</h2>
 		<p>
-			<mark>TODO: legal entity name and registered address</mark>. Contact for privacy questions:
-			<mark>TODO: contact email</mark>.
+			During the preview, PrivateCrates is run by {OPERATOR}, as an individual, who decides how the personal
+			data below is used. A company will take this over before general availability. For anything about your
+			data, email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.
 		</p>
 
 		<h2>2. What we process</h2>
@@ -70,15 +75,32 @@
 		<p>
 			Service logs are deleted after 30 days. Terms acceptances are kept for as long as the organisation uses
 			PrivateCrates, then for 6 years, as evidence of the agreement. Nothing else about you is stored by us:
-			caches live in memory and expire within minutes.
-			<mark>TODO: retention period for billing records held by Stripe.</mark>
+			caches live in memory and expire within minutes. No billing records exist during the preview.
 		</p>
 
 		<h2>6. Your rights</h2>
-		<p><mark>TODO: access, correction, deletion and complaint rights, and how to exercise them.</mark></p>
+		<p>
+			Depending on where you live (for example under the UK or EU GDPR), you can ask for a copy of the
+			personal data we hold about you, have it corrected or deleted, restrict or object to its use, and
+			receive it in a portable form. Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a> from, or naming,
+			your GitHub account; we answer within one month. We use your data because it is needed to run the service
+			you or your organisation asked for, and, for terms acceptances, to keep evidence of the agreement. A terms
+			acceptance made on behalf of an organisation is kept for its retention period even after a deletion request,
+			because it is the record of that agreement.
+		</p>
+		<p>
+			You can also complain to a data protection authority: in the UK, the Information Commissioner’s Office (<a
+				href="https://ico.org.uk/make-a-complaint/">ico.org.uk</a
+			>); in the EU, the authority where you live or work.
+		</p>
 
 		<h2>7. International transfers</h2>
-		<p><mark>TODO: transfer mechanisms.</mark></p>
+		<p>
+			The service runs in the United States (Railway, US East), and GitHub and Cloudflare process data in the
+			United States and elsewhere. If you are outside the United States, your data is transferred there so
+			that the service you asked for can run. Formal transfer terms (the EU Standard Contractual Clauses and
+			the UK addendum) will come with the data processing agreement before general availability.
+		</p>
 	</article>
 </div>
 
@@ -88,12 +110,5 @@
 	}
 	h1 {
 		font-size: var(--text-3xl);
-	}
-	mark {
-		background: var(--warn-bg);
-		color: var(--ink);
-		padding: 0 0.2em;
-		border-radius: 3px;
-		font-weight: 700;
 	}
 </style>
