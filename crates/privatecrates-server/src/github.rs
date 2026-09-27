@@ -1,7 +1,8 @@
 //! The few GitHub REST endpoints PrivateCrates uses.
 //!
 //! Two kinds of calls: with an installation token of one of our Apps (storage reads and writes, tenant discovery),
-//! and with a caller's own token (permission lookups on their behalf, SPEC §6.3).
+//! and with a caller's own token (permission lookups on their behalf, SPEC §6.3). Every call's outcome and latency is
+//! recorded for `GET /api/status`.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -14,7 +15,10 @@ use reqwest::{Method, RequestBuilder, Response, StatusCode, header};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use url::Url;
 
-use crate::config::{AppConfig, Config};
+use crate::{
+    config::{AppConfig, Config},
+    metrics::{Metrics, SendRecorded},
+};
 
 const USER_AGENT: &str = "privatecrates (https://privatecrates.dev)";
 const PER_PAGE: usize = 100;
@@ -105,6 +109,7 @@ pub struct GitHub {
     reader: App,
     storage: App,
     installation_tokens: moka::future::Cache<(AppKind, u64), String>,
+    metrics: Metrics,
 }
 
 // Response types: only the fields we use.
@@ -200,6 +205,44 @@ pub struct Tree {
     pub truncated: bool,
 }
 
+/// A commit, as the list-commits API gives it.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Commit {
+    pub sha: String,
+    pub commit: CommitDetail,
+    /// The GitHub account the commit's author email belongs to, if any.
+    #[serde(default)]
+    pub author: Option<CommitAccount>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CommitDetail {
+    pub message: String,
+    #[serde(default)]
+    pub author: Option<Signature>,
+    #[serde(default)]
+    pub committer: Option<Signature>,
+    #[serde(default)]
+    pub verification: Option<Verification>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CommitAccount {
+    pub login: String,
+}
+
+/// A commit's author or committer, as git records them.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Signature {
+    pub name: String,
+    pub date: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Verification {
+    pub verified: bool,
+}
+
 /// One file write: the file's current blob sha (`None` to create it), its new content, and the commit message.
 pub struct FileWrite<'a> {
     pub path: &'a str,
@@ -257,7 +300,13 @@ impl GitHub {
                 // Installation tokens last an hour; refresh well before that.
                 .time_to_live(Duration::from_secs(45 * 60))
                 .build(),
+            metrics: Metrics::default(),
         })
+    }
+
+    /// The outcomes and latencies of our recent calls to GitHub.
+    pub fn metrics(&self) -> &Metrics {
+        &self.metrics
     }
 
     fn url(&self, path: &str) -> Url {
@@ -286,7 +335,7 @@ impl GitHub {
             let batch: Vec<Installation> = json(
                 self.request(Method::GET, "/app/installations", &jwt)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send()
+                    .send_recorded(&self.metrics)
                     .await?,
             )
             .await?;
@@ -318,7 +367,7 @@ impl GitHub {
                 &format!("/app/installations/{installation_id}/access_tokens"),
                 &jwt,
             )
-            .send()
+            .send_recorded(&self.metrics)
             .await?,
         )
         .await?;
@@ -337,7 +386,7 @@ impl GitHub {
         let jwt = self.app(kind).jwt()?;
         match json(
             self.request(Method::GET, &format!("/orgs/{org}/installation"), &jwt)
-                .send()
+                .send_recorded(&self.metrics)
                 .await?,
         )
         .await
@@ -360,7 +409,7 @@ impl GitHub {
             let batch: Page = json(
                 self.request(Method::GET, "/installation/repositories", token)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send()
+                    .send_recorded(&self.metrics)
                     .await?,
             )
             .await?;
@@ -381,7 +430,7 @@ impl GitHub {
             let batch: Vec<serde::de::IgnoredAny> = json(
                 self.request(Method::GET, &format!("/orgs/{org}/members"), token)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send()
+                    .send_recorded(&self.metrics)
                     .await?,
             )
             .await?;
@@ -396,7 +445,12 @@ impl GitHub {
     // --- Calls with the caller's token ---
 
     pub async fn user(&self, token: &str) -> Result<User, GitHubError> {
-        json(self.request(Method::GET, "/user", token).send().await?).await
+        json(
+            self.request(Method::GET, "/user", token)
+                .send_recorded(&self.metrics)
+                .await?,
+        )
+        .await
     }
 
     /// The organisations the user belongs to.
@@ -406,7 +460,7 @@ impl GitHub {
             let batch: Vec<Organization> = json(
                 self.request(Method::GET, "/user/orgs", token)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send()
+                    .send_recorded(&self.metrics)
                     .await?,
             )
             .await?;
@@ -447,7 +501,7 @@ impl GitHub {
                     ("code", code),
                     ("redirect_uri", redirect_uri),
                 ])
-                .send()
+                .send_recorded(&self.metrics)
                 .await?,
         )
         .await?;
@@ -484,7 +538,7 @@ impl GitHub {
                     token,
                 )
                 .query(&[("per_page", PER_PAGE), ("page", page)])
-                .send()
+                .send_recorded(&self.metrics)
                 .await?,
             )
             .await;
@@ -510,7 +564,7 @@ impl GitHub {
     ) -> Result<Option<Repo>, GitHubError> {
         match json(
             self.request(Method::GET, &format!("/repos/{full_name}"), token)
-                .send()
+                .send_recorded(&self.metrics)
                 .await?,
         )
         .await
@@ -529,7 +583,7 @@ impl GitHub {
     ) -> Result<Option<Repo>, GitHubError> {
         match json(
             self.request(Method::GET, &format!("/repositories/{id}"), token)
-                .send()
+                .send_recorded(&self.metrics)
                 .await?,
         )
         .await
@@ -549,7 +603,7 @@ impl GitHub {
     ) -> Result<Option<Membership>, GitHubError> {
         match json(
             self.request(Method::GET, &format!("/user/memberships/orgs/{org}"), token)
-                .send()
+                .send_recorded(&self.metrics)
                 .await?,
         )
         .await
@@ -584,7 +638,7 @@ impl GitHub {
         if let Some(etag) = etag {
             request = request.header(header::IF_NONE_MATCH, etag);
         }
-        let response = request.send().await?;
+        let response = request.send_recorded(&self.metrics).await?;
         if response.status() == StatusCode::NOT_MODIFIED {
             return Ok(Conditional::NotModified);
         }
@@ -620,7 +674,7 @@ impl GitHub {
                 &format!("/repos/{repo}/git/blobs/{sha}"),
                 token,
             )
-            .send()
+            .send_recorded(&self.metrics)
             .await?,
         )
         .await?;
@@ -631,6 +685,41 @@ impl GitHub {
                 reason: format!("blob encoding {other}"),
             }),
         }
+    }
+
+    /// A branch's commits, newest first; with `path`, only those that changed that file or directory.
+    pub async fn commits(
+        &self,
+        token: &str,
+        repo: &str,
+        branch: &str,
+        path: Option<&str>,
+    ) -> Result<Vec<Commit>, GitHubError> {
+        let mut all = Vec::new();
+        for page in 1.. {
+            let mut request = self
+                .request(Method::GET, &format!("/repos/{repo}/commits"), token)
+                .query(&[("sha", branch)])
+                .query(&[("per_page", PER_PAGE), ("page", page)]);
+            if let Some(path) = path {
+                request = request.query(&[("path", path)]);
+            }
+            let batch: Vec<Commit> = match json(request.send_recorded(&self.metrics).await?).await {
+                Ok(batch) => batch,
+                // An empty repository has no commits: GitHub answers 409 "Git Repository is empty".
+                Err(GitHubError::Status {
+                    status: StatusCode::CONFLICT,
+                    ..
+                }) => break,
+                Err(e) => return Err(e),
+            };
+            let done = batch.len() < PER_PAGE;
+            all.extend(batch);
+            if done {
+                break;
+            }
+        }
+        Ok(all)
     }
 
     /// Creates or updates one file in one commit. A mismatch between `write.sha` and the file's current blob sha
@@ -673,7 +762,7 @@ impl GitHub {
                 branch,
                 sha: write.sha,
             })
-            .send()
+            .send_recorded(&self.metrics)
             .await?;
         let status = response.status();
         if status == StatusCode::CONFLICT || status == StatusCode::UNPROCESSABLE_ENTITY {
@@ -697,7 +786,7 @@ impl GitHub {
                 &format!("/repos/{repo}/releases/tags/{tag}"),
                 token,
             )
-            .send()
+            .send_recorded(&self.metrics)
             .await?,
         )
         .await
@@ -720,7 +809,7 @@ impl GitHub {
             let batch: Vec<Release> = json(
                 self.request(Method::GET, &format!("/repos/{repo}/releases"), token)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send()
+                    .send_recorded(&self.metrics)
                     .await?,
             )
             .await?;
@@ -750,7 +839,7 @@ impl GitHub {
                     "body": body,
                     "draft": true,
                 }))
-                .send()
+                .send_recorded(&self.metrics)
                 .await?,
         )
         .await
@@ -777,7 +866,7 @@ impl GitHub {
                 .query(&[("name", name)])
                 .header(header::CONTENT_TYPE, "application/octet-stream")
                 .body(content)
-                .send()
+                .send_recorded(&self.metrics)
                 .await?,
         )
         .await
@@ -796,7 +885,7 @@ impl GitHub {
                 token,
             )
             .json(&serde_json::json!({ "draft": false }))
-            .send()
+            .send_recorded(&self.metrics)
             .await?,
         )
         .await
@@ -814,7 +903,7 @@ impl GitHub {
                 &format!("/repos/{repo}/releases/{release_id}"),
                 token,
             )
-            .send()
+            .send_recorded(&self.metrics)
             .await?,
         )
         .await
@@ -834,7 +923,7 @@ impl GitHub {
             token,
             "application/octet-stream",
         )
-        .send()
+        .send_recorded(&self.metrics)
         .await?;
         if !response.status().is_redirection() {
             check(response).await?;
@@ -854,10 +943,12 @@ impl GitHub {
 
     /// Fetches a signed URL from [`Self::asset_download_url`]. No credentials: the signature authorises it.
     pub async fn download(&self, url: &str) -> Result<Bytes, GitHubError> {
-        Ok(check(self.http.get(url).send().await?)
-            .await?
-            .bytes()
-            .await?)
+        Ok(
+            check(self.http.get(url).send_recorded(&self.metrics).await?)
+                .await?
+                .bytes()
+                .await?,
+        )
     }
 }
 

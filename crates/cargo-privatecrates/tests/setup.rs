@@ -5,7 +5,7 @@ mod common;
 
 use std::{path::Path, process::Output};
 
-use common::Harness;
+use common::{Harness, Options};
 use privatecrates_testkit::{READER_APP_ID, STORAGE_APP_ID};
 use serde_json::Value;
 
@@ -221,7 +221,14 @@ async fn members_see_the_checklist_but_cannot_act() {
 
     for args in [
         &["setup", "globex", "--slug", "globex", "--json"][..],
-        &["setup", "globex", "--start-trial", "--json"][..],
+        &[
+            "setup",
+            "globex",
+            "--start-trial",
+            "--billing-email",
+            "billing@globex.example",
+            "--json",
+        ][..],
     ] {
         let mut args = args.to_vec();
         args.extend(["--domain", domain.as_str()]);
@@ -233,4 +240,97 @@ async fn members_see_the_checklist_but_cannot_act() {
             "{args:?}"
         );
     }
+}
+
+#[tokio::test]
+async fn an_admin_starts_the_trial_with_a_billing_email() {
+    let h = Harness::start_with(Options {
+        stripe: true,
+        ..Options::default()
+    })
+    .await;
+    let stripe = h.stripe.clone().unwrap();
+    h.fake.add_org_members(&h.org, 11);
+    let token = h.fake.add_user("alice", "ghu_", &[]);
+    h.fake.add_member(&token, &h.org, "admin");
+    h.fake.set_device_flow_user(&token);
+    let config = tempfile::tempdir().unwrap();
+    let domain = h.apex("");
+    let with_domain = |args: &[&'static str]| {
+        let mut all: Vec<&str> = args.to_vec();
+        all.extend(["--domain", domain.as_str(), "--json"]);
+        all
+    };
+    let output = cli(config.path(), &with_domain(&["login"])).await;
+    assert!(output.status.success(), "{:?}", output);
+
+    // The checklist says how, email included.
+    let setup = json(&cli(config.path(), &with_domain(&["setup", "acme"])).await);
+    let plan = &setup["steps"][4];
+    assert_eq!(plan["status"], "todo");
+    assert_eq!(
+        plan["commands"][0],
+        format!(
+            "cargo privatecrates setup acme --start-trial --billing-email <EMAIL> --domain {domain}"
+        )
+    );
+
+    // Without the email, nothing is sent.
+    let output = cli(
+        config.path(),
+        &with_domain(&["setup", "acme", "--start-trial"]),
+    )
+    .await;
+    assert!(!output.status.success());
+    let error = json(&output);
+    assert!(
+        error["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("--billing-email"),
+        "{error}"
+    );
+    assert!(stripe.customers().is_empty());
+
+    // The server checks the address.
+    let output = cli(
+        config.path(),
+        &with_domain(&[
+            "setup",
+            "acme",
+            "--start-trial",
+            "--billing-email",
+            "billing",
+        ]),
+    )
+    .await;
+    assert!(!output.status.success());
+    assert_eq!(json(&output)["error"]["code"], "billing::email_invalid");
+
+    let output = cli(
+        config.path(),
+        &with_domain(&[
+            "setup",
+            "acme",
+            "--start-trial",
+            "--billing-email",
+            "billing@acme.example",
+        ]),
+    )
+    .await;
+    assert!(output.status.success(), "{:?}", output);
+    let setup = json(&output);
+    assert_eq!(setup["performed"], serde_json::json!(["trial"]));
+    assert_eq!(setup["steps"][4]["status"], "done");
+    let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
+    assert_eq!(customer["email"], "billing@acme.example");
+
+    // An email without the trial is a mistake in the command.
+    let output = cli(
+        config.path(),
+        &with_domain(&["setup", "acme", "--billing-email", "billing@acme.example"]),
+    )
+    .await;
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--start-trial"));
 }

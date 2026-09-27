@@ -68,9 +68,12 @@ enum Command {
         /// Save the registry name: its hostname and its name in Cargo.
         #[arg(long, value_name = "NAME")]
         slug: Option<String>,
-        /// Start the no-card free trial (organisations over the free member limit).
+        /// Start the no-card free trial (organisations over the free member limit). Needs --billing-email.
         #[arg(long)]
         start_trial: bool,
+        /// Where Stripe sends the reminder before the trial ends, and the invoices after it.
+        #[arg(long, value_name = "EMAIL", requires = "start_trial")]
+        billing_email: Option<String>,
     },
     /// Configure the crate repository or workspace in the current directory: the registry in
     /// .cargo/config.toml, package.repository from the `origin` remote, and a publish workflow.
@@ -154,6 +157,7 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
             org,
             slug,
             start_trial,
+            billing_email,
         } => {
             let setup = account::setup(
                 &domain,
@@ -161,6 +165,7 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
                     org,
                     slug: slug.as_deref(),
                     start_trial: *start_trial,
+                    billing_email: billing_email.as_deref(),
                 },
             )?;
             Outcome::new(&setup, true)

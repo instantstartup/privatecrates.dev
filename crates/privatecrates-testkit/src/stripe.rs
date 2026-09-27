@@ -76,6 +76,7 @@ fn customer_json(id: &str, metadata: Value) -> Value {
     json!({
         "id": id,
         "object": "customer",
+        "email": null,
         "metadata": metadata,
         "invoice_settings": { "default_payment_method": null },
         "default_source": null,
@@ -257,6 +258,7 @@ pub fn sign_webhook(secret: &str, timestamp: u64, body: &str) -> String {
 fn router(fake: FakeStripe) -> Router {
     Router::new()
         .route("/v1/customers", post(create_customer))
+        .route("/v1/customers/{id}", post(update_customer))
         .route(
             "/v1/subscriptions",
             get(list_subscriptions).post(create_subscription),
@@ -349,9 +351,30 @@ async fn create_customer(
         let id = format!("cus_new{}", w.id());
         let mut customer = customer_json(&id, metadata(form));
         customer["name"] = json!(form.get("name"));
+        customer["email"] = json!(form.get("email"));
         w.customers.push(customer.clone());
         Ok(customer)
     })
+}
+
+/// Updates a customer: only its email, which is all PrivateCrates changes.
+async fn update_customer(
+    State(fake): State<FakeStripe>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Form(form): Form<HashMap<String, String>>,
+) -> Response {
+    if let Err(e) = authorised(&headers) {
+        return e;
+    }
+    let mut w = fake.world();
+    let Some(customer) = w.customers.iter_mut().find(|c| c["id"] == id.as_str()) else {
+        return error(StatusCode::NOT_FOUND, "No such customer");
+    };
+    if let Some(email) = form.get("email") {
+        customer["email"] = json!(email);
+    }
+    Json(customer.clone()).into_response()
 }
 
 async fn create_subscription(

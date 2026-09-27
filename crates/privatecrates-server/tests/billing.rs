@@ -99,10 +99,17 @@ async fn plan_step(h: &Harness, session: &str) -> Value {
     step
 }
 
-/// `POST /api/orgs/acme/{action}` with the `{}` body the website sends.
+const BILLING_EMAIL: &str = "billing@acme.example";
+
+/// `POST /api/orgs/acme/{action}` with the body the website sends: the billing email to start the trial or set it,
+/// `{}` otherwise.
 async fn post(h: &Harness, session: &str, action: &str) -> reqwest::Response {
+    let body = match action {
+        "trial" | "billing-email" => json!({ "billing_email": BILLING_EMAIL }),
+        _ => json!({}),
+    };
     h.api_post(&format!("/api/orgs/acme/{action}"), session)
-        .body("{}")
+        .body(body.to_string())
         .send()
         .await
         .unwrap()
@@ -200,6 +207,8 @@ async fn the_trial_starts_without_a_card() {
     let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
     assert_eq!(customer["metadata"]["github_org_id"], org_id);
     assert_eq!(customer["metadata"]["github_org_login"], "acme");
+    // Stripe's reminder before the trial ends goes to the billing email.
+    assert_eq!(customer["email"], BILLING_EMAIL);
     let [request]: [_; 1] = stripe.subscription_requests().try_into().unwrap();
     assert_eq!(request["customer"], customer["id"].as_str().unwrap());
     assert_eq!(request["items[0][price]"], stripe::PRICE_ID);
@@ -223,6 +232,7 @@ async fn the_trial_starts_without_a_card() {
     assert_eq!(org["plan"], "trial");
     assert!(org["trial_ends_at"].as_str().unwrap().ends_with('Z'));
     assert_eq!(org["has_payment_method"], false);
+    assert_eq!(org["billing_email_missing"], false);
     assert_eq!(org["current_period_end"], Value::Null);
     assert_eq!(org["trial_available"], false);
     assert_eq!(org["tenant"]["status"], "trialing");
@@ -260,6 +270,96 @@ async fn the_trial_starts_without_a_card() {
 }
 
 #[tokio::test]
+async fn the_trial_needs_a_billing_email() {
+    let (h, stripe) = start().await;
+    let (session, _, _) = setup_large(&h).await;
+    for body in [
+        json!({}),
+        json!({ "billing_email": null }),
+        json!({ "billing_email": "" }),
+        json!({ "billing_email": "billing" }),
+        json!({ "billing_email": "billing@acme" }),
+        json!({ "billing_email": "a@acme.example, b@acme.example" }),
+        json!({ "billing_email": 42 }),
+    ] {
+        let response = h
+            .api_post("/api/orgs/acme/trial", &session)
+            .body(body.to_string())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 400, "{body}");
+        assert_eq!(
+            error_code(response).await,
+            "billing::email_invalid",
+            "{body}"
+        );
+    }
+    assert!(stripe.customers().is_empty());
+
+    // Surrounding spaces, as a form might add, are not part of the address.
+    let response = h
+        .api_post("/api/orgs/acme/trial", &session)
+        .body(json!({ "billing_email": " billing@acme.example " }).to_string())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
+    assert_eq!(customer["email"], "billing@acme.example");
+}
+
+#[tokio::test]
+async fn a_trial_started_automatically_asks_for_a_billing_email() {
+    let (h, stripe) = start().await;
+    let (session, _, _) = setup_large(&h).await;
+    // Not yet subscribed: nothing to set it on.
+    let response = post(&h, &session, "billing-email").await;
+    assert_eq!(response.status(), 409);
+    assert_eq!(error_code(response).await, "billing::no_subscription");
+    assert_eq!(
+        session_org(&h, &session).await["billing_email_missing"],
+        false
+    );
+
+    let tenant = h.state.tenants.by_org(h.org.id).unwrap();
+    h.state.start_trial_if_grown(&tenant).await;
+    let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
+    assert_eq!(customer["email"], Value::Null);
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["plan"], "trial");
+    assert_eq!(org["billing_email_missing"], true);
+
+    // Only an admin sets it, and only to an address.
+    let member = h.fake.add_user("bob", "ghu_", &[]);
+    h.fake.add_member(&member, &h.org, "member");
+    let member = h.sign_in(&member).await;
+    let response = post(&h, &member, "billing-email").await;
+    assert_eq!(response.status(), 403);
+    assert_eq!(error_code(response).await, "account::admin_required");
+    let response = h
+        .api_post("/api/orgs/acme/billing-email", &session)
+        .body(json!({ "billing_email": "billing" }).to_string())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 400);
+    assert_eq!(error_code(response).await, "billing::email_invalid");
+
+    let response = post(&h, &session, "billing-email").await;
+    assert_eq!(response.status(), 200);
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(doc["org"]["login"], "acme");
+    let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
+    assert_eq!(customer["email"], BILLING_EMAIL);
+    // Shown at once, without waiting for the next reload.
+    assert_eq!(
+        session_org(&h, &session).await["billing_email_missing"],
+        false
+    );
+}
+
+#[tokio::test]
 async fn a_double_click_starts_one_trial() {
     let (h, stripe) = start().await;
     let (session, _, _) = setup_large(&h).await;
@@ -273,7 +373,7 @@ async fn a_double_click_starts_one_trial() {
     let other = AppState::new(h.state.config.clone()).unwrap();
     other
         .billing
-        .start_trial(h.org.id, "acme", Some(12))
+        .start_trial(h.org.id, "acme", Some(12), Some(BILLING_EMAIL))
         .await
         .unwrap();
     assert_eq!(stripe.subscriptions(h.org.id).len(), 1);

@@ -111,6 +111,8 @@ pub struct SetupOptions<'a> {
     pub org: &'a str,
     pub slug: Option<&'a str>,
     pub start_trial: bool,
+    /// Required to start the trial.
+    pub billing_email: Option<&'a str>,
 }
 
 /// The onboarding document (`GET /api/orgs/{org}/onboarding`), with what was done and how to do the rest.
@@ -204,7 +206,13 @@ pub fn setup(domain: &Domain, options: &SetupOptions<'_>) -> Result<Setup, Error
         }
     }
     if options.start_trial && !step_done(&onboarding, "plan") {
-        onboarding = api.post(&format!("{path}/trial"), &json!({}))?;
+        let email = options.billing_email.ok_or_else(|| {
+            Error::Invalid(
+                "--start-trial needs --billing-email <EMAIL>: where Stripe sends the reminder before the trial ends"
+                    .into(),
+            )
+        })?;
+        onboarding = api.post(&format!("{path}/trial"), &json!({ "billing_email": email }))?;
         performed.push("trial");
     }
     let onboarding: Onboarding = serde_json::from_value(onboarding).map_err(|e| Error::Api {
@@ -255,7 +263,9 @@ fn describe(domain: &Domain, onboarding: Onboarding, performed: Vec<&'static str
                     ))];
                 }
                 "plan" if todo => {
-                    step.commands = vec![cli(format!("setup {org} --start-trial"))];
+                    step.commands = vec![cli(format!(
+                        "setup {org} --start-trial --billing-email <EMAIL>"
+                    ))];
                 }
                 _ => {}
             }
