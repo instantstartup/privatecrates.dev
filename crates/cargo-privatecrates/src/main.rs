@@ -109,6 +109,10 @@ enum Command {
         /// A registry to check (repeatable); all those using cargo-credential-privatecrates by default.
         #[arg(long = "registry", value_name = "NAME")]
         registries: Vec<String>,
+        /// A crate to look up as a developer using it (repeatable): whether you can see it, and why not. Skips the
+        /// publishing checks.
+        #[arg(long = "crate", value_name = "NAME")]
+        crates: Vec<String>,
     },
 }
 
@@ -212,11 +216,12 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
             )?;
             Outcome::new(&report, true)
         }
-        Command::Doctor { registries } => {
+        Command::Doctor { registries, crates } => {
             let report = doctor::run(
                 &cwd,
                 &doctor::Options {
                     registries,
+                    crates,
                     domain: &domain,
                     path: std::env::var_os("PATH"),
                 },

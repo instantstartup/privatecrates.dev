@@ -276,6 +276,23 @@ async fn init_publish_from_ci_then_doctor() {
         describe(&output)
     );
 
+    // As a developer depending on crates: one it can see, and one it cannot (or that does not exist).
+    let output = env
+        .cli(dir, &["doctor", "--crate", "story-engine", "--json"])
+        .await;
+    assert!(output.status.success(), "{}", describe(&output));
+    let report = json(&output);
+    assert_eq!(status_of(&checks(&report), "crate"), ["pass"], "{report:#}");
+    assert_eq!(
+        status_of(&checks(&report), "workflow"),
+        Vec::<String>::new()
+    );
+    let output = env.cli(dir, &["doctor", "--crate", "secret_thing"]).await;
+    assert!(!output.status.success());
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("[FAIL] crate (secret_thing)"), "{text}");
+    assert!(text.contains("ask them for read access"), "{text}");
+
     // Without the workflow's permission, or without the provider, doctor fails and says what to fix.
     std::fs::write(
         dir.join(".github/workflows/publish.yml"),

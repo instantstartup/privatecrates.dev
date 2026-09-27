@@ -116,6 +116,7 @@ At each of these, stop. Give the admin the exact link, say what to choose there,
 
 - [Set up with an AI agent](${SITE_URL}/docs/agents): this flow for people, the prompts, and the CLI reference
 - [Set up a registry](${SITE_URL}/docs/setup): the Apps, the storage repository, the settings file and developer set-up
+- [Joining a team](${SITE_URL}/docs/joining): for a developer on a project that already uses a registry: install, sign in, editors, "not found", and the prompt for their coding agent
 - [CI without secrets](${SITE_URL}/docs/ci): reading crates from GitHub Actions with OIDC
 - [Publishing](${SITE_URL}/docs/publishing): trusted publishing, the owners file, first publishes and yanking
 - [Security model](${SITE_URL}/docs/security): what PrivateCrates can see and store, and what a compromise could do

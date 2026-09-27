@@ -8,7 +8,7 @@ use std::{
 };
 
 use privatecrates_auth::{device, store::Store};
-use privatecrates_common::{audience, index};
+use privatecrates_common::{audience, index, name::CrateName};
 use reqwest::{StatusCode, blocking::Client};
 use serde::Serialize;
 use serde_json::Value;
@@ -78,6 +78,8 @@ pub struct Registry {
 pub struct Options<'a> {
     /// The registries to check; all those using the credential provider when empty.
     pub registries: &'a [String],
+    /// Crates to look up, as a developer depending on them; the publishing checks are skipped when there are any.
+    pub crates: &'a [String],
     /// For suggested commands.
     pub domain: &'a Domain,
     /// `PATH`, where the provider is looked for.
@@ -196,6 +198,14 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Report {
         if reachable {
             checks.push(access(&http, base, name, token.as_deref()));
         }
+        if !options.crates.is_empty() {
+            if reachable {
+                for krate in options.crates {
+                    checks.push(dependency(&http, base, name, token.as_deref(), krate));
+                }
+            }
+            continue;
+        }
         checks.push(workflow(&git_root, name).unwrap_or_else(|| {
             Check::new(
                 "workflow",
@@ -216,7 +226,12 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Report {
         }
     }
     let registry = registries.first().map_or("<name>", |r| r.name.as_str());
-    for package in publishable(project.as_ref()) {
+    let publishing = options
+        .crates
+        .is_empty()
+        .then_some(project.as_ref())
+        .flatten();
+    for package in publishable(publishing) {
         checks.push(repository(package, remote.as_deref(), &init(registry)));
     }
     let ok = checks.iter().all(|c| c.status != Status::Fail);
@@ -515,6 +530,96 @@ fn published(http: &Client, base: &str, token: &str, package: &Package) -> Check
             package.version
         ))
     }
+}
+
+/// A crate a developer depends on: whether they can see it, and if not, the possible reasons. The registry answers
+/// 404 both for a crate that does not exist and for one in a repository the user cannot read, so the report cannot
+/// tell them apart either.
+fn dependency(
+    http: &Client,
+    base: &str,
+    registry: &str,
+    token: Option<&str>,
+    krate: &str,
+) -> Check {
+    let subject = Some(krate);
+    if let Err(e) = CrateName::parse(krate) {
+        return Check::new("crate", subject, Status::Fail, e.to_string());
+    }
+    let Some(token) = token else {
+        return Check::new(
+            "crate",
+            subject,
+            Status::Warn,
+            "not signed in, so the crate was not looked up".into(),
+        )
+        .fix(format!("cargo login --registry {registry}"));
+    };
+    // Cargo looks a name up with `-` and `_` swapped too.
+    let swapped: String = krate
+        .chars()
+        .map(|c| match c {
+            '-' => '_',
+            '_' => '-',
+            c => c,
+        })
+        .collect();
+    for name in [krate, swapped.as_str()] {
+        let url = format!("{base}/index/{}", index::path(name));
+        let response = match http.get(&url).header("Authorization", token).send() {
+            Ok(response) => response,
+            Err(e) => {
+                return Check::new(
+                    "crate",
+                    subject,
+                    Status::Fail,
+                    format!("could not reach {base}: {e}"),
+                );
+            }
+        };
+        match response.status() {
+            StatusCode::NOT_FOUND => continue,
+            status if status.is_success() => {
+                let versions = response
+                    .text()
+                    .ok()
+                    .and_then(|text| index::IndexFile::parse(&text).ok())
+                    .map(|file| file.versions().map(str::to_owned).collect::<Vec<_>>())
+                    .unwrap_or_default();
+                let latest = versions
+                    .last()
+                    .map_or(String::new(), |v| format!(", latest {v}"));
+                return Check::new(
+                    "crate",
+                    subject,
+                    Status::Pass,
+                    format!("you can use {name} ({} versions{latest})", versions.len()),
+                );
+            }
+            status => {
+                return Check::new(
+                    "crate",
+                    subject,
+                    Status::Fail,
+                    format!("{url} answered {status}"),
+                )
+                .fix(format!("cargo login --registry {registry}"));
+            }
+        }
+    }
+    Check::new(
+        "crate",
+        subject,
+        Status::Fail,
+        format!(
+            "{krate} was not found in {registry}: either no such crate has been published, or you cannot read the \
+             GitHub repository it is published from (the registry does not say which, so private names stay private)"
+        ),
+    )
+    .fix(format!(
+        "check the name with whoever publishes it, and ask them for read access to its repository on GitHub; \
+         see {base}/login#troubleshooting"
+    ))
 }
 
 impl fmt::Display for Report {

@@ -9,7 +9,7 @@ cargo privatecrates logout
 cargo privatecrates setup <org> [--slug <name> --accept-terms <version>] [--start-trial --billing-email <email>] [--json]
 cargo privatecrates terms <org> [--accept <version>] [--json]
 cargo privatecrates init --registry <name> [--workflow-name publish.yml] [--force]
-cargo privatecrates doctor [--registry <name> …] [--json]
+cargo privatecrates doctor [--registry <name> …] [--crate <name> …] [--json]
 ```
 
 - **`login` / `logout`**: signs in with the registry's reader App, sharing the token store of
@@ -35,6 +35,9 @@ cargo privatecrates doctor [--registry <name> …] [--json]
   read it, `package.repository` matches the `origin` remote, publishing is restricted to the registry, a workflow
   publishes with `id-token: write`, and the current version is in the index. Each check passes, warns or fails,
   with how to fix it.
+  With `--crate <name>`, it checks as a developer depending on that crate instead: whether you can see it, and if
+  not, that it does not exist or you cannot read the repository it is published from (the registry does not say
+  which).
 
 Every command takes `--domain` for another deployment (`--domain dev.privatecrates.dev`, or a URL such as
 `http://localhost:8080` for a local server), or `--url` with a registry's URL.

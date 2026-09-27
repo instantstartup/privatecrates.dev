@@ -313,3 +313,22 @@ ${numbered([
 ${agentRules(org, cli('doctor', apex))}
 - Never publish from this machine and never add secrets to CI: publishing uses GitHub Actions' OIDC token.`;
 }
+
+/** The prompt a developer gives their coding agent to start working on a project that uses private crates. */
+export function joinPrompt({ slug, apex }: { slug: string; apex: string }): string {
+	return `Set up this machine to build this Rust project, which uses private crates from our PrivateCrates registry, ${slug} (https://${slug}.${apex}).
+
+First read https://${apex}/llms.txt: it describes the registry and the cargo privatecrates CLI.${environmentNote(apex)}
+
+Steps:
+${numbered([
+	`Install the credential provider if it is missing: ${installProvider}`,
+	`Check that .cargo/config.toml in this repository (or ~/.cargo/config.toml) has [registries.${slug}] with the credential provider; if it does not, tell me rather than adding it.`,
+	`Signing in needs me: ask me to run cargo login --registry ${slug} in my own terminal and approve the code on GitHub. Wait until I say it is done. Cargo run by you has no terminal, so it stops with "not signed in" instead of prompting.`,
+	`Run cargo build. If a private crate is "not found", run ${cli(`doctor --crate <name>`, apex)} and tell me what it says: usually I need read access to the crate's GitHub repository, which someone in the organisation grants.`
+])}
+
+Rules:
+- Never approve a GitHub sign-in or enter a device code yourself, and never paste tokens anywhere.
+- Never publish crates from this machine: publishing happens in GitHub Actions.`;
+}

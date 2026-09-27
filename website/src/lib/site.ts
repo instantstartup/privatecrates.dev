@@ -42,6 +42,7 @@ export const primaryNav: NavLink[] = [
 export const docsNav: NavLink[] = [
 	{ href: '/docs', label: 'Overview' },
 	{ href: '/docs/setup', label: 'Set up a registry' },
+	{ href: '/docs/joining', label: 'Joining a team' },
 	{ href: '/docs/agents', label: 'Set up with an AI agent' },
 	{ href: '/docs/ci', label: 'CI without secrets' },
 	{ href: '/docs/publishing', label: 'Publishing' },
