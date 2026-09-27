@@ -66,8 +66,25 @@
 		"GITHUB_STATUS_PAGE": "https://www.githubstatus.com",
 		"STRIPE_STATUS_URL": "https://status.stripe.com/api/v2/summary.json",
 		"STRIPE_STATUS_PAGE": "https://status.stripe.com",
-		"PROBE_TIMEOUT_MS": "10000"
+		"PROBE_TIMEOUT_MS": "10000",
+
+		// Alerting (src/alerting.ts, docs/deploy.md §14.5). Off until NTFY_TOPIC is set or ALERT_EMAIL_TO is filled in.
+		// Secrets, never here: NTFY_TOPIC (the topic name is the credential on ntfy.sh) and, optionally, NTFY_TOKEN.
+		"STATUS_URL": "https://status.privatecrates.dev",
+		"NTFY_URL": "https://ntfy.sh",
+		"ALERT_EMAIL_FROM": "alerts@privatecrates.dev",
+		// A verified Email Routing destination address (Email Routing > Destination addresses). Empty: no email.
+		"ALERT_EMAIL_TO": ""
 	},
+
+	// Alert email, through Email Routing: it can only send to verified destination addresses, and here only from
+	// alerts@privatecrates.dev.
+	"send_email": [
+		{
+			"name": "ALERT_EMAIL",
+			"allowed_sender_addresses": ["alerts@privatecrates.dev"]
+		}
+	],
 
 	"observability": {
 		"enabled": true

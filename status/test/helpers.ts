@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { join } from 'node:path';
 import type { Observation, ProbeResult, Upstreams } from '../src/attribution.ts';
@@ -13,12 +13,14 @@ export function fixture(name: string): unknown {
 }
 
 /**
- * A D1Database over node:sqlite with the real migration applied: enough of the API for src/store.ts (prepare, bind,
- * run, first, all, batch), so the SQL itself is tested.
+ * A D1Database over node:sqlite with the real migrations applied, in order: enough of the API for src/store.ts
+ * (prepare, bind, run, first, all, batch), so the SQL itself is tested.
  */
 export function memoryD1(): D1Database & { sqlite: DatabaseSync } {
 	const sqlite = new DatabaseSync(':memory:');
-	sqlite.exec(readFileSync(join(root, 'migrations/0001_init.sql'), 'utf8'));
+	for (const file of readdirSync(join(root, 'migrations')).filter((f) => f.endsWith('.sql')).sort()) {
+		sqlite.exec(readFileSync(join(root, 'migrations', file), 'utf8'));
+	}
 	class Statement {
 		readonly sql: string;
 		readonly params: SQLInputValue[];
@@ -29,9 +31,12 @@ export function memoryD1(): D1Database & { sqlite: DatabaseSync } {
 		bind(...params: unknown[]) {
 			return new Statement(this.sql, params as SQLInputValue[]);
 		}
-		async run() {
+		runSync() {
 			const r = sqlite.prepare(this.sql).run(...this.params);
 			return { success: true, results: [], meta: { changes: Number(r.changes) } };
+		}
+		async run() {
+			return this.runSync();
 		}
 		async first<T>() {
 			return (sqlite.prepare(this.sql).get(...this.params) as T | undefined) ?? null;
@@ -43,11 +48,12 @@ export function memoryD1(): D1Database & { sqlite: DatabaseSync } {
 	const db = {
 		sqlite,
 		prepare: (sql: string) => new Statement(sql),
+		// Synchronous inside, like D1's batch: one transaction, never interleaved with another caller's.
 		async batch(statements: Statement[]) {
 			sqlite.exec('BEGIN');
 			try {
 				const out = [];
-				for (const s of statements) out.push(await s.run());
+				for (const s of statements) out.push(s.runSync());
 				sqlite.exec('COMMIT');
 				return out;
 			} catch (e) {

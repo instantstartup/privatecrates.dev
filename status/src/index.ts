@@ -2,6 +2,8 @@
  * status.privatecrates.dev. The Cron Trigger probes every environment each minute and records the result in D1;
  * the fetch handler renders pages from D1 and the incidents bundled at build time.
  */
+import { EmailMessage } from 'cloudflare:email';
+import { alertEnvironment, alertTest, readAlerter, type AlertEnv, type Alerter } from './alerts.ts';
 import { evaluate } from './attribution.ts';
 import { readConfig, type Config } from './config.ts';
 import generatedIncidents from './generated/incidents.json';
@@ -16,7 +18,10 @@ import { loadDays, loadLatest, pruneOld, recordMinute } from './store.ts';
 
 const INCIDENTS = generatedIncidents as Incident[];
 
-/** One probe run: every environment, sharing one fetch of each upstream status page. */
+/**
+ * One probe run: every environment, sharing one fetch of each upstream status page. With an `alerter`, it then pages or
+ * emails what changed (src/alerting.ts); a failure there is logged and never fails the run.
+ */
 export async function runChecks(
 	config: Config,
 	db: D1Database,
@@ -24,6 +29,7 @@ export async function runChecks(
 	fetcher: Fetch,
 	incidents: readonly Incident[] = INCIDENTS,
 	now: () => number = Date.now,
+	alerter?: Alerter,
 ): Promise<void> {
 	const fetchedAt = new Date(now()).toISOString();
 	const upstreams = await fetchUpstreams(config.upstream, fetcher, config.timeoutMs, fetchedAt);
@@ -34,6 +40,13 @@ export async function runChecks(
 			const evaluation = evaluate(obs, upstreams, active);
 			const record = toMinuteRecord(scheduledMs, obs, evaluation);
 			await recordMinute(db, env.id, dayOf(scheduledMs), record, evaluation, upstreams);
+			if (alerter) {
+				try {
+					await alertEnvironment(alerter, db, env, evaluation, scheduledMs);
+				} catch (e) {
+					console.error(`alert: ${env.id}: ${(e as Error)?.message ?? String(e)}`);
+				}
+			}
 		}),
 	);
 	// Hourly is plenty for a 90-day window.
@@ -141,6 +154,22 @@ export default {
 		return handle(request, readConfig(env), env.DB);
 	},
 	async scheduled(controller, env): Promise<void> {
-		await runChecks(readConfig(env), env.DB, controller.scheduledTime, (input, init) => fetch(input, init));
+		const fetcher: Fetch = (input, init) => fetch(input, init);
+		const vars = env as Env & AlertEnv;
+		let alerter: Alerter | undefined;
+		try {
+			alerter = readAlerter(vars, (from, to, raw) => new EmailMessage(from, to, raw), fetcher);
+		} catch (e) {
+			console.error(`alert: configuration: ${(e as Error)?.message ?? String(e)}`);
+		}
+		const test = vars.ALERT_TEST?.trim();
+		await Promise.all([
+			runChecks(readConfig(env), env.DB, controller.scheduledTime, fetcher, INCIDENTS, Date.now, alerter),
+			test
+				? alertTest(alerter, env.DB, test, controller.scheduledTime).catch((e: unknown) =>
+						console.error(`alert test: ${(e as Error)?.message ?? String(e)}`),
+					)
+				: undefined,
+		]);
 	},
 } satisfies ExportedHandler<Env>;

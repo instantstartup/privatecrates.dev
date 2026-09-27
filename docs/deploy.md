@@ -574,8 +574,8 @@ The workflow refuses a tag that does not match the five crate versions. Verify a
 not on Railway so it stays up when we are down. Every minute a Cron Trigger probes both environments (`/healthz`,
 `/api/status`, and the canary registry's `/index/config.json`, which must answer `401` with `WWW-Authenticate`) and
 reads GitHub's and Stripe's status pages [W6]; it keeps 90 days of per-minute results and per-day summaries in D1. `/` is
-production, `/dev` is dev; each has `/feed.xml` (incidents, Atom) and `/api/summary.json`. It is deployed by hand,
-not by Railway or CI.
+production, `/dev` is dev; each has `/feed.xml` (incidents, Atom) and `/api/summary.json`. It also pages the owner
+when something of ours breaks (§14.5). It is deployed by hand, not by Railway or CI.
 
 You need a Cloudflare account with the `privatecrates.dev` zone (already there for DNS), Node 24 and pnpm (via
 corepack). Wrangler is a dev dependency; log in once with `pnpm exec wrangler login` (or set `CLOUDFLARE_API_TOKEN`
@@ -604,7 +604,7 @@ pnpm install --frozen-lockfile
 #    (it is an identifier, not a secret).
 pnpm exec wrangler d1 create privatecrates-status        # [W1][W5]
 
-# 2. Its tables (migrations/0001_init.sql).
+# 2. Its tables (every file in migrations/: the probe history, and the alerting state).
 pnpm exec wrangler d1 migrations apply privatecrates-status --remote
 
 # 3. Test, then deploy. `deploy` runs the build (incidents, fonts), uploads the Worker and its static assets, sets
@@ -669,6 +669,104 @@ not changed since February 2024. The page therefore shows Stripe's status as "co
 with a link, and Billing is judged from the server's own Stripe error rate in `/api/status`. If Stripe publishes a
 Statuspage-compatible API, point the var at it.
 
+### 14.5 Alerts: ntfy and email
+
+The status Worker pages the owner (the only responder). Urgent pages go to the **ntfy** phone app; **email** gets
+every page and notification as a second channel, with the same text. The logic is `status/src/alerting.ts`; the
+channels are `status/src/notify.ts`.
+
+**What pages, and what doesn't.** After each minute's checks, for each environment and component:
+
+| Situation | Message | ntfy priority |
+|---|---|---|
+| One of *ours* degraded or down for **2 consecutive runs** (our probes fail, or errors calling GitHub or Stripe that they have not reported) | Page: what, whose fault, since when, why | production **5** (urgent); dev 3 |
+| It gets worse (degraded to down) | Page | production 5; dev 3 |
+| It gets better (down to degraded) | Update | 3 |
+| Still ours and still broken, in production | Reminder, every **30 minutes** | 5 |
+| It recovers (the first good run) | Resolved, with how long it lasted | 3 |
+| A problem attributed to **GitHub or Stripe** (e.g. a GitHub Actions incident), for 2 runs | Notice: "Publishing degraded: GitHub Actions is having an incident: … (link). Nothing to fix on our side." | 2 (no sound) |
+| That upstream problem ends | Notice | 2 |
+
+It does **not** page for a problem seen in only one run; for GitHub trouble that is not reaching us (the page's
+"GitHub degraded but we're fine" note); for a component raised only by an incident we wrote ourselves
+(`status/incidents/`); or more than once per component in **10 minutes** (flap protection: a change held back is sent
+on the first run after the window if it still holds; recoveries are never held back). Dev is never urgent and has
+no reminders. Everything that changes in one environment in one run is **one** message ("Production: Registry reads,
+Downloads and Publishing down"), with a link to that environment's status page. What was last said, per environment
+and component, is kept in D1 (`migrations/0002_alerts.sql`) and saved before sending, so a restart, a retried cron run
+or two overlapping runs never page twice. If ntfy or email fails, the Worker logs it (`wrangler tail`) and carries
+on; the probes and the page never depend on it. With neither channel configured, alerting is silently off (as in
+`wrangler dev`).
+
+**1. ntfy (the phone app)** [N1][N2]. Install ntfy from Google Play, F-Droid or the App Store. Make up a long random
+topic name: on ntfy.sh anyone who knows it can read and post to it, so it is the credential.
+
+```sh
+openssl rand -hex 16 | sed 's/^/privatecrates-/'     # e.g. privatecrates-3f9c…; keep it in the password manager
+```
+
+In the app, tap **+**, enter the topic (server `https://ntfy.sh`), and subscribe. On **Android**, turn on *Instant
+delivery* for the subscription, then in the app's notification settings open the *Max priority* channel and allow
+it to **override Do Not Disturb** [N2]. On **iOS**, the app does not yet mark urgent messages as critical or time
+sensitive (ntfy issue #1235) [N4], so allow the ntfy app in the Do Not Disturb Focus (*Settings → Focus → Do Not
+Disturb → Apps → Add ntfy*); that lets every ntfy message through, including the priority 2 notices. Then:
+
+```sh
+cd status
+pnpm exec wrangler secret put NTFY_TOPIC     # paste the topic name
+```
+
+`NTFY_URL` (a var in `wrangler.jsonc`, default `https://ntfy.sh`) points at another server; for a self-hosted server
+or a reserved topic on a paid ntfy.sh account, also `pnpm exec wrangler secret put NTFY_TOKEN` with an access token
+(`tk_…`), sent as `Authorization: Bearer` [N1].
+
+**2. Email (Cloudflare Email Routing)** [W7][W8][W9]. In the Cloudflare dashboard, for the `privatecrates.dev` zone:
+*Email → Email Routing*, enable it (it adds its MX and SPF records), then under *Destination addresses* add the
+owner's address and click the link in the verification email. The Worker sends as `alerts@privatecrates.dev`
+(`ALERT_EMAIL_FROM`) through the `send_email` binding `ALERT_EMAIL` in `wrangler.jsonc`, which may only send from
+that address; with Email Routing alone it can only send to verified destination addresses, and those sends are free
+[W8]. Put the verified address in `wrangler.jsonc`:
+
+```jsonc
+"ALERT_EMAIL_TO": "owner@example.com"
+```
+
+and deploy (`pnpm exec wrangler deploy`). Subjects read `[PrivateCrates production] Publishing down`, and
+`[resolved] [PrivateCrates production] Publishing recovered after 12 min`. The message is a small hand-built RFC 5322
+plain-text email with a `Message-ID`, `Date` and `Auto-Submitted: auto-generated` header, passed to `EmailMessage`
+from `cloudflare:email` [W7].
+
+**3. Test it.** After deploying:
+
+```sh
+cd status
+pnpm alert:test                                   # sets the ALERT_TEST secret to a fresh value
+pnpm exec wrangler tail privatecrates-status      # "alert test: ntfy sent, email sent" within a minute or so
+```
+
+The next cron run sees an `ALERT_TEST` value it has not sent before, records it in D1 and sends one **urgent test
+page** (priority 5, like a production outage) and one email, through the real bindings. Try it with the phone on
+Do Not Disturb. It cannot be triggered over HTTP; only someone who can deploy the Worker can set a secret. Each value
+is sent once; remove it afterwards with `pnpm exec wrangler secret delete ALERT_TEST`.
+
+**Limits.** ntfy.sh limits publishing per client IP [N3]; Workers share outgoing IPs, so an unlucky 429 is possible.
+It is logged, and the email still goes. A reserved topic with a token, or a self-hosted server, avoids it. Alerting
+adds one D1 row written per environment per minute, plus a few when something changes (about 2,900 a day).
+
+### 14.6 Railway notifications
+
+The status page sees outages from outside; Railway knows about failed builds and crashes first. There is no
+per-project email toggle to switch on (September 2026): Railway emails the project's members, at their account
+address, when a deployment **crashes** after reaching its restart limit [R3], and reports a **failed** build or deploy
+(and crashes) through project webhooks [R7]. So:
+
+- make sure the owner is a member of the Railway project and that mail from Railway is not filtered
+  away;
+- for failed deploys, add a webhook under *Project → Settings → Webhooks* for *Failed* and *Crashed* deployments
+  [R7], pointing at something that emails or pushes (a Slack or Discord channel, or a small receiver);
+- a process that dies after a successful deploy and is restarted sends nothing [R8]; the status page pages for that
+  if it lasts two minutes.
+
 ## 15. Sources
 
 Consulted in September 2026.
@@ -728,3 +826,25 @@ Consulted in September 2026.
 - [W5] Cloudflare, *D1 limits* and *D1 pricing* (rows written: 100,000 a day Free, 50 million a month Paid):
   <https://developers.cloudflare.com/d1/platform/limits/>, <https://developers.cloudflare.com/d1/platform/pricing/>
 - [W6] Statuspage public API used by GitHub (`/api/v2/summary.json`): <https://www.githubstatus.com/api>
+- [W7] Cloudflare, *Send emails from Workers* (the `send_email` binding; `EmailMessage` from `cloudflare:email` with a
+  raw MIME message; also a newer structured `send({ to, from, subject, text })`):
+  <https://developers.cloudflare.com/email-routing/email-workers/send-email-workers/>
+- [W8] Cloudflare, *Configure send bindings* (`allowed_sender_addresses`, `destination_address`,
+  `allowed_destination_addresses`; without a sending domain, only verified destination addresses, and those sends
+  are free): <https://developers.cloudflare.com/email-service/configuration/send-bindings/>
+- [W9] Cloudflare, *Email routing rules and addresses* (verifying a destination address):
+  <https://developers.cloudflare.com/email-service/configuration/email-routing-addresses/>
+- [N1] ntfy, *Publishing* (`POST /<topic>`, `Title`, `Priority` 1–5, `Tags`, `Click`, `Authorization: Bearer`,
+  RFC 2047 for non-ASCII headers, 4,096-byte message limit): <https://docs.ntfy.sh/publish/>
+- [N2] ntfy, *From your phone* (per-priority notification channels on Android, overriding Do Not Disturb):
+  <https://docs.ntfy.sh/subscribe/phone/>
+- [N3] ntfy, *Configuration: rate limiting* (per-visitor request bucket and daily message limits):
+  <https://docs.ntfy.sh/config/#rate-limiting>
+- [N4] ntfy issue #1235, *iOS: Enable critical alerts* (open): <https://github.com/binwiederhier/ntfy/issues/1235>
+- [R7] Railway, *Set Up Alerts for Crashes, Restarts, and Failed Deploys* (project webhooks: Failed, Crashed):
+  <https://docs.railway.com/guides/alerts-crashes-failed-deploys>
+- [R8] Railway Help Station, *No email notification on server crash* (June 2025):
+  <https://station.railway.com/questions/no-email-notification-on-server-crash-f352a21b>
+- RFC 5322 (message format), RFC 2045 (MIME), RFC 2047 (encoded words), RFC 3834 (`Auto-Submitted`):
+  <https://www.rfc-editor.org/rfc/rfc5322>, <https://www.rfc-editor.org/rfc/rfc2045>,
+  <https://www.rfc-editor.org/rfc/rfc2047>, <https://www.rfc-editor.org/rfc/rfc3834>
