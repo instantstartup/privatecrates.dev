@@ -12,13 +12,14 @@ use privatecrates_common::{
     name::CrateName,
     sha256_hex,
 };
+use time::OffsetDateTime;
 
 use crate::{
     AppState,
     auth::{Caller, Credential, Resolver},
     crate_file,
     error::ApiError,
-    github::{FileWrite, GitHubError, Release},
+    github::{FileWrite, GitHubError, Release, now_secs},
     oidc::{ActionsClaims, OidcError},
     tenant::{NameClash, Owner, Tenant, index_path, owner_path},
 };
@@ -158,9 +159,26 @@ pub async fn publish(
     let line = IndexLine::from_publish(meta, &cksum);
     append_index(state, tenant, &name, &line, &message).await?;
     tracing::info!(tenant = %tenant.slug, krate = %name, version = %meta.vers, publisher = %publisher.describe(), "published");
+    warnings.extend(trial_reminder(state, tenant).await);
     Ok(Json(serde_json::json!({
         "warnings": { "invalid_categories": [], "invalid_badges": [], "other": warnings }
     })))
+}
+
+/// In the last days of a trial with no card, a reminder for whoever publishes.
+async fn trial_reminder(state: &AppState, tenant: &Tenant) -> Option<String> {
+    let ends = state
+        .plan(tenant.org_id, &tenant.org_login)
+        .await
+        .trial_ending(now_secs())?;
+    let date = OffsetDateTime::from_unix_timestamp(i64::try_from(ends).ok()?)
+        .ok()?
+        .date();
+    Some(format!(
+        "the PrivateCrates free trial for {} ends on {date}; add a card at {}",
+        tenant.org_login,
+        state.config.account_url()
+    ))
 }
 
 /// What is being published, and the crate's current owner, if it has one.

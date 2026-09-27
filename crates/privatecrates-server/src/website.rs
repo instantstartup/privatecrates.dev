@@ -161,7 +161,19 @@ pub async fn serve(State(state): State<Arc<AppState>>, mut request: Request) -> 
     response.into_response()
 }
 
-/// Security headers on every apex response.
+/// `robots.txt` outside production: keeps the whole deployment out of search engines.
+pub async fn disallow_robots() -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, "text/plain; charset=utf-8"),
+            (header::CACHE_CONTROL, SHORT),
+        ],
+        "User-agent: *\nDisallow: /\n",
+    )
+        .into_response()
+}
+
+/// Security headers on every apex response, and outside production a request not to index it.
 pub async fn security_headers(
     State(state): State<Arc<AppState>>,
     request: Request,
@@ -179,6 +191,9 @@ pub async fn security_headers(
         HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
     headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    if !state.config.is_production() {
+        headers.insert("x-robots-tag", HeaderValue::from_static("noindex"));
+    }
     if state.config.public_scheme == "https" {
         headers.insert(
             header::STRICT_TRANSPORT_SECURITY,

@@ -23,6 +23,7 @@ use axum::{
 };
 use base64::Engine;
 use bytes::Bytes;
+use hmac::{Hmac, KeyInit, Mac};
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -412,6 +413,13 @@ impl FakeGitHub {
     }
 }
 
+/// The `X-Hub-Signature-256` header GitHub sends with a webhook `body`, for an App's webhook `secret`.
+pub fn github_webhook_signature(secret: &[u8], body: &[u8]) -> String {
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret).expect("any key length");
+    mac.update(body);
+    format!("sha256={}", hex::encode(mac.finalize().into_bytes()))
+}
+
 /// Signs an Actions OIDC token with the fake's key, as GitHub would for a job.
 pub fn sign_oidc(issuer: &str, audience: &str, claims: &Value) -> String {
     let now = now();
@@ -472,6 +480,8 @@ struct Web {
     memberships: HashMap<u64, Vec<(u64, String)>>,
     /// Web flow code → the user token it exchanges for.
     codes: HashMap<String, String>,
+    /// Organisation ID → members beyond the users added with [`FakeGitHub::add_member`].
+    other_members: HashMap<u64, u64>,
 }
 
 impl FakeGitHub {
@@ -522,6 +532,20 @@ impl FakeGitHub {
             .push((org.id, role.into()));
     }
 
+    /// Adds members to `org` who have no token here, as people join the organisation.
+    pub fn add_org_members(&self, org: &Org, count: u64) {
+        *self.world().web.other_members.entry(org.id).or_default() += count;
+    }
+
+    /// Removes members added with [`Self::add_org_members`], as people leave the organisation.
+    pub fn remove_org_members(&self, org: &Org, count: u64) {
+        let mut w = self.world();
+        let members = w.web.other_members.entry(org.id).or_default();
+        *members = members
+            .checked_sub(count)
+            .expect("enough members to remove");
+    }
+
     /// A code that the web flow exchanges for `token`, as GitHub hands to the callback after the user approves.
     pub fn web_flow_code(&self, token: &str) -> String {
         let mut w = self.world();
@@ -536,6 +560,48 @@ fn web_routes() -> Router<FakeGitHub> {
         .route("/user/orgs", get(user_orgs))
         .route("/user/memberships/orgs/{org}", get(user_membership))
         .route("/orgs/{org}/installation", get(org_installation))
+        .route("/orgs/{org}/members", get(org_members))
+}
+
+/// An organisation's members, for the reader App's installation on it (which has Members read).
+async fn org_members(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Path(org): Path<String>,
+    Query(page): Query<Page>,
+) -> Response {
+    let w = fake.world();
+    let installation = match principal(&w, &headers) {
+        Ok(Principal::Installation(i)) => i,
+        Ok(_) => return error(StatusCode::FORBIDDEN, "needs an installation token"),
+        Err(e) => return e,
+    };
+    let org = match installation_app(&w, installation) {
+        Some((READER_APP_ID, o)) if o.login.eq_ignore_ascii_case(&org) => o.id,
+        _ => {
+            return error(
+                StatusCode::FORBIDDEN,
+                "Resource not accessible by integration",
+            );
+        }
+    };
+    let mut members: Vec<Value> = w
+        .users
+        .values()
+        .filter(|u| {
+            w.web
+                .memberships
+                .get(&u.id)
+                .is_some_and(|m| m.iter().any(|(o, _)| *o == org))
+        })
+        .map(|u| json!({ "login": u.login, "id": u.id }))
+        .collect();
+    members.sort_by_key(|m| m["id"].as_u64());
+    let others = w.web.other_members.get(&org).copied().unwrap_or_default();
+    members.extend(
+        (0..others).map(|i| json!({ "login": format!("member-{i}"), "id": 1_000_000 + i })),
+    );
+    Json(paginate(&members, &page)).into_response()
 }
 
 fn org_json(org: &Org) -> Value {

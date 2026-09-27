@@ -23,7 +23,7 @@ use tokio::task::JoinSet;
 
 use crate::{
     AppState,
-    billing::{Standing, TRIAL_DAYS},
+    billing::{OrgPlan, Plan, Subscription, trial_length},
     error::ApiError,
     github::{AppKind, Conditional, FileWrite, GitHubError, Membership, Organization, Repo},
     session::{self, Session, clear_session_cookie},
@@ -38,6 +38,7 @@ pub fn routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/session", get(session_info))
         .route("/api/orgs/{org}/onboarding", get(onboarding))
         .route("/api/orgs/{org}/settings", post(settings))
+        .route("/api/orgs/{org}/trial", post(trial))
         .route("/api/orgs/{org}/checkout", post(checkout))
         .route("/api/orgs/{org}/portal", post(portal))
         .route("/api/errors", get(errors))
@@ -62,26 +63,42 @@ fn rfc3339(secs: Option<u64>) -> Option<String> {
         .ok()
 }
 
-/// The organisation's registry and its subscription, or `null` when it is not set up.
-fn tenant_json(state: &AppState, org_id: u64) -> Value {
+/// The organisation's registry and its raw subscription status, or `null` when it is not set up.
+fn tenant_json(state: &AppState, org_id: u64, plan: &OrgPlan) -> Value {
     let Some(tenant) = state.tenants.by_org(org_id) else {
         return Value::Null;
     };
-    let (status, trial_ends_at, current_period_end) = if !state.billing.enabled() {
-        (Some("active".to_owned()), None, None)
-    } else {
-        match state.billing.subscription(org_id) {
-            Some(s) if s.status == "trialing" => (Some(s.status.clone()), s.trial_end, None),
-            Some(s) => (Some(s.status.clone()), None, s.current_period_end()),
-            None => (None, None, None),
-        }
-    };
+    let subscription = plan.subscription.as_ref();
     json!({
         "slug": tenant.slug,
         "registry_url": state.config.tenant_base_url(&tenant.slug),
-        "status": status,
-        "trial_ends_at": rfc3339(trial_ends_at),
-        "current_period_end": rfc3339(current_period_end),
+        "status": subscription.map(|s| &s.status),
+        "trial_ends_at": rfc3339(subscription.and_then(Subscription::trial_ends_at)),
+        "current_period_end": rfc3339(subscription.and_then(Subscription::current_period_end)),
+    })
+}
+
+/// An organisation in `GET /api/session`: who it is, the user's role, its plan and its registry.
+fn org_json(
+    state: &AppState,
+    org: &Organization,
+    membership: &Membership,
+    plan: &OrgPlan,
+) -> Value {
+    let subscription = plan.subscription.as_ref();
+    json!({
+        "id": org.id,
+        "login": org.login,
+        "avatar_url": org.avatar_url,
+        "role": role(membership),
+        "members": plan.members,
+        "free_member_limit": state.billing.free_member_limit(),
+        "plan": plan.plan,
+        "trial_ends_at": rfc3339(subscription.and_then(Subscription::trial_ends_at)),
+        "has_payment_method": subscription.is_some_and(Subscription::has_payment_method),
+        "current_period_end": rfc3339(subscription.and_then(Subscription::current_period_end)),
+        "trial_available": plan.trial_available,
+        "tenant": tenant_json(state, org.id, plan),
     })
 }
 
@@ -118,26 +135,21 @@ async fn session_info(
         let state = state.clone();
         let token = session.token.clone();
         lookups.spawn(async move {
-            let membership = state.gh.org_membership(&token, &org.login).await;
-            (org, membership)
+            let membership = match state.gh.org_membership(&token, &org.login).await {
+                Ok(Some(membership)) if membership.state == "active" => membership,
+                Ok(_) => return Ok(None),
+                Err(e) => return Err(e),
+            };
+            let plan = state.plan(org.id, &org.login).await;
+            Ok(Some((
+                org.login.clone(),
+                org_json(&state, &org, &membership, &plan),
+            )))
         });
     }
     let mut orgs = Vec::new();
     while let Some(joined) = lookups.join_next().await {
-        let (org, membership) = joined.map_err(|e| ApiError::internal(e.to_string()))?;
-        let Some(membership) = membership?.filter(|m| m.state == "active") else {
-            continue;
-        };
-        orgs.push((
-            org.login.clone(),
-            json!({
-                "id": org.id,
-                "login": org.login,
-                "avatar_url": org.avatar_url,
-                "role": role(&membership),
-                "tenant": tenant_json(&state, org.id),
-            }),
-        ));
+        orgs.extend(joined.map_err(|e| ApiError::internal(e.to_string()))??);
     }
     orgs.sort_by_key(|(login, _)| login.to_ascii_lowercase());
     Ok(Json(json!({
@@ -327,15 +339,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
         ),
         None => Step::new("settings", false, "Choose your registry name."),
     };
-    let subscription = state.billing.subscription(org.id);
-    let subscribed = state.billing.standing(org.id) == Standing::Active;
-    let subscription_todo = match &subscription {
-        Some(s) => format!(
-            "The subscription is {}. Subscribe again to keep using the registry.",
-            s.status.replace('_', " ")
-        ),
-        None => format!("Start a {TRIAL_DAYS}-day free trial."),
-    };
+    let plan = state.plan(org.id, &org.login).await;
     let mut steps = vec![
         Step::new("reader_app", reader, "Install the reader App on the organisation.")
             .action(install(&config.reader_app_slug)),
@@ -349,7 +353,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
             None => install(&config.storage_app_slug),
         }),
         settings,
-        Step::new("subscription", subscribed, subscription_todo),
+        plan_step(state, &plan),
     ];
     if !membership.is_admin() {
         let ask = format!("Only admins of {} can do this; ask one of them.", org.login);
@@ -366,6 +370,63 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
         "steps": steps,
         "suggested_slug": suggested_slug(state, org, tenant.as_deref()),
     }))
+}
+
+/// Paying, or not: done while the organisation is free or its subscription is active, trialing or past due.
+fn plan_step(state: &AppState, plan: &OrgPlan) -> Step {
+    let billing = &state.billing;
+    let limit = billing.free_member_limit();
+    let subscription = plan.subscription.as_ref();
+    let date = |secs: Option<u64>| {
+        secs.and_then(|secs| OffsetDateTime::from_unix_timestamp(i64::try_from(secs).ok()?).ok())
+            .map_or_else(|| "its end".to_owned(), |t| t.date().to_string())
+    };
+    let (done, detail) = match plan.plan {
+        Plan::Free => (
+            true,
+            match plan.members {
+                Some(n) => format!("Free: {n} of {limit} members"),
+                None => format!("Free for organisations with up to {limit} members"),
+            },
+        ),
+        Plan::Trial => {
+            let ends = date(subscription.and_then(Subscription::trial_ends_at));
+            let card = if subscription.is_some_and(Subscription::has_payment_method) {
+                "then the card on file is charged"
+            } else {
+                "add a card in the billing portal to keep the registry afterwards"
+            };
+            (true, format!("Free trial until {ends}; {card}."))
+        }
+        Plan::Paid => (true, "Subscribed.".to_owned()),
+        Plan::PastDue => (
+            true,
+            "The last payment failed and Stripe is retrying it; update the card in the billing portal.".to_owned(),
+        ),
+        Plan::Inactive => {
+            let members = plan.members.unwrap_or_default();
+            let action = if !billing.enabled() {
+                "billing is not set up on this server.".to_owned()
+            } else if plan.trial_available {
+                format!(
+                    "start your {} free trial, no card needed.",
+                    trial_length(billing.trial_days())
+                )
+            } else {
+                format!(
+                    "the subscription is {}. Subscribe with a card to keep using the registry.",
+                    subscription.map_or("over", |s| s.status.as_str()).replace('_', " ")
+                )
+            };
+            (false, format!("{members} members: {action}"))
+        }
+    };
+    Step {
+        id: "plan",
+        status: if done { Status::Done } else { Status::Todo },
+        detail: Some(detail),
+        action_url: None,
+    }
 }
 
 /// The storage repository's conventional name, which the pre-filled create link uses.
@@ -528,11 +589,28 @@ async fn checkout(
         .checkout(
             org.id,
             &org.login,
+            state.members(org.id, &org.login).await,
             &format!("{back}&checkout=success"),
             &back,
         )
         .await?;
     Ok(Json(json!({ "url": url })))
+}
+
+/// Starts the organisation's no-card trial.
+async fn trial(
+    State(state): State<Arc<AppState>>,
+    session: Session,
+    Path(org): Path<String>,
+) -> Result<Json<Value>, ApiError> {
+    let membership = admin(&state, &session, &org).await?;
+    let org = &membership.organization;
+    state
+        .billing
+        .start_trial(org.id, &org.login, state.members(org.id, &org.login).await)
+        .await?;
+    tracing::info!(org = %org.login, by = %membership.user.login, "trial requested");
+    Ok(Json(onboarding_doc(&state, &membership).await?))
 }
 
 async fn portal(

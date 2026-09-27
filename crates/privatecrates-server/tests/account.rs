@@ -61,8 +61,10 @@ async fn sign_in_round_trip() {
     assert_eq!(orgs[0]["role"], "admin");
     assert_eq!(orgs[0]["tenant"]["slug"], "acme");
     assert_eq!(orgs[0]["tenant"]["registry_url"], h.base());
-    // Without billing configured, every tenant is active.
-    assert_eq!(orgs[0]["tenant"]["status"], "active");
+    // Billing is not configured: there is no Stripe status, and the plan follows the member count.
+    assert_eq!(orgs[0]["tenant"]["status"], Value::Null);
+    assert_eq!(orgs[0]["members"], 1);
+    assert_eq!(orgs[0]["plan"], "free");
 
     let logout = h.api_post("/auth/logout", &session).send().await.unwrap();
     assert_eq!(logout.status(), 204);
@@ -285,8 +287,13 @@ async fn onboarding_checklist() {
             ("storage_repo".into(), "todo".into()),
             ("storage_app".into(), "todo".into()),
             ("settings".into(), "blocked".into()),
-            ("subscription".into(), "done".into()),
+            ("plan".into(), "done".into()),
         ]
+    );
+    // Members are counted with the reader App, which is not installed yet.
+    assert_eq!(
+        doc["steps"][4]["detail"],
+        "Free for organisations with up to 5 members"
     );
     assert_eq!(
         doc["steps"][0]["action_url"],
@@ -319,6 +326,7 @@ async fn onboarding_checklist() {
     h.fake.install_app(&globex, READER_APP_ID);
     let doc = onboarding().await;
     assert_eq!(statuses(&doc), ["done", "done", "todo", "blocked", "done"]);
+    assert_eq!(doc["steps"][4]["detail"], "Free: 2 of 5 members");
     assert_eq!(
         doc["steps"][1]["action_url"],
         format!("{}/globex/crates-store/settings", h.fake.url)

@@ -188,8 +188,16 @@ USD 100.00 monthly price with lookup key `privatecrates_org_monthly`, a webhook 
 `https://{apex}/webhooks/stripe` with `checkout.session.completed` and `customer.subscription.created|updated|deleted`,
 and the default customer portal configuration (cancel at period end, update payment method, invoice history). It
 pins Stripe API version `2026-08-26.dahlia` for its calls and for the webhook payloads (override with
-`STRIPE_API_VERSION`); keep that equal to the version the server's Stripe client sends. The 14-day trial is set per
-Checkout Session by the server (`subscription_data.trial_period_days`), not on the price.
+`STRIPE_API_VERSION`); keep that equal to the version the server's Stripe client sends (`Stripe-Version`, pinned in
+`crates/privatecrates-server/src/billing.rs`).
+
+Organisations with up to `FREE_MEMBER_LIMIT` members (default 5) never touch Stripe. Larger ones get a no-card trial
+of `TRIAL_DAYS` (default 90), which the server creates directly through the API: a customer, then a subscription
+with `trial_period_days`, `payment_settings[save_default_payment_method]=on_subscription` and
+`trial_settings[end_behavior][missing_payment_method]=cancel`, so a trial that ends with no card is cancelled [S5].
+The trial is set per subscription, not on the price. **Checkout is no longer used for new trials**: it is only for an
+organisation that already had its trial, and then requires a card and has no trial. Cards are added in the customer
+portal.
 
 1. In the Stripe Dashboard, **test mode**: open *Settings → Billing → Customer portal*
    (`https://dashboard.stripe.com/test/settings/billing/portal`) and click **Save** once. Stripe creates the default
@@ -206,9 +214,18 @@ Checkout Session by the server (`subscription_data.trial_period_days`), not on t
    Dashboard, or pass `--recreate-webhook` and update Railway).
 3. For production, repeat in **live mode** with an `sk_live_…` key once the Stripe account is activated:
    `scripts/stripe-setup.sh production`.
+4. Turn on Stripe's trial-ending reminder email, in each mode: *Settings → Billing → Subscriptions and emails*
+   (`https://dashboard.stripe.com/settings/billing/automatic`), under **Email notifications and customer
+   management**, turn on **Send a reminder email 7 days before a free trial ends**, and set the email's payment link
+   to **Link to a Stripe-hosted page** so the customer can add a card from the email [S6][S7]. The API cannot change
+   this setting. Stripe sends no customer emails from a sandbox or test mode except to addresses of your verified
+   email domain or team members [S7], and only to customers with an email address: the server creates trial
+   customers with the organisation's name and metadata but no email, so an admin receives the reminder only once
+   an email is on the customer (for example entered in the customer portal). Publishes in the last 14 days of a
+   trial with no card carry a Cargo warning either way.
 
 For the server's key you may use a restricted key (`rk_…`) instead of the secret key: it needs write access to
-Checkout Sessions, Customers and Customer portal, and read access to Subscriptions, Prices and Products.
+Customers, Subscriptions, Checkout Sessions and Customer portal, and read access to Prices and Products.
 
 ## 6. Railway
 
@@ -306,6 +323,8 @@ Leave these unset (the defaults are right for both environments):
 | `PUBLIC_SCHEME` | `https` | `http` only for local testing. |
 | `GITHUB_API_URL`, `GITHUB_WEB_URL` | `https://api.github.com`, `https://github.com` | Tests point these at a fake. |
 | `STRIPE_API_URL` | Stripe's API | Tests point this at a fake. |
+| `FREE_MEMBER_LIMIT` | 5 | Organisations with at most this many members (active members, from the reader App; not outside collaborators or pending invitations) are free. |
+| `TRIAL_DAYS` | 90 | Length of the no-card trial larger organisations get once. |
 | `OIDC_ISSUER`, `OIDC_JWKS_URL` | GitHub Actions' | |
 | `CRATES_IO_API_URL` | `https://crates.io` | |
 | `MAX_CRATE_BYTES` | 20 MiB | |
@@ -399,8 +418,10 @@ or a 100% coupon):
    3. install the storage App on **only** that repository;
    4. choose the registry name (slug); this creates `privatecrates.toml` in the storage repository (check the
       commit is by the storage App and verified);
-   5. start the subscription: Stripe Checkout, test card `4242 4242 4242 4242`, any future expiry and CVC. The
-      status becomes *trialing*.
+   5. the plan: with at most `FREE_MEMBER_LIMIT` members the step is already done ("Free: 3 of 5 members"). To
+      test billing on dev, set `FREE_MEMBER_LIMIT=0` for the dev service, then **Start free trial**: no card is
+      asked for, and the status becomes *trialing* at once. Add the test card `4242 4242 4242 4242` (any future
+      expiry and CVC) in the billing portal.
 3. The registry answers:
 
    ```sh
@@ -535,6 +556,12 @@ Consulted in September 2026.
 - [S4] Stripe API, customer portal configurations and sessions (default configuration):
   <https://docs.stripe.com/api/customer_portal/configurations/create>,
   <https://docs.stripe.com/api/customer_portal/sessions/create>
+- [S5] Stripe, *Use free trial periods on subscriptions* (trials without a payment method,
+  `missing_payment_method=cancel`, which defaults Stripe checks): <https://docs.stripe.com/billing/subscriptions/trials/free-trials>
+- [S6] Stripe, *Manage compliance requirements for trials and promotions* (trial-end reminder emails, 7 days before):
+  <https://docs.stripe.com/billing/subscriptions/trials/manage-trial-compliance>
+- [S7] Stripe, *Automate customer emails* (Trial ending reminders; Link to a Stripe-hosted page; emails in a sandbox):
+  <https://docs.stripe.com/billing/revenue-recovery/customer-emails>
 - [C1] crates.io, *Trusted Publishing*: <https://crates.io/docs/trusted-publishing>, and
   `rust-lang/crates-io-auth-action`: <https://github.com/rust-lang/crates-io-auth-action>
 - [C2] RFC 3691, *Trusted Publishing for crates.io*:

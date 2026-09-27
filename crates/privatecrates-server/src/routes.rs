@@ -50,7 +50,7 @@ impl FromRequestParts<Arc<AppState>> for TenantHost {
             .slug_for_host(&host)
             .and_then(|slug| state.tenants.get(slug))
             .ok_or(ApiError::NotFound)?;
-        if state.billing.standing(tenant.org_id) == Standing::Lapsed {
+        if state.standing(&tenant).await == Standing::Lapsed {
             return Err(subscription_inactive(state, &tenant));
         }
         Ok(TenantHost(tenant))
@@ -250,7 +250,7 @@ pub async fn publish(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    if state.billing.standing(tenant.org_id) != Standing::Active {
+    if state.standing(&tenant).await != Standing::Active {
         return Err(subscription_inactive(&state, &tenant));
     }
     let credential = credential(&state, &tenant, &headers)?;

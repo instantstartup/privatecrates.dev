@@ -332,6 +332,25 @@ pub enum ApiError {
     #[http_status(409)]
     AlreadySubscribed { org: String },
 
+    #[error("{org} has already had its free trial; subscribe with a card instead")]
+    #[diagnostic(code(billing::trial_used))]
+    #[http_status(409)]
+    TrialUsed { org: String },
+
+    #[error("{org} has at most {limit} members, so PrivateCrates is free for it; nothing to pay")]
+    #[diagnostic(code(billing::free_plan))]
+    #[http_status(409)]
+    FreePlan {
+        org: String,
+        #[extension]
+        limit: u64,
+    },
+
+    #[error("{org} can start a free trial with no card; start that instead")]
+    #[diagnostic(code(billing::trial_available))]
+    #[http_status(409)]
+    TrialAvailable { org: String },
+
     #[error("{org} has no subscription yet; start one first")]
     #[diagnostic(code(billing::no_subscription))]
     #[http_status(409)]

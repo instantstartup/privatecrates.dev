@@ -83,6 +83,8 @@ impl Harness {
                 webhook_secret: privatecrates_testkit::stripe::WEBHOOK_SECRET.into(),
                 price_id: privatecrates_testkit::stripe::PRICE_ID.into(),
             }),
+            free_member_limit: 5,
+            trial_days: 90,
             oidc_issuer: fake.oidc_issuer(),
             oidc_jwks_url: fake.oidc_jwks_url().parse().unwrap(),
             crates_io_api: fake.url.parse().unwrap(),
@@ -221,6 +223,28 @@ impl Harness {
         let status = response.status();
         let body = response.text().await.unwrap();
         assert_eq!(status, 200, "publish failed: {body}");
+    }
+
+    /// Delivers a GitHub webhook to the website's host, signed with `secret`.
+    pub async fn github_webhook(
+        &self,
+        secret: &[u8],
+        event: &str,
+        delivery: &str,
+        payload: &Value,
+    ) -> reqwest::Response {
+        let body = serde_json::to_vec(payload).unwrap();
+        let signature = privatecrates_testkit::github_webhook_signature(secret, &body);
+        self.client
+            .post(self.apex("/webhooks/github"))
+            .header("X-GitHub-Event", event)
+            .header("X-GitHub-Delivery", delivery)
+            .header("X-Hub-Signature-256", signature)
+            .header("Content-Type", "application/json")
+            .body(body)
+            .send()
+            .await
+            .unwrap()
     }
 
     /// Makes the server re-read the storage repository, as the periodic refresh or a webhook would.

@@ -83,7 +83,9 @@ fn verify(secrets: &[Vec<u8>], headers: &HeaderMap, body: &[u8]) -> Result<(), A
 /// The parts of a payload we use. Which are present depends on the event.
 #[derive(Deserialize)]
 struct Payload {
+    action: Option<String>,
     installation: Option<Id>,
+    organization: Option<Id>,
     /// `organization` events: the member added or removed.
     membership: Option<OrgMembership>,
     /// `membership` (team) and `member` (collaborator) events: the user.
@@ -149,6 +151,9 @@ async fn handle(state: &AppState, event: &str, body: &[u8]) -> Result<(), ApiErr
                 let installation = payload.tenant(state).map(|t| t.reader_installation);
                 state.permissions.forget_user(user, installation).await;
             }
+            if event == "organization" {
+                member_count_changed(state, &payload).await;
+            }
         }
         // Team access, repository renames, transfers, deletions and visibility changes can change what anyone in
         // the tenant can read. Owners files are not rewritten: their `repository_id` is authoritative, and a
@@ -185,6 +190,23 @@ async fn handle(state: &AppState, event: &str, body: &[u8]) -> Result<(), ApiErr
         _ => {}
     }
     Ok(())
+}
+
+/// Keeps an organisation's member count current as members join and leave (invitations do not count until
+/// accepted), and starts the trial of a tenant that has just grown past the free limit.
+async fn member_count_changed(state: &AppState, payload: &Payload) {
+    let change = match payload.action.as_deref() {
+        Some("member_added") => 1,
+        Some("member_removed") => -1,
+        _ => return,
+    };
+    let Some(org) = &payload.organization else {
+        return;
+    };
+    state.members.adjust(org.id, change).await;
+    if let Some(tenant) = state.tenants.by_org(org.id) {
+        state.start_trial_if_grown(&tenant).await;
+    }
 }
 
 #[cfg(test)]

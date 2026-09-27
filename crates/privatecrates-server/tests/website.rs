@@ -89,8 +89,17 @@ async fn serves_the_prerendered_pages() {
         headers["cache-control"],
         "public, max-age=31536000, immutable"
     );
-    let (_, headers, _) = page(&h, "/robots.txt").await;
+    // Not production: the website's own robots.txt is replaced, and nothing may be indexed.
+    let (status, headers, body) = page(&h, "/robots.txt").await;
+    assert_eq!(status, 200);
+    assert_eq!(body, "User-agent: *\nDisallow: /\n");
     assert_eq!(headers["cache-control"], "public, max-age=3600");
+    assert!(
+        headers["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/plain")
+    );
 
     for path in [
         "/missing",
@@ -127,6 +136,8 @@ async fn apex_responses_carry_security_headers() {
         assert_eq!(headers["x-frame-options"], "DENY");
         // The harness serves plain http, so no HSTS.
         assert!(headers.get("strict-transport-security").is_none());
+        // Only production may be indexed.
+        assert_eq!(headers["x-robots-tag"], "noindex");
     }
 }
 
