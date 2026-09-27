@@ -1,0 +1,88 @@
+# The preview: terms, acceptance, and the road to general availability
+
+Decided 27 September 2026. There is no legal entity yet, so PrivateCrates runs as a **preview**:
+
+- It is operated by **Bryn Dyllan Cooke, as an individual**. A company will be formed before general availability.
+- It is **free**: no payments are taken, in any environment, until the entity exists. The planned prices are shown as
+  planned, not charged.
+- It is provided **as is, at the user's own risk**: no warranty, no service commitment, no liability beyond what law
+  forbids excluding, and it may change or stop.
+- An organisation admin must **accept the preview terms** before a registry is created for their organisation.
+
+## 1. Preview mode (server)
+
+`PREVIEW=true` (default `true` until general availability; `false` restores billing):
+
+- Billing is off whatever Stripe configuration is present: no Checkout, trials, portal or subscription loading, and no
+  enforcement. `/trial`, `/checkout`, `/portal` and `/billing-email` answer `409 billing::preview` ("PrivateCrates is
+  free during the preview").
+- Every organisation's `plan` is `"free"`, with `members` still reported. The onboarding `plan` step is `done`, with
+  detail "Free during the preview."
+- `GET /api/session` gains a top-level `"preview": true` and `"terms": { "version": "preview-2026-09-27", "url":
+  "https://{apex}/legal/terms" }`.
+- Publish warnings (trial reminders) are off.
+
+## 2. Accepting the terms (server, CLI, verifier)
+
+The acceptance is recorded **in the customer's own storage repository**, like everything else: auditable, and no
+database.
+
+- **At registry creation:** `POST /api/orgs/{org}/settings` requires `{"slug": "…", "accept_terms":
+  "preview-2026-09-27"}`, the current version, or refuses with `400 account::terms_not_accepted`. The storage App first
+  creates `terms/preview-2026-09-27.toml`:
+
+  ```toml
+  version = "preview-2026-09-27"
+  accepted_by = "BrynCooke"          # GitHub login of the admin who accepted
+  accepted_by_id = 12345
+  accepted_at = "2026-09-27T17:00:00Z"
+  url = "https://privatecrates.dev/legal/terms"
+  ```
+
+  then `privatecrates.toml` as today. Commit message: "Accept PrivateCrates preview terms (preview-2026-09-27)" with
+  the login.
+- **For an existing registry** (created before the terms, or when the version changes): `POST
+  /api/orgs/{org}/terms` `{"accept_terms": "<current version>"}`, admin only, creates that version's file.
+- **Reading:** the tenant snapshot knows which `terms/*.toml` exist. The session's organisation object gains
+  `"terms_accepted": true | false` (the current version). A tenant without acceptance **keeps working** (nothing is
+  interrupted), but the account page asks an admin to accept.
+- **The verifier** treats `terms/` like `owners/`: the storage App may *create* a terms file; changing or deleting one
+  is reported. Add a test.
+- **The CLI:** `cargo privatecrates setup <org> --slug S --accept-terms <version>` and a new
+  `cargo privatecrates terms <org> --accept <version>`. Without `--accept-terms`, `setup --slug` prints the terms URL
+  and the exact flag to add, and exits non-zero. `--json` reports the version and URL. The CLI never supplies the
+  version by itself: the person (or their agent, having shown them the terms) passes it.
+- **Agents:** `llms.txt`, `/docs/agents` and the set-up prompt tell the agent to show the admin the terms link, ask them
+  to accept, and only then pass `--accept-terms`. An agent must never accept on the admin's behalf.
+
+## 3. Website
+
+- `/legal/terms` becomes the **Preview terms** (version `preview-2026-09-27`), plain English, not a draft banner:
+  who operates it (Bryn Dyllan Cooke, as an individual; a company before general availability), free during the
+  preview, as is and at your own risk, no warranty, no availability or support commitment, limitation of liability to
+  the extent the law allows, the service may change or end with notice where possible, your data stays in your GitHub
+  organisation (so ending the service loses nothing), acceptable use, how terms change (a new version to accept),
+  contact. Keep the privacy notice and DPA as drafts, marked as not yet in force during the preview.
+- **Onboarding:** the registry-name step has a required checkbox, "I have read and accept the preview terms
+  (link), on behalf of {org}", sending `accept_terms`. Admins of an existing registry without acceptance see a banner
+  with the same checkbox and button.
+- **Preview everywhere it matters:** a slim site-wide "Preview: free, use at your own risk" notice (linking the
+  terms); `/pricing` shows the plans as "planned pricing, from general availability; free during the preview";
+  `/account` shows "Free during the preview" instead of plan and trial controls; the billing parts of the FAQ say
+  billing starts only after general availability, with notice.
+
+## 4. Roadmap to general availability (2027, if there is interest)
+
+| # | Item | Why |
+|---|---|---|
+| 1 | Form a company; publish its name, number and address | The operator for terms, DPA and billing |
+| 2 | Legal review of the terms, privacy notice and DPA; choose governing law and jurisdiction | Terms fit for paying customers |
+| 3 | International transfer mechanism (EU SCCs and the UK addendum) | EU customers' data processed in the US |
+| 4 | Turn on billing (Stripe live mode), with at least 30 days' notice to existing organisations | Revenue |
+| 5 | Incident commitments: time to first status update, breach notification deadline (72 hours) | Enterprise reviews ask |
+| 6 | Security response targets by severity; a PGP key or other encrypted channel | Disclosure policy completeness |
+| 7 | App keys and the token-signing key in a KMS | Least exposure of the most sensitive keys |
+| 8 | Independent penetration test, with a summary on the trust centre | Evidence for reviewers |
+| 9 | SOC 2 Type I, then Type II | The usual enterprise gate |
+
+The trust centre shows this roadmap publicly, with "2027, subject to demand".
