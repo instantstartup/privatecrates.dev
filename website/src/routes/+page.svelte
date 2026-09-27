@@ -73,6 +73,12 @@
 	<div class="config">
 		<CodeBlock caption=".cargo/config.toml" code={cargoConfig('acme', 'https://acme.privatecrates.dev')} />
 	</div>
+	<p class="agents">
+		<strong>Works with AI coding agents.</strong> Ask Claude Code or another agent to set up the registry and
+		configure your crates: it uses the <code>cargo privatecrates</code> CLI and your own <code>gh</code>
+		login, and hands you a link where GitHub needs a person.
+		<a href="/docs/agents">Set up with an AI agent</a>
+	</p>
 </section>
 
 <section class="night security" aria-labelledby="security">
@@ -329,6 +335,16 @@
 	}
 	.config {
 		margin-top: 1.5rem;
+	}
+	.agents {
+		margin-top: 1.25rem;
+		padding-left: 1rem;
+		border-left: 4px solid var(--signal);
+		max-width: var(--container-prose);
+		color: var(--ink-soft);
+	}
+	.agents strong {
+		color: var(--ink);
 	}
 
 	/* Security: the night band with the lighthouse */

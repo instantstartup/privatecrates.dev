@@ -29,6 +29,11 @@
 		name, and configure Cargo on developers’ machines.
 	</li>
 	<li>
+		<a href="/docs/agents">Set up with an AI agent</a>: let Claude Code or another coding agent set up the
+		registry and configure your crates, with the <code>cargo privatecrates</code> CLI and your own
+		<code>gh</code> login.
+	</li>
+	<li>
 		<a href="/docs/ci">CI without secrets</a>: read crates from GitHub Actions with OIDC, and build Docker
 		images or use other CI safely.
 	</li>

@@ -24,6 +24,14 @@
 	About ten minutes for an organisation admin, then one config file and one install for each developer.
 </p>
 
+<Callout title="Works with AI coding agents">
+	<p>
+		A coding agent such as Claude Code can do most of this for you with the <code>cargo privatecrates</code>
+		CLI, and stops to give you a link where GitHub needs a person. See
+		<a href="/docs/agents">Set up with an AI agent</a>.
+	</p>
+</Callout>
+
 <h2 id="organisation">For the organisation</h2>
 <p>
 	Sign in on the <a href="/account">account page</a> with GitHub and pick your organisation. The checklist there

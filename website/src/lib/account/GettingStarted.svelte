@@ -1,8 +1,18 @@
 <script lang="ts">
 	import type { Tenant } from '$lib/api';
+	import AgentPrompt from '$lib/components/AgentPrompt.svelte';
 	import CodeBlock from '$lib/components/CodeBlock.svelte';
 	import LoadingDock from '$lib/illustrations/LoadingDock.svelte';
-	import { cargoConfig, ciPublish, dependency, installProvider, publishTarget, pushTag } from '$lib/snippets';
+	import {
+		cargoConfig,
+		ciPublish,
+		dependency,
+		installProvider,
+		publishPrompt,
+		publishTarget,
+		pushTag
+	} from '$lib/snippets';
+	import { baseDomain } from './format';
 
 	interface Props {
 		org: string;
@@ -13,6 +23,8 @@
 
 	// The crate on the crane shows the registry name when it fits the stencil.
 	const crateLabel = $derived(tenant.slug.length <= 7 ? tenant.slug : undefined);
+
+	const agentPrompt = $derived(publishPrompt({ org, slug: tenant.slug, apex: baseDomain() }));
 </script>
 
 <section class="ready" aria-labelledby="ready-{org}">
@@ -27,6 +39,15 @@
 		</div>
 		<LoadingDock class="welcome-art" label={crateLabel} />
 	</div>
+
+	<AgentPrompt id="agent-{org}" title="Set up with your AI agent" prompt={agentPrompt} primary>
+		<p>
+			A coding agent such as Claude Code can do the steps below across {org}’s repositories: it runs
+			<code>cargo privatecrates init</code> in each one, opens pull requests for you to review, publishes a
+			first version by pushing a tag, and checks the result with <code>cargo privatecrates doctor</code>.
+		</p>
+		<p><a href="/docs/agents">What the agent does, step by step</a></p>
+	</AgentPrompt>
 
 	<ol class="guide">
 		<li>

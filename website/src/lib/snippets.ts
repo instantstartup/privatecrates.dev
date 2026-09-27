@@ -105,3 +105,180 @@ allow_manual_publish = false            # the default`;
 
 export const publishRefused = `error: story_engine is published from CI only, so every version has verifiable provenance.
        Add .github/workflows/publish.yml (see https://acme.privatecrates.dev/login#publish) and push a tag.`;
+
+// ---------------------------------------------------------------------------------------------------------------
+// cargo privatecrates, the set-up CLI, and the prompts for AI coding agents (docs/agent-onboarding.md).
+
+/** The production apex. Other environments pass `--domain` to every `cargo privatecrates` command. */
+export const PROD_APEX = 'privatecrates.dev';
+
+/** The storage repository name the docs and prompts suggest. */
+export const STORAGE_REPO = 'crates-store';
+
+const INSTALL_CLI = 'cargo install cargo-privatecrates --locked';
+
+export const installCli = `${INSTALL_CLI}
+# or, prebuilt and checksummed:
+cargo binstall cargo-privatecrates`;
+
+/** A `cargo privatecrates` command, with `--domain` added outside production. */
+export function cli(args: string, apex = PROD_APEX): string {
+	return `cargo privatecrates ${args}${apex === PROD_APEX ? '' : ` --domain ${apex}`}`;
+}
+
+export const cliUsage = `cargo privatecrates login
+cargo privatecrates logout
+cargo privatecrates setup <org> [--slug <name>] [--start-trial] [--json]
+cargo privatecrates init --registry <name> [--domain <domain> | --url <url>]
+cargo privatecrates doctor [--json]`;
+
+/** Creates the storage repository and turns on immutable releases, with the admin's own gh login. */
+export function storageRepoCommands(org: string): string {
+	return `gh repo create ${org}/${STORAGE_REPO} --private
+gh api -X PUT repos/${org}/${STORAGE_REPO}/immutable-releases`;
+}
+
+export function loginCli(apex = PROD_APEX): string {
+	return `# Prints a code and a GitHub link; approve it in the browser
+${cli('login', apex)}
+# Forget the stored token
+${cli('logout', apex)}`;
+}
+
+export function setupCommands(org: string, slug: string, apex = PROD_APEX): string {
+	return `# The checklist: each step's status, with a link where a person must act
+${cli(`setup ${org}`, apex)}
+# Choose the registry name (once both Apps are installed)
+${cli(`setup ${org} --slug ${slug}`, apex)}
+# Organisations over the free limit: start the no-card trial
+${cli(`setup ${org} --start-trial`, apex)}
+# The same checklist as JSON, for agents and scripts
+${cli(`setup ${org} --json`, apex)}`;
+}
+
+export function initCommands(slug: string, apex = PROD_APEX): string {
+	return `# In a crate repository or workspace
+git switch -c privatecrates
+${cli(`init --registry ${slug}`, apex)}
+git add -A && git commit -m "Publish to the ${slug} registry"
+gh pr create --fill`;
+}
+
+export function doctorCommands(apex = PROD_APEX): string {
+	return `${cli('doctor', apex)}
+# For agents and scripts
+${cli('doctor --json', apex)}`;
+}
+
+/** One onboarding step, as the account API returns it. */
+export interface PromptStep {
+	id: string;
+	status: 'done' | 'todo' | 'blocked';
+	action_url?: string;
+}
+
+export interface SetupPromptInput {
+	org: string;
+	/** The registry name: chosen, or suggested by the server. */
+	slug: string;
+	/** The apex host, e.g. privatecrates.dev. */
+	apex: string;
+	/** The onboarding checklist, with absolute action URLs. */
+	steps: PromptStep[];
+	/** What the plan step needs, when it is not done: the no-card trial, or a subscription with a card. */
+	plan: 'trial' | 'subscribe' | null;
+}
+
+const doneNames: Record<string, string> = {
+	reader_app: 'the reader App is installed',
+	storage_repo: 'the storage repository exists',
+	storage_app: 'the storage App is installed',
+	settings: 'the registry name is saved',
+	plan: 'the plan is settled',
+	subscription: 'the plan is settled'
+};
+
+function numbered(items: string[]): string {
+	return items.map((item, i) => `${i + 1}. ${item}`).join('\n');
+}
+
+function environmentNote(apex: string): string {
+	return apex === PROD_APEX
+		? ''
+		: `\nThis is the ${apex} environment: every cargo privatecrates command takes --domain ${apex}, as below.`;
+}
+
+function agentRules(org: string, check: string): string {
+	return `Rules:
+- Use my own gh login for repository administration (check it with gh auth status). Never ask me for a personal access token or any other GitHub token, and never create one.
+- Where GitHub needs a person, stop: give me the link, say what to choose there, and wait until I say it is done. Then check with ${check}.
+- Change nothing in ${org} beyond what these steps need.`;
+}
+
+/** The prompt that finishes setting up a registry, from wherever the checklist is. */
+export function setupPrompt({ org, slug, apex, steps, plan }: SetupPromptInput): string {
+	const step = (id: string) => steps.find((s) => s.id === id || (id === 'plan' && s.id === 'subscription'));
+	const todo = (id: string) => {
+		const s = step(id);
+		return !!s && s.status !== 'done';
+	};
+	const account = `https://${apex}/account?org=${encodeURIComponent(org)}`;
+	const link = (id: string) => step(id)?.action_url ?? account;
+	const done = steps.filter((s) => s.status === 'done').map((s) => doneNames[s.id] ?? s.id);
+	const makeRepo = todo('storage_repo');
+
+	const items = [
+		`Install the CLI if it is missing: ${INSTALL_CLI}`,
+		`Sign in: ${cli('login', apex)}. It prints a code and a GitHub link; give me both and wait while I approve.`
+	];
+	if (todo('reader_app'))
+		items.push(
+			`Stop and ask me to install the PrivateCrates reader App on ${org}, on all repositories or on those that own crates: ${link('reader_app')}`
+		);
+	if (makeRepo)
+		items.push(
+			`Create the storage repository with my gh login, and turn on immutable releases:\n   ${storageRepoCommands(org).replace(/\n/g, '\n   ')}`
+		);
+	if (todo('storage_app'))
+		items.push(
+			`Stop and ask me to install the PrivateCrates storage App on ${makeRepo ? `${org}/${STORAGE_REPO}` : 'the storage repository'} only ("Only select repositories"): ${link('storage_app')}`
+		);
+	if (todo('settings')) items.push(`Choose the registry name: ${cli(`setup ${org} --slug ${slug}`, apex)}`);
+	if (todo('plan') && plan === 'trial')
+		items.push(`Start the free trial, no card needed: ${cli(`setup ${org} --start-trial`, apex)}`);
+	if (todo('plan') && plan === 'subscribe')
+		items.push(`Stop and ask me to subscribe at ${account}: it needs a card, so only I can do it.`);
+	items.push(
+		`Confirm: ${cli(`setup ${org} --json`, apex)} must report every step as done. Then tell me the registry URL.`
+	);
+
+	return `Set up PrivateCrates, our private Cargo registry, for the GitHub organisation ${org}.
+
+First read https://${apex}/llms.txt: it describes the set-up flow and the cargo privatecrates CLI.${environmentNote(apex)}
+
+Registry name: ${slug}, served at https://${slug}.${apex}${done.length ? `\nAlready done: ${done.join('; ')}.` : ''}
+
+Steps:
+${numbered(items)}
+
+${agentRules(org, cli(`setup ${org} --json`, apex))}`;
+}
+
+/** The prompt that configures an organisation's crate repositories once the registry is live. */
+export function publishPrompt({ org, slug, apex }: { org: string; slug: string; apex: string }): string {
+	return `Configure the Rust crates in the GitHub organisation ${org} to use and publish to our PrivateCrates registry, ${slug} (https://${slug}.${apex}).
+
+First read https://${apex}/llms.txt: it describes the cargo privatecrates CLI.${environmentNote(apex)}
+
+Steps:
+${numbered([
+	`Install the CLI if it is missing: ${INSTALL_CLI}`,
+	`List ${org}'s repositories that contain Rust crates (gh repo list ${org} --limit 500, then look for Cargo.toml). Show me the list and ask which crates to publish before changing anything.`,
+	`In each chosen repository, on a new branch: run ${cli(`init --registry ${slug}`, apex)}, check that every crate to publish has publish = ["${slug}"] in its Cargo.toml, commit, and open a pull request with gh pr create. Do not merge it: I review and merge.`,
+	`Once a pull request is merged, publish a first version from CI by pushing a tag that matches the crate's version, e.g. git tag v0.1.0 && git push origin v0.1.0. The publish workflow runs in GitHub Actions; follow it with gh run watch.`,
+	`Run ${cli('doctor', apex)} in each repository, and fix or report anything it flags.`
+])}
+
+${agentRules(org, cli('doctor', apex))}
+- Never publish from this machine and never add secrets to CI: publishing uses GitHub Actions' OIDC token.`;
+}

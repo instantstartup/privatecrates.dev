@@ -21,6 +21,8 @@
 //   ?mock=returning      subscribed once, setting up again: Subscribe (Checkout, no trial)
 //   ?mock=no-billing     12 members, billing not configured on the server
 //   ?mock=just-finished  3 members, only the registry name left: saving it makes the registry live
+// The "Set up with your AI agent" prompt: the set-up variant beside the checklist (?mock=admin, acme; or
+// ?mock=just-finished), and the crate-repository variant in the ready guide (?mock=free, trial, paid).
 // Onboarding: the action links for GitHub steps come back to /account with ?mock_done=<step>, which completes them
 // (comma-separated for several, e.g. ?org=acme&mock_done=storage_repo,storage_app). The billing portal comes back
 // with ?mock_done=card, which adds a card.

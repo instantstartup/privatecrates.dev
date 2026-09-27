@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { copyText } from './clipboard';
+
 	interface Props {
 		code: string;
 		/** File name or language shown above the code, e.g. ".cargo/config.toml" or "shell". */
@@ -32,12 +34,7 @@
 	let timer: ReturnType<typeof setTimeout> | undefined;
 
 	async function copy() {
-		try {
-			await navigator.clipboard.writeText(plain + '\n');
-			status = 'Copied';
-		} catch {
-			status = 'Copy failed: select the text instead';
-		}
+		status = (await copyText(plain + '\n')) ? 'Copied' : 'Copy failed: select the text instead';
 		clearTimeout(timer);
 		timer = setTimeout(() => (status = ''), 2500);
 	}

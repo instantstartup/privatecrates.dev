@@ -1,0 +1,107 @@
+// /llms.txt (https://llmstxt.org): how a coding agent sets up PrivateCrates for an organisation. Prerendered to
+// build/llms.txt, so the server serves it as a static file. Every command comes from $lib/snippets.
+import { FREE_MEMBER_LIMIT, PRICE_USD, SITE_URL, TRIAL_MONTHS } from '$lib/site';
+import {
+	cli,
+	cliUsage,
+	doctorCommands,
+	installCli,
+	PROD_APEX,
+	STORAGE_REPO,
+	storageRepoCommands
+} from '$lib/snippets';
+
+export const prerender = true;
+
+const fence = (code: string, lang = 'sh') => '```' + lang + '\n' + code + '\n```';
+const indent = (text: string) => text.replace(/^/gm, '   ');
+
+const ORG = '<org>';
+const SLUG = '<name>';
+
+const body = `# PrivateCrates
+
+> PrivateCrates is a private Cargo registry for a GitHub organisation, at https://<name>.${PROD_APEX}. GitHub is the storage, the identity provider and the source of truth for permissions: whoever can read a crate's repository can use the crate, and whoever can push to it can publish it, from GitHub Actions. This file tells coding agents how to set a registry up with the \`cargo privatecrates\` CLI and the \`gh\` CLI, where a person has to step in, and how to configure crate repositories to publish.
+
+- The index and every crate file live in a private storage repository the organisation owns (conventionally \`${STORAGE_REPO}\`); each version is an immutable GitHub release.
+- Two GitHub Apps with narrow permissions: the **reader App** (repository metadata and organisation membership, read-only) and the **storage App** (contents write on the storage repository only).
+- Developers use \`cargo-credential-privatecrates\`, a Cargo credential provider that signs in with GitHub. CI uses GitHub Actions' OIDC token: no secrets anywhere.
+- Free for organisations with up to ${FREE_MEMBER_LIMIT} members. Larger ones start a ${TRIAL_MONTHS}-month free trial with no card, then pay $${PRICE_USD} per organisation per month.
+- Other environments: add \`--domain <domain>\` to every \`cargo privatecrates\` command. Production (${PROD_APEX}) needs no flag.
+
+## The CLI
+
+${fence(installCli)}
+
+${fence(cliUsage)}
+
+- \`login\` / \`logout\`: GitHub's device flow for the reader App. The token is stored in the operating system's keyring, shared with the credential provider.
+- \`setup <org>\`: prints the organisation's set-up checklist, each step's status (\`done\`, \`todo\` or \`blocked\`) and, where a person must act, the link. \`--slug\` saves the registry name; \`--start-trial\` starts the no-card trial; \`--json\` prints the checklist as JSON.
+- \`init --registry <name>\`: run in a crate repository or workspace. Adds the registry to \`.cargo/config.toml\`, sets \`package.repository\` from the git remote where missing, and writes \`.github/workflows/publish.yml\`. Idempotent; prints what it changed.
+- \`doctor\`: checks the credential provider, the registry, \`package.repository\`, the publish workflow's \`id-token: write\` permission and, once a version is published, that its release is immutable and has provenance.
+
+## Set up a registry
+
+Run the steps in order, skipping those \`${cli(`setup ${ORG} --json`)}\` reports as \`done\`. Only an admin of the organisation can complete them, so work with an admin at the keyboard.
+
+1. Install the CLI (above).
+2. Sign in: \`${cli('login')}\`. It prints a code and a GitHub link. **A person is needed:** give the admin both and wait while they approve.
+3. Read the checklist: \`${cli(`setup ${ORG} --json`)}\`. If the organisation is not listed, the reader App is not installed on it yet.
+4. Reader App. **A person is needed:** GitHub has no API to install an App. Give the admin the \`reader_app\` step's link (or https://${PROD_APEX}/account), ask them to install it on the organisation, on all repositories or on those that own crates, and wait.
+5. Storage repository, with the admin's own \`gh\` login (check \`gh auth status\`; it needs rights to create repositories in the organisation):
+${indent(fence(storageRepoCommands(ORG)))}
+   Or use an existing, empty private repository. It must hold nothing but the registry.
+6. Storage App. **A person is needed:** give the admin the \`storage_app\` step's link. It is pre-selected for the organisation; they choose "Only select repositories" and pick the storage repository alone. Wait.
+7. Registry name, once both Apps are installed: \`${cli(`setup ${ORG} --slug ${SLUG}`)}\`. The name becomes the hostname \`<name>.${PROD_APEX}\` and the registry name in Cargo; lowercase letters, digits and hyphens. The service saves it as \`privatecrates.toml\` in the storage repository.
+8. Plan. Organisations with up to ${FREE_MEMBER_LIMIT} members are free: nothing to do. Larger ones: \`${cli(`setup ${ORG} --start-trial`)}\` (no card). If the checklist says the organisation has had its trial, **a person is needed:** the admin subscribes with a card at https://${PROD_APEX}/account.
+9. Confirm: \`${cli(`setup ${ORG} --json`)}\` reports every step as \`done\`. The registry is live at https://<name>.${PROD_APEX}.
+
+## Configure crate repositories and publish
+
+1. List the organisation's repositories with Rust crates (\`gh repo list ${ORG}\`, then look for \`Cargo.toml\`), and ask the admin which crates to publish.
+2. In each chosen repository, on a new branch, run \`${cli(`init --registry ${SLUG}`)}\`. Check that each crate to publish has \`publish = ["<name>"]\` in its \`Cargo.toml\`, so it can never go to crates.io by accident. Commit and open a pull request with \`gh pr create\`. The admin reviews and merges.
+3. Publish a first version by pushing a tag that matches the crate's version, e.g. \`git tag v0.1.0 && git push origin v0.1.0\`. The workflow publishes with GitHub Actions' OIDC token and records provenance. Publishing from a laptop is refused by default.
+4. Check each repository:
+${indent(fence(doctorCommands()))}
+
+Developers who depend on the crates install the credential provider once (\`cargo install cargo-credential-privatecrates --locked\`); the first build signs them in with GitHub.
+
+## Where a person is needed
+
+- Approving the sign-in that \`cargo privatecrates login\` starts.
+- Installing the reader App, and installing the storage App on the storage repository.
+- Subscribing with a card, only for an organisation that has already had its trial.
+- Merging the pull requests.
+
+At each of these, stop. Give the admin the exact link, say what to choose there, and wait until they say it is done; do not poll GitHub in a loop. Then re-run \`${cli(`setup ${ORG} --json`)}\` to confirm the step is \`done\` before going on.
+
+## Checking progress
+
+\`${cli(`setup ${ORG} --json`)}\` prints the set-up checklist: for each step (\`reader_app\`, \`storage_repo\`, \`storage_app\`, \`settings\`, \`plan\`), its \`status\` (\`done\`, \`todo\` or \`blocked\`), a \`detail\` where there is one, and an \`action_url\` where a person must act. A \`blocked\` step waits for an earlier one, or for an admin. For crate repositories, \`${cli('doctor --json')}\` reports each check's result.
+
+## Security
+
+- Never ask for, create or store a personal access token (classic or fine-grained) or any other broad GitHub token. Nothing in this flow needs one.
+- Repository administration (creating the storage repository, turning on immutable releases) is done with the admin's own \`gh\` login, so the PrivateCrates Apps never need administration rights.
+- The token from \`cargo privatecrates login\` is a reader App user token: it can read repository metadata and nothing else. It expires after 8 hours and is refreshed from the keyring.
+- CI needs no secrets: the publish and build workflows use \`permissions: id-token: write\`. Do not add registry tokens to repository secrets.
+- Publish from GitHub Actions by pushing a tag, never from the agent's machine, so every version has provenance.
+
+## Docs
+
+- [Set up with an AI agent](${SITE_URL}/docs/agents): this flow for people, the prompts, and the CLI reference
+- [Set up a registry](${SITE_URL}/docs/setup): the Apps, the storage repository, the settings file and developer set-up
+- [CI without secrets](${SITE_URL}/docs/ci): reading crates from GitHub Actions with OIDC
+- [Publishing](${SITE_URL}/docs/publishing): trusted publishing, the owners file, first publishes and yanking
+- [Security model](${SITE_URL}/docs/security): what PrivateCrates can see and store, and what a compromise could do
+
+## Optional
+
+- [Verify the registry](${SITE_URL}/docs/verify): the open-source verifier for the storage repository
+- [Error reference](${SITE_URL}/docs/errors): every error code the registry returns
+- [Pricing](${SITE_URL}/pricing): free plan, trial and price
+`;
+
+export function GET(): Response {
+	return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+}

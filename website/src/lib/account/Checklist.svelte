@@ -1,8 +1,11 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { api, ApiError, hasSubscription, planOf, type Onboarding, type Org, type Step } from '$lib/api';
+	import AgentPrompt from '$lib/components/AgentPrompt.svelte';
 	import { FREE_MEMBER_LIMIT, PRICE_USD, TRIAL_MONTHS } from '$lib/site';
+	import { setupPrompt } from '$lib/snippets';
 	import ErrorNotice from './ErrorNotice.svelte';
-	import { formatDate, plural } from './format';
+	import { baseDomain, formatDate, plural } from './format';
 	import SlugForm from './SlugForm.svelte';
 
 	interface Props {
@@ -107,6 +110,29 @@
 			}
 		);
 	}
+
+	// The registry name typed into the form, so the agent prompt follows it.
+	let chosenSlug = $state(untrack(() => (doc.suggested_slug ?? '').toLowerCase()));
+	const SLUG_FORMAT = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+	const promptSlug = $derived(
+		org.tenant?.slug ??
+			(SLUG_FORMAT.test(chosenSlug.trim())
+				? chosenSlug.trim()
+				: (doc.suggested_slug ?? doc.org.login).toLowerCase())
+	);
+	const agentPrompt = $derived(
+		setupPrompt({
+			org: doc.org.login,
+			slug: promptSlug,
+			apex: baseDomain(),
+			// Action URLs may be relative (the mock's are); the agent needs them whole.
+			steps: doc.steps.map((s) => ({
+				...s,
+				action_url: s.action_url ? new URL(s.action_url, location.origin).href : undefined
+			})),
+			plan: planAction === 'trial' ? 'trial' : planAction === 'checkout' ? 'subscribe' : null
+		})
+	);
 
 	const current = $derived(doc.steps.find((s) => s.status === 'todo')?.id ?? null);
 	const doneCount = $derived(doc.steps.filter((s) => s.status === 'done').length);
@@ -214,7 +240,12 @@
 					{#if isCurrent}
 						<div class="action">
 							{#if step.id === 'settings'}
-								<SlugForm org={doc.org.login} suggested={doc.suggested_slug} onsaved={onchange} />
+								<SlugForm
+									org={doc.org.login}
+									suggested={doc.suggested_slug}
+									onsaved={onchange}
+									bind:slug={chosenSlug}
+								/>
 							{:else if step.id === 'plan' || step.id === 'subscription'}
 								{#if planError}
 									<ErrorNotice error={planError} title={planErrorTitle} />
@@ -276,6 +307,17 @@
 			</li>
 		{/each}
 	</ol>
+
+	{#if admin && doneCount < doc.steps.length}
+		<AgentPrompt id="agent-{doc.org.login}" title="Set up with your AI agent" prompt={agentPrompt}>
+			<p>
+				Or hand the rest to Claude Code or another coding agent. This prompt is filled in for
+				<strong>{doc.org.login}</strong>. The agent works with your own <code>gh</code> login, and stops to give
+				you a link when GitHub needs you: to approve its sign-in, and to install each App.
+			</p>
+			<p><a href="/docs/agents">What the agent does, step by step</a></p>
+		</AgentPrompt>
+	{/if}
 
 	{#if doneCount === doc.steps.length}
 		<p class="all-done" role="status">

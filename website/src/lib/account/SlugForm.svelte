@@ -8,9 +8,17 @@
 		org: string;
 		suggested?: string;
 		onsaved: (doc: Onboarding) => void;
+		/** The name as typed, for the agent prompt beside the checklist. */
+		slug?: string;
 	}
 
-	let { org, suggested = '', onsaved }: Props = $props();
+	let {
+		org,
+		suggested = '',
+		onsaved,
+		// The suggestion only seeds the field.
+		slug = $bindable(untrack(() => suggested.toLowerCase()))
+	}: Props = $props();
 
 	const RESERVED = [
 		'www',
@@ -27,8 +35,6 @@
 		'assets'
 	];
 
-	// The suggestion only seeds the field.
-	let slug = $state(untrack(() => suggested.toLowerCase()));
 	let touched = $state(false);
 	let saving = $state(false);
 	let error = $state<ApiError | null>(null);
