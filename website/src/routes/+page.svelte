@@ -250,7 +250,8 @@
 	h1 {
 		font-size: var(--text-display);
 		text-wrap: pretty;
-		line-height: 0.95;
+		/* Tight, but with room for descenders (the g in "signed") above the next line's capitals. */
+		line-height: 1.04;
 		margin-bottom: 1.25rem;
 	}
 	.actions {
