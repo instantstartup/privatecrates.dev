@@ -8,16 +8,27 @@
 // (for `pnpm dev:mock` only) is nowhere in the output. Any failure fails the build.
 
 import { createHash } from 'node:crypto';
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
 
-const BUILD = 'build';
+// Every path this script reads or writes is found by listing the build directory, and must stay inside it.
+const BUILD = realpathSync(resolve('build'));
 const BOOT_DIR = join(BUILD, '_app', 'boot');
 
+function inBuild(path) {
+	const real = realpathSync(path);
+	if (real !== BUILD && !real.startsWith(BUILD + sep)) {
+		throw new Error(`${path} resolves outside the build directory`);
+	}
+	return real;
+}
+
+/** Regular files under `dir`; symbolic links are never followed. */
 function walk(dir) {
-	return readdirSync(dir).flatMap((name) => {
-		const path = join(dir, name);
-		return statSync(path).isDirectory() ? walk(path) : [path];
+	return readdirSync(inBuild(dir), { withFileTypes: true }).flatMap((entry) => {
+		const path = join(dir, entry.name);
+		if (entry.isDirectory()) return walk(path);
+		return entry.isFile() ? [inBuild(path)] : [];
 	});
 }
 

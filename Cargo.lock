@@ -2054,6 +2054,7 @@ dependencies = [
 name = "privatecrates-testkit"
 version = "0.1.0"
 dependencies = [
+ "aws-lc-rs",
  "axum",
  "base64 0.23.1",
  "bytes",

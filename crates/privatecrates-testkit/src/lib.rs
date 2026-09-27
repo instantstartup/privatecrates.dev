@@ -31,10 +31,50 @@ use sha2::{Digest, Sha256};
 
 pub mod stripe;
 
-/// The private key of the fake Apps. Test-only.
-pub const APP_PRIVATE_KEY: &str = include_str!("../keys/app.pem");
-const OIDC_PRIVATE_KEY: &str = include_str!("../keys/oidc.pem");
-const OIDC_MODULUS: &str = include_str!("../keys/oidc.n");
+/// An RSA key generated for this test run: never written to disk or committed, so there is no key to leak or to
+/// trip secret scanners.
+struct TestKey {
+    /// PKCS #8, PEM-encoded.
+    pem: String,
+    /// The public modulus, base64url without padding, as a JWK's `n`.
+    modulus: String,
+}
+
+impl TestKey {
+    fn generate() -> Self {
+        use aws_lc_rs::{
+            encoding::AsDer,
+            rsa::{KeyPair, KeySize},
+            signature::KeyPair as _,
+        };
+        let pair = KeyPair::generate(KeySize::Rsa2048).expect("generate a test RSA key");
+        let der = pair.as_der().expect("encode the test key");
+        let body = base64::engine::general_purpose::STANDARD.encode(der.as_ref());
+        let lines: Vec<&str> = body
+            .as_bytes()
+            .chunks(64)
+            .map(|line| std::str::from_utf8(line).expect("base64 is ASCII"))
+            .collect();
+        let modulus = pair.public_key().modulus();
+        Self {
+            pem: format!(
+                "-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n",
+                lines.join("\n")
+            ),
+            modulus: base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .encode(modulus.big_endian_without_leading_zero()),
+        }
+    }
+}
+
+static APP_KEY: std::sync::LazyLock<TestKey> = std::sync::LazyLock::new(TestKey::generate);
+static OIDC_KEY: std::sync::LazyLock<TestKey> = std::sync::LazyLock::new(TestKey::generate);
+
+/// The private key of the fake Apps, PEM-encoded; generated once per test run.
+pub fn app_private_key() -> &'static str {
+    &APP_KEY.pem
+}
+
 const OIDC_KID: &str = "fake-oidc-key";
 /// The bearer token the fake Actions runtime expects when a job requests an OIDC token.
 pub const ACTIONS_REQUEST_TOKEN: &str = "fake-actions-request-token";
@@ -492,7 +532,7 @@ pub fn sign_oidc(issuer: &str, audience: &str, claims: &Value) -> String {
     jsonwebtoken::encode(
         &header,
         &claims,
-        &EncodingKey::from_rsa_pem(OIDC_PRIVATE_KEY.as_bytes()).expect("test key"),
+        &EncodingKey::from_rsa_pem(OIDC_KEY.pem.as_bytes()).expect("test key"),
     )
     .expect("sign OIDC token")
 }
@@ -500,7 +540,7 @@ pub fn sign_oidc(issuer: &str, audience: &str, claims: &Value) -> String {
 /// The fake's published OIDC signing keys, as a JWKS document.
 pub fn oidc_jwks() -> Value {
     json!({
-        "keys": [{ "kty": "RSA", "alg": "RS256", "use": "sig", "kid": OIDC_KID, "n": OIDC_MODULUS.trim(), "e": "AQAB" }]
+        "keys": [{ "kty": "RSA", "alg": "RS256", "use": "sig", "kid": OIDC_KID, "n": OIDC_KEY.modulus, "e": "AQAB" }]
     })
 }
 
@@ -516,7 +556,7 @@ pub fn forge_oidc(issuer: &str, audience: &str, claims: &Value) -> String {
     jsonwebtoken::encode(
         &header,
         &claims,
-        &EncodingKey::from_rsa_pem(APP_PRIVATE_KEY.as_bytes()).expect("test key"),
+        &EncodingKey::from_rsa_pem(app_private_key().as_bytes()).expect("test key"),
     )
     .expect("sign forged token")
 }

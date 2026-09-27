@@ -10,9 +10,7 @@ use privatecrates_server::{
     config::{AppConfig, Config, StripeConfig},
     router,
 };
-use privatecrates_testkit::{
-    APP_PRIVATE_KEY, FakeGitHub, Org, READER_APP_ID, STORAGE_APP_ID, stripe::FakeStripe,
-};
+use privatecrates_testkit::{FakeGitHub, Org, READER_APP_ID, STORAGE_APP_ID, stripe::FakeStripe};
 use serde_json::{Value, json};
 
 /// Each App signs its webhooks with its own secret.
@@ -64,11 +62,11 @@ impl Harness {
             storage_app_slug: "privatecrates-storage".into(),
             reader_app: AppConfig {
                 id: READER_APP_ID,
-                private_key_pem: APP_PRIVATE_KEY.as_bytes().to_vec(),
+                private_key_pem: privatecrates_testkit::app_private_key().as_bytes().to_vec(),
             },
             storage_app: AppConfig {
                 id: STORAGE_APP_ID,
-                private_key_pem: APP_PRIVATE_KEY.as_bytes().to_vec(),
+                private_key_pem: privatecrates_testkit::app_private_key().as_bytes().to_vec(),
             },
             registry_token_secret: b"a test secret that is long enough to sign with".to_vec(),
             webhook_secrets: vec![
