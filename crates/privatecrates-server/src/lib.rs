@@ -34,7 +34,7 @@ use axum::{
     Router,
     extract::{DefaultBodyLimit, Request},
     http::{HeaderMap, HeaderValue, StatusCode, header},
-    middleware,
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post, put},
 };
@@ -217,6 +217,7 @@ impl PublishLimiter {
 pub fn router(state: Arc<AppState>) -> Router {
     let apex = apex_router(state.clone());
     let tenant = tenant_router(state.clone());
+    let https = state.config.public_scheme == "https";
     Router::new()
         .route("/healthz", get(routes::healthz))
         .fallback(move |request: Request| {
@@ -233,7 +234,28 @@ pub fn router(state: Arc<AppState>) -> Router {
                 response
             }
         })
+        .layer(middleware::from_fn(move |request: Request, next: Next| {
+            transport_headers(https, request, next)
+        }))
         .layer(tower_http::trace::TraceLayer::new_for_http())
+}
+
+/// Headers for every response on every host, registries and redirects included: HSTS when served over HTTPS, and
+/// `nosniff`.
+async fn transport_headers(https: bool, request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    if https {
+        headers.insert(
+            header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        );
+    }
+    response
 }
 
 fn to_apex(state: &AppState, request: &Request) -> Response {
@@ -338,4 +360,38 @@ pub fn spawn_refresh(state: Arc<AppState>) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{body::Body, routing::get};
+    use tower::ServiceExt;
+
+    use super::*;
+
+    async fn headers(https: bool) -> axum::http::HeaderMap {
+        Router::new()
+            .route("/", get(|| async { StatusCode::NOT_FOUND }))
+            .layer(middleware::from_fn(move |request: Request, next: Next| {
+                transport_headers(https, request, next)
+            }))
+            .oneshot(Request::new(Body::empty()))
+            .await
+            .unwrap()
+            .headers()
+            .clone()
+    }
+
+    #[tokio::test]
+    async fn hsts_on_every_response_over_https() {
+        let secure = headers(true).await;
+        assert_eq!(
+            secure[header::STRICT_TRANSPORT_SECURITY],
+            "max-age=31536000; includeSubDomains"
+        );
+        assert_eq!(secure[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+        let plain = headers(false).await;
+        assert!(plain.get(header::STRICT_TRANSPORT_SECURITY).is_none());
+        assert_eq!(plain[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+    }
 }

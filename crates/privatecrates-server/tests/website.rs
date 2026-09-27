@@ -204,6 +204,21 @@ async fn routes_by_host() {
         assert_eq!(response.status(), 200, "{url}");
         assert_eq!(response.text().await.unwrap(), "ok");
     }
+
+    // Every host's responses carry the transport headers, not just the website's.
+    for url in [
+        h.url("/index/config.json"),
+        h.url("/healthz"),
+        format!("http://www.localhost:{}/", h.port),
+        format!("http://other.localhost:{}/", h.port),
+    ] {
+        let response = get(url.clone()).await.unwrap();
+        assert_eq!(
+            response.headers()["x-content-type-options"],
+            "nosniff",
+            "{url}"
+        );
+    }
 }
 
 #[tokio::test]

@@ -184,7 +184,8 @@ pub async fn disallow_robots() -> Response {
         .into_response()
 }
 
-/// Security headers on every apex response, and outside production a request not to index it.
+/// The website's security headers on every apex response, and outside production a request not to index it. HSTS
+/// and `nosniff` are set for every host by [`crate::transport_headers`].
 pub async fn security_headers(
     State(state): State<Arc<AppState>>,
     request: Request,
@@ -194,22 +195,12 @@ pub async fn security_headers(
     let headers = response.headers_mut();
     headers.insert(header::CONTENT_SECURITY_POLICY, state.website.csp.clone());
     headers.insert(
-        header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff"),
-    );
-    headers.insert(
         header::REFERRER_POLICY,
         HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
     headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
     if !state.config.is_production() {
         headers.insert("x-robots-tag", HeaderValue::from_static("noindex"));
-    }
-    if state.config.public_scheme == "https" {
-        headers.insert(
-            header::STRICT_TRANSPORT_SECURITY,
-            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
-        );
     }
     response
 }
