@@ -19,6 +19,7 @@
 	import GettingStarted from './GettingStarted.svelte';
 	import TermsBanner from './TermsBanner.svelte';
 	import TrialForm from './TrialForm.svelte';
+	import VerifierCard from './VerifierCard.svelte';
 
 	interface Props {
 		org: Org;
@@ -154,6 +155,9 @@
 	{/if}
 
 	{#if live}
+		{#if org.role === 'admin'}
+			<VerifierCard org={org.login} />
+		{/if}
 		<div class="views">
 			<Tabs {tabs} bind:selected={view} prefix="registry-{org.login}" label="Registry" />
 			<div

@@ -486,3 +486,87 @@ impl std::fmt::Display for Setup {
         }
     }
 }
+
+/// The verifier workflow for an organisation's registry (`GET /api/orgs/{org}/onboarding`'s `verifier`).
+#[derive(Serialize, Deserialize)]
+pub struct Verifier {
+    pub installed: bool,
+    pub repository: String,
+    pub path: String,
+    pub add_url: String,
+    pub workflow: String,
+}
+
+/// Where the organisation's verifier stands, before anything is added.
+pub fn verifier(domain: &Domain, org: &str) -> Result<Verifier, Error> {
+    let api = Api::signed_in(domain)?;
+    let doc = api.get(&format!("/api/orgs/{org}/onboarding"))?;
+    serde_json::from_value::<Option<Verifier>>(doc["verifier"].clone())
+        .ok()
+        .flatten()
+        .ok_or_else(|| {
+            Error::Invalid(format!(
+                "{org} has no registry yet; finish `cargo privatecrates setup {org}` first"
+            ))
+        })
+}
+
+/// Commits the verifier workflow to the storage repository with the person's own `gh` login: never with our Apps,
+/// which cannot write workflows and should not maintain what checks them.
+pub fn add_verifier(verifier: &Verifier) -> Result<(), Error> {
+    use base64::Engine as _;
+    let body = serde_json::json!({
+        "message": "Add the PrivateCrates verifier",
+        "content": base64::engine::general_purpose::STANDARD.encode(&verifier.workflow),
+    });
+    let command = format!(
+        "gh api -X PUT repos/{}/contents/{}",
+        verifier.repository, verifier.path
+    );
+    let mut child = std::process::Command::new("gh")
+        .args([
+            "api",
+            "-X",
+            "PUT",
+            &format!("repos/{}/contents/{}", verifier.repository, verifier.path),
+            "--input",
+            "-",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| Error::Command {
+            command: command.clone(),
+            detail: format!(
+                "{e}. Install the GitHub CLI (https://cli.github.com), or add the file in the browser: {}",
+                verifier.add_url
+            ),
+        })?;
+    {
+        use std::io::Write as _;
+        let mut stdin = child.stdin.take().expect("piped");
+        stdin
+            .write_all(body.to_string().as_bytes())
+            .map_err(|e| Error::Command {
+                command: command.clone(),
+                detail: e.to_string(),
+            })?;
+    }
+    let output = child.wait_with_output().map_err(|e| Error::Command {
+        command: command.clone(),
+        detail: e.to_string(),
+    })?;
+    if !output.status.success() {
+        return Err(Error::Command {
+            command,
+            detail: format!(
+                "{} (the file may exist already, or your gh login may need the `workflow` scope: \
+                 `gh auth refresh -s workflow`). Or add it in the browser: {}",
+                String::from_utf8_lossy(&output.stderr).trim(),
+                verifier.add_url
+            ),
+        });
+    }
+    Ok(())
+}

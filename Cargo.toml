@@ -4,7 +4,7 @@ members = ["crates/*"]
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.98"
+rust-version = "1.91"
 repository = "https://github.com/worldbuilding-dev/privatecrates.dev"
 homepage = "https://privatecrates.dev"
 

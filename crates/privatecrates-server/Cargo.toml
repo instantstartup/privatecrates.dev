@@ -5,7 +5,7 @@ description = "The PrivateCrates hosted private Cargo registry server (source-av
 license = "BUSL-1.1"
 publish = false
 edition.workspace = true
-rust-version.workspace = true
+rust-version = "1.94"
 repository.workspace = true
 homepage.workspace = true
 

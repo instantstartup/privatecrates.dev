@@ -51,7 +51,7 @@ pub const AUDIT_PAGE: usize = 50;
 const CONCURRENCY: usize = 8;
 /// Where workflows live; one that runs the verifier mentions it.
 const WORKFLOWS_DIR: &str = ".github/workflows/";
-const VERIFIER: &str = "privatecrates-verify";
+use privatecrates_common::verifier::VERIFIER;
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -695,7 +695,10 @@ async fn asset_bytes(
 }
 
 /// Whether a workflow in the storage repository runs the verifier.
-async fn has_verify_workflow(state: &AppState, tenant: &Tenant) -> Result<bool, ApiError> {
+pub(crate) async fn has_verify_workflow(
+    state: &AppState,
+    tenant: &Tenant,
+) -> Result<bool, ApiError> {
     for path in tenant.paths(WORKFLOWS_DIR) {
         if let Some((_, content)) = tenant.file(&state.gh, &state.blobs, &path).await?
             && String::from_utf8_lossy(&content).contains(VERIFIER)

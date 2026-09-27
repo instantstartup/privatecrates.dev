@@ -857,3 +857,39 @@ async fn an_existing_registry_accepts_the_terms() {
     assert_eq!(error_code(response).await, "account::not_set_up");
     assert!(acceptance(&h, globex.id).await.is_none());
 }
+
+#[tokio::test]
+async fn the_verifier_is_recommended_until_it_is_added() {
+    let h = Harness::start().await;
+    let token = h.fake.add_user("alice", "ghu_", &[]);
+    h.fake.add_member(&token, &h.org, "admin");
+    let admin = h.sign_in(&token).await;
+    let verifier = || async {
+        let response = h.api_get("/api/orgs/acme/onboarding", &admin).await;
+        assert_eq!(response.status(), 200);
+        response.json::<Value>().await.unwrap()["verifier"].clone()
+    };
+
+    let v = verifier().await;
+    assert_eq!(v["installed"], false);
+    assert_eq!(v["path"], ".github/workflows/privatecrates-verify.yml");
+    // GitHub's new-file page in the storage repository, filled in for the admin to commit.
+    let add = reqwest::Url::parse(v["add_url"].as_str().unwrap()).unwrap();
+    assert!(add.path().ends_with("/new/main"), "{add}");
+    let query: std::collections::HashMap<_, _> = add.query_pairs().into_owned().collect();
+    assert_eq!(
+        query["filename"],
+        ".github/workflows/privatecrates-verify.yml"
+    );
+    assert_eq!(query["value"], v["workflow"].as_str().unwrap());
+    assert!(query["value"].contains(&format!("--registry {}", h.base())));
+
+    // Once it is committed, it is no longer recommended.
+    h.fake.write_file(
+        h.org.storage_repo,
+        ".github/workflows/privatecrates-verify.yml",
+        v["workflow"].as_str().unwrap(),
+    );
+    h.refresh().await;
+    assert_eq!(verifier().await["installed"], true);
+}

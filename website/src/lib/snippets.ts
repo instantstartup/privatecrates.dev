@@ -94,12 +94,21 @@ jobs:
           esac`;
 }
 
+/** The verifier's version, pinned in its workflow: the client tools' release (privatecrates-common's verifier.rs). */
+export const VERIFIER_VERSION = '0.2.3';
+
+/** The same workflow as privatecrates-common's `verifier::workflow`, which the account page offers. */
 export function verifyWorkflow(registryUrl: string): string {
-	return `name: verify registry
+	return `# Checks this PrivateCrates registry independently of PrivateCrates: every crate file is an immutable release
+# that matches the index, and every version's provenance is signed by GitHub. Findings fail the run.
+name: verify registry
 on:
-  schedule: [{ cron: "17 * * * *" }]   # hourly
+  push:
+  schedule: [{ cron: "17 4 * * *" }]   # daily, for changes to releases
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency: { group: verify, cancel-in-progress: true }
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -107,10 +116,15 @@ jobs:
       - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
       - uses: actions/cache@v4
-        with: { path: .privatecrates-verify.json, key: verify-\${{ github.run_id }}, restore-keys: verify- }
-      - run: cargo install privatecrates-verify --locked
-      - run: privatecrates-verify --registry ${registryUrl}
-        env: { GITHUB_TOKEN: "\${{ github.token }}" }`;
+        with: { path: .privatecrates-verify.json, key: "verify-\${{ github.run_id }}", restore-keys: verify- }
+      - uses: actions/cache@v4
+        id: verifier
+        with: { path: ~/.privatecrates-verify, key: "privatecrates-verify-${VERIFIER_VERSION}-\${{ runner.os }}" }
+      - if: steps.verifier.outputs.cache-hit != 'true'
+        run: cargo install privatecrates-verify --version ${VERIFIER_VERSION} --locked --root ~/.privatecrates-verify
+      - run: ~/.privatecrates-verify/bin/privatecrates-verify --registry ${registryUrl}
+        env: { GITHUB_TOKEN: "\${{ github.token }}" }
+`;
 }
 
 export function settingsToml(slug: string): string {

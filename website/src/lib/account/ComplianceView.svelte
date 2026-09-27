@@ -163,7 +163,7 @@
 				return {
 					title: 'No verifier runs in your storage repository',
 					why: 'No workflow there runs privatecrates-verify, so nothing independent of us checks what we write.',
-					fix: 'Add the verifier workflow to the storage repository and run it every hour.',
+					fix: 'Add the verifier workflow to the storage repository: Add it on GitHub, above, or `cargo privatecrates add-verifier`.',
 					link: ['/docs/verify', 'Set up the verifier']
 				};
 			default:

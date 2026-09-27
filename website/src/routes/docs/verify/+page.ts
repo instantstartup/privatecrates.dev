@@ -4,7 +4,7 @@ import type { TocItem } from '$lib/components/Toc.svelte';
 export function load(): { toc: TocItem[] } {
 	return {
 		toc: [
-			['workflow', 'Run it every hour'],
+			['workflow', 'Run it on every publish'],
 			['checks', 'What it reports'],
 			['results', 'Reading the results'],
 			['options', 'Options']

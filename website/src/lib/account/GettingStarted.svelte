@@ -94,8 +94,8 @@
 		<li>
 			<h4>Verify the registry <span class="optional">(optional)</span></h4>
 			<p>
-				Run the open-source verifier every hour in your storage repository’s CI. It checks every crate and
-				index entry we write against GitHub’s own records.
+				Run the open-source verifier in your storage repository’s CI, on every publish and daily. It checks
+				every crate and index entry we write against GitHub’s own records.
 			</p>
 			<p class="docs"><a href="/docs/verify">Set up the verifier</a></p>
 		</li>

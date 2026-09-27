@@ -121,6 +121,15 @@ enum Command {
         #[arg(long)]
         no_workflow: bool,
     },
+    /// Add the verifier workflow to an organisation's storage repository, with your own `gh` login: it checks the
+    /// registry independently of PrivateCrates on each publish and daily. Shows what it will commit, and asks.
+    AddVerifier {
+        /// The GitHub organisation.
+        org: String,
+        /// Commit it without asking (for scripts and coding agents, once a person has agreed).
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
     /// Check the current crate repository: the credential provider, the registry, package.repository, the publish
     /// workflow and the published versions.
     Doctor {
@@ -280,6 +289,63 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
             staged.apply()?;
             report.applied = true;
             Outcome::new(&report, true)
+        }
+        Command::AddVerifier { org, yes } => {
+            let verifier = account::verifier(&domain, org)?;
+            let json = |added: bool| {
+                json!({
+                    "installed": verifier.installed || added,
+                    "added": added,
+                    "repository": verifier.repository,
+                    "path": verifier.path,
+                    "add_url": verifier.add_url,
+                })
+            };
+            if verifier.installed {
+                return Ok(Outcome {
+                    json: json(false),
+                    text: format!("{} already runs the verifier.", verifier.repository),
+                    ok: true,
+                });
+            }
+            let plan = format!(
+                "This commits {} to {} with your own gh login. It runs privatecrates-verify on each push and daily, \
+                 about a minute each time:\n\n{}",
+                verifier.path, verifier.repository, verifier.workflow
+            );
+            if !yes {
+                if cli.json || !std::io::stdin().is_terminal() {
+                    return Ok(Outcome {
+                        json: json(false),
+                        text: format!(
+                            "{plan}\nNothing was committed. Run it again with --yes to commit it, or add it in the \
+                             browser: {}",
+                            verifier.add_url
+                        ),
+                        ok: false,
+                    });
+                }
+                eprintln!("{plan}");
+                if !confirm(&format!(
+                    "Commit {} to {}?",
+                    verifier.path, verifier.repository
+                ))? {
+                    return Ok(Outcome {
+                        json: json(false),
+                        text: "Nothing was committed.".into(),
+                        ok: false,
+                    });
+                }
+            }
+            account::add_verifier(&verifier)?;
+            Outcome {
+                json: json(true),
+                text: format!(
+                    "Added {} to {}. It runs on the next publish; to run it now, open the repository's Actions tab.",
+                    verifier.path, verifier.repository
+                ),
+                ok: true,
+            }
         }
         Command::Doctor { registries, crates } => {
             let report = doctor::run(

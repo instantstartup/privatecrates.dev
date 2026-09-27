@@ -79,6 +79,7 @@ ${indent(fence(storageRepoCommands(ORG)))}
 8. Registry name, once both Apps are installed and the admin has accepted the terms: \`${cli(`setup ${ORG} --slug ${SLUG} --accept-terms ${TERMS_VERSION}`)}\`. The name becomes the hostname \`<name>.${PROD_APEX}\` and the registry name in Cargo; lowercase letters, digits and hyphens. The service saves it as \`privatecrates.toml\` in the storage repository. Before running it, ask the admin who may publish crates: GitHub Actions only (the default and the recommendation: every version is built from a commit, with provenance signed by GitHub), or also developers' own machines with \`cargo publish\` (versions without provenance). Add \`--allow-manual-publish\` only if they chose the latter; it becomes the default for every repository, which \`[repositories.<name>]\` in \`privatecrates.toml\` can override per repository.
 9. ${planStep}
 10. Confirm: \`${cli(`setup ${ORG} --json`)}\` reports every step as \`done\`. The registry is live at https://<name>.${PROD_APEX}.
+11. Recommend the verifier, which checks the registry independently of PrivateCrates on every publish and daily (about a minute of Actions time a run). Ask the admin; if they agree, \`${cli(`add-verifier ${ORG} --yes`)}\` commits the workflow to the storage repository with their own \`gh\` login (it may need \`gh auth refresh -s workflow\`). Without \`--yes\` it only shows what it would commit.
 
 ## Configure crate repositories and publish
 

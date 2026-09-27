@@ -259,6 +259,28 @@ async fn an_admin_sets_up_a_registry() {
         stdout(&output)
     );
 
+    // The verifier: without a terminal or --yes, the plan and nothing committed.
+    let output = cli(config.path(), &with_domain(&["add-verifier", "globex"])).await;
+    assert!(!output.status.success());
+    let text = stdout(&output);
+    assert!(
+        text.contains(".github/workflows/privatecrates-verify.yml"),
+        "{text}"
+    );
+    assert!(text.contains("Nothing was committed"), "{text}");
+    assert!(
+        text.contains("--registry http://globex-crates.localhost:"),
+        "{text}"
+    );
+    assert!(
+        h.fake
+            .file(
+                globex.storage_repo,
+                ".github/workflows/privatecrates-verify.yml"
+            )
+            .is_none()
+    );
+
     // --url names a registry of the same deployment.
     let url = h.base();
     let output = cli(config.path(), &["setup", "acme", "--url", &url, "--json"]).await;

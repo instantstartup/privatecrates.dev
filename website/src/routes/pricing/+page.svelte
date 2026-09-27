@@ -28,7 +28,7 @@
 			'Provenance and immutable releases',
 			'Every CI-published version carries GitHub-signed proof of the workflow that built it.'
 		],
-		['The open-source verifier', 'Run it hourly in your own CI to check everything we write.'],
+		['The open-source verifier', 'Run it in your own CI, on every publish, to check everything we write.'],
 		['Search', 'cargo search returns your private crates first, then crates.io results.'],
 		['Your data stays yours', 'Index and crates live in a repository your organisation owns.']
 	];

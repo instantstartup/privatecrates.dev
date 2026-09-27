@@ -39,6 +39,7 @@
 // (comma-separated for several, e.g. ?org=acme&mock_done=storage_repo,storage_app). The billing portal comes back
 // with ?mock_done=card, which adds a card.
 
+import { verifyWorkflow } from '$lib/snippets';
 import type {
 	AuditEntry,
 	CatalogEntry,
@@ -427,7 +428,16 @@ function onboarding(o: OrgModel): Onboarding {
 			},
 			member && plan.status !== 'done' ? { ...plan, ...ask } : plan
 		],
-		suggested_slug: o.login
+		suggested_slug: o.login,
+		verifier: o.slug
+			? {
+					installed: o.login !== 'acme',
+					repository: `${o.login}/crates-store`,
+					path: '.github/workflows/privatecrates-verify.yml',
+					add_url: `https://github.com/${o.login}/crates-store/new/main?filename=.github/workflows/privatecrates-verify.yml&value=${encodeURIComponent(verifyWorkflow(`https://${o.slug}.privatecrates.dev`))}`,
+					workflow: verifyWorkflow(`https://${o.slug}.privatecrates.dev`)
+				}
+			: null
 	};
 }
 

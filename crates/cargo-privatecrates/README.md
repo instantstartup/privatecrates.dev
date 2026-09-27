@@ -9,6 +9,7 @@ cargo privatecrates logout
 cargo privatecrates setup <org> [--slug <name> --accept-terms <version> [--allow-manual-publish]] [--start-trial --billing-email <email>] [--json]
 cargo privatecrates terms <org> [--accept <version>] [--json]
 cargo privatecrates init --registry <name> [--dry-run | --yes] [--no-workflow] [--workflow-name publish.yml] [--force]
+cargo privatecrates add-verifier <org> [--yes]
 cargo privatecrates doctor [--registry <name> …] [--crate <name> …] [--json]
 ```
 
@@ -36,6 +37,9 @@ cargo privatecrates doctor [--registry <name> …] [--crate <name> …] [--json]
   It prints what it will do and asks before writing anything, with a separate question for the workflow
   (`--no-workflow` leaves it out). Without a terminal it prints the plan and exits 1: `--dry-run` only shows the
   plan, and `--yes` applies it without asking.
+- **`add-verifier <org>`**: commits the verifier workflow (`.github/workflows/privatecrates-verify.yml`) to the
+  organisation's storage repository with your own `gh` login, after showing it and asking (`--yes` skips the
+  question; without a terminal it only shows it). It runs `privatecrates-verify` on every push and daily.
 - **`doctor`**: checks that the credential provider is installed, the registry is configured and answers, you can
   read it, `package.repository` matches the `origin` remote, publishing is restricted to the registry, a workflow
   publishes with `id-token: write`, and the current version is in the index. Each check passes, warns or fails,

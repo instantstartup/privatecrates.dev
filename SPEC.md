@@ -688,8 +688,9 @@ Threats this design has to survive, and how:
   other way, even when asked by an administrator's edit arriving via `push`: such an edit is reported, not trusted.
 - **Every write is a commit** in the customer's storage repository, made through the API by the storage App (so
   GitHub marks it verified), with the publisher's GitHub login in the commit message and the release notes.
-- **Open-source verifier** (`privatecrates-verify`), which customers run in their own CI on a schedule (hourly is
-  recommended) with a read-only token. It reports:
+- **Open-source verifier** (`privatecrates-verify`), which customers run in their own CI on every push to the storage
+  repository and daily, with a read-only token. An admin adds the workflow with their own account (the account page's
+  pre-filled GitHub link, or `cargo privatecrates add-verifier`); our Apps never write it. It reports:
   - any index history change other than App-authored appends and `yanked` flips;
   - any change to an existing `owners/` file or to an existing `privatecrates.toml` made by the storage App (the App
     only ever creates an owners file at a crate's first publish, and `privatecrates.toml` during onboarding; every

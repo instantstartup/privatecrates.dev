@@ -2,7 +2,7 @@
 	import Callout from '$lib/components/Callout.svelte';
 	import CodeBlock from '$lib/components/CodeBlock.svelte';
 	import Seo from '$lib/components/Seo.svelte';
-	import { verifyWorkflow } from '$lib/snippets';
+	import { cli, verifyWorkflow } from '$lib/snippets';
 
 	const output = `Verified: nothing to report.`;
 </script>
@@ -19,16 +19,25 @@
 	token. It checks everything PrivateCrates has written to your storage repository.
 </p>
 
-<h2 id="workflow">Run it every hour</h2>
-<p>Add this workflow to the storage repository itself:</p>
+<h2 id="workflow">Run it on every publish</h2>
+<p>
+	Add this workflow to the storage repository itself. The <a href="/account">account page</a> offers it once
+	your registry is live: <strong>Add it on GitHub</strong> opens the file, filled in, for you to commit with
+	your own account. From a terminal, <code>{cli('add-verifier acme')}</code> commits it with your own
+	<code>gh</code>
+	login. We never add it ourselves: our storage App cannot write workflows, and should not maintain what checks
+	it.
+</p>
 <CodeBlock
-	caption="crates-store/.github/workflows/verify.yml"
+	caption="crates-store/.github/workflows/privatecrates-verify.yml"
 	code={verifyWorkflow('https://acme.privatecrates.dev')}
 />
 <p>
-	It needs the full git history (<code>fetch-depth: 0</code>) and uses the job’s own
-	<code>GITHUB_TOKEN</code> with <code>contents: read</code>. The cache keeps a small state file of the
-	versions already verified, so each run checks only what is new.
+	It runs on every push to the storage repository, so after every publish, yank and settings change, and daily
+	for changes to releases, which are not pushes. It needs the full git history (<code>fetch-depth: 0</code>)
+	and uses the job’s own <code>GITHUB_TOKEN</code> with <code>contents: read</code>. One cache keeps a small
+	state file of the versions already verified, so each run checks only what is new; another keeps the
+	verifier, pinned to a version, so it is built once. A run takes about a minute of Actions time.
 </p>
 
 <h2 id="checks">What it reports</h2>
@@ -66,8 +75,8 @@
 <Callout tone="warn" title="Run it promptly">
 	<p>
 		GitHub rotates the keys that sign OIDC tokens, and old keys eventually disappear. Provenance has to be
-		checked while the key is still published, which is why hourly is recommended. A version the verifier could
-		not check in time is reported.
+		checked while the key is still published, which is why the workflow runs on every publish. A version the
+		verifier could not check in time is reported.
 	</p>
 </Callout>
 

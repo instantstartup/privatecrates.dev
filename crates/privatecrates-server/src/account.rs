@@ -395,11 +395,42 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
     }
     let mut terms = terms_json(state);
     terms["accepted"] = state.terms.accepted(org.id).await.into();
+    let verifier = match &tenant {
+        Some(tenant) => verifier_json(state, tenant).await?,
+        None => Value::Null,
+    };
     Ok(json!({
         "org": { "id": org.id, "login": org.login },
         "steps": steps,
         "suggested_slug": suggested_slug(state, org, tenant.as_deref()),
         "terms": terms,
+        "verifier": verifier,
+    }))
+}
+
+/// The verifier workflow, recommended once the registry exists (SPEC §10.3): whether the storage repository has one,
+/// and where to add it. An admin adds it with their own account: GitHub's new-file page, filled in, which they commit
+/// themselves (our storage App cannot write workflows, and should not maintain what checks it).
+async fn verifier_json(state: &AppState, tenant: &Tenant) -> Result<Value, ApiError> {
+    let installed = crate::compliance::has_verify_workflow(state, tenant).await?;
+    let github = state.config.github_web.as_str().trim_end_matches('/');
+    let content =
+        privatecrates_common::verifier::workflow(&state.config.tenant_base_url(&tenant.slug));
+    let mut add_url = url::Url::parse(&format!(
+        "{github}/{}/new/{}",
+        tenant.storage_repo, tenant.branch
+    ))
+    .expect("a GitHub URL");
+    add_url
+        .query_pairs_mut()
+        .append_pair("filename", privatecrates_common::verifier::WORKFLOW_PATH)
+        .append_pair("value", &content);
+    Ok(json!({
+        "installed": installed,
+        "repository": tenant.storage_repo,
+        "path": privatecrates_common::verifier::WORKFLOW_PATH,
+        "add_url": add_url.as_str(),
+        "workflow": content,
     }))
 }
 

@@ -5,6 +5,7 @@ pub mod index;
 pub mod name;
 pub mod storage;
 pub mod trigger;
+pub mod verifier;
 
 use sha2::{Digest, Sha256};
 

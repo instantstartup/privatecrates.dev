@@ -87,6 +87,18 @@ export interface Onboarding {
 	/** The current terms and whether this organisation has accepted them. */
 	terms?: { version: string; url: string; accepted: boolean };
 	suggested_slug?: string;
+	/** Once the registry exists: the recommended verifier workflow, and where an admin adds it. */
+	verifier?: Verifier | null;
+}
+
+export interface Verifier {
+	installed: boolean;
+	/** The storage repository, owner/name. */
+	repository: string;
+	path: string;
+	/** GitHub's new-file page in the storage repository, filled in with the workflow. */
+	add_url: string;
+	workflow: string;
 }
 
 /**
