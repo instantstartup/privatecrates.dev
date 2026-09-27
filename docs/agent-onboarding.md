@@ -13,8 +13,9 @@ on one.
 | Create the storage repository | agent | `gh repo create {org}/crates-store --private`, with the admin's own GitHub login |
 | Enable immutable releases | agent | `gh api -X PUT repos/{org}/crates-store/immutable-releases`, with the admin's rights, never our App's |
 | Install the storage App on it | **human** | the pre-selected install link from the onboarding document |
-| Choose the registry name | agent | `cargo privatecrates setup {org} --slug {slug}` (our API creates `privatecrates.toml`) |
-| Start the trial (orgs over 5 members) | agent, with the admin's billing email | `cargo privatecrates setup {org} --start-trial --billing-email {email}` |
+| Accept the terms | **human** | the agent shows the admin the terms link and asks them to accept on behalf of the organisation; it never accepts for them |
+| Choose the registry name | agent, once the admin accepted | `cargo privatecrates setup {org} --slug {slug} --accept-terms {version}` (records the acceptance, then our API creates `privatecrates.toml`) |
+| Start the trial (orgs over 5 members; not during the preview) | agent, with the admin's billing email | `cargo privatecrates setup {org} --start-trial --billing-email {email}` |
 | Configure each crate repository | agent | `cargo privatecrates init --registry {slug}`, then a pull request |
 | Publish a first version | agent | push a tag; `cargo privatecrates doctor` confirms the result |
 
@@ -45,9 +46,16 @@ Every command takes `--json`, `--domain` (another deployment, e.g. `dev.privatec
 URL), and exits non-zero on failure.
 - `login` / `logout`: the device flow, sharing the credential provider's token store (both use the small
   `privatecrates-auth` crate). The token is stored under the apex URL; the apex serves `GET /api/v1/auth` for it.
-- `setup <org> [--slug S] [--start-trial --billing-email E] [--json]`: prints the onboarding checklist with each
-  step's status and link; `--slug` and `--start-trial` perform those steps through the account API (the trial needs
-  a billing email, which the agent asks the admin for). `--json` for agents.
+- `setup <org> [--slug S --accept-terms V] [--start-trial --billing-email E] [--json]`: prints the onboarding
+  checklist with each step's status and link, and the terms (version, URL, whether accepted); `--slug` and
+  `--start-trial` perform those steps through the account API (the trial needs a billing email, which the agent asks
+  the admin for). `--slug` needs `--accept-terms` with the current version: without it, the command prints the
+  terms' URL and the exact flag to add, and exits 1 (`account::terms_not_accepted`, with `terms` in the `--json`
+  error). The CLI never fills the version in: the admin passes it, or tells their agent to after reading the terms.
+  `--json` for agents, with `terms: { version, url, accepted }`.
+- `terms <org> [--accept V] [--json]`: whether the organisation has accepted the current terms (exits 1 while not),
+  and, with `--accept`, accepts them for a registry set up before them, or before their current version. The same
+  rule: only once the admin has read and accepted them.
 - `init --registry <slug> [--url URL]`, run in a crate repository or workspace: merges the registry into
   `.cargo/config.toml` (preserving formatting, with `toml_edit`); sets `package.repository` from the git remote where
   missing (in `[workspace.package]` with `repository.workspace = true` in members, for workspaces); writes

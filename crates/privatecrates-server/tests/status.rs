@@ -80,6 +80,7 @@ async fn the_status_shows_counts_and_nothing_about_customers() {
 #[tokio::test]
 async fn stripe_calls_are_counted() {
     let h = Harness::start_with(Options {
+        preview: false,
         stripe: true,
         ..Options::default()
     })

@@ -6,7 +6,8 @@ It is built for people and for coding agents: every command takes `--json` and e
 ```sh
 cargo privatecrates login                                   # GitHub device flow; prints a code and a link
 cargo privatecrates logout
-cargo privatecrates setup <org> [--slug <name>] [--start-trial --billing-email <email>] [--json]
+cargo privatecrates setup <org> [--slug <name> --accept-terms <version>] [--start-trial --billing-email <email>] [--json]
+cargo privatecrates terms <org> [--accept <version>] [--json]
 cargo privatecrates init --registry <name> [--workflow-name publish.yml] [--force]
 cargo privatecrates doctor [--registry <name> …] [--json]
 ```
@@ -16,9 +17,15 @@ cargo privatecrates doctor [--registry <name> …] [--json]
   or a file readable only by you).
 - **`setup <org>`**: prints the organisation's onboarding checklist, each step's status and, where GitHub needs a
   person (installing an App), the link. For the storage repository it prints the `gh` commands to run with your own
-  login. `--slug` saves the registry name and `--start-trial` starts the no-card trial, with `--billing-email` the
-  address that gets the reminder before it ends. `--json` prints the account API's onboarding document, with
-  `commands` and `needs_person` added to each step.
+  login. `--slug` saves the registry name, and needs `--accept-terms` with the version of the PrivateCrates terms
+  shown with them: passing it accepts the terms on behalf of the organisation, so only an admin who has read them
+  passes it (an agent asks the admin first, and never accepts for them). Without it, `setup --slug` prints the terms'
+  URL and the exact flag to add, and exits 1; the command never fills the version in itself. `--start-trial` starts
+  the no-card trial (not during the preview, which is free), with `--billing-email` the address that gets the
+  reminder before it ends. `--json` prints the account API's onboarding document, with `commands` and `needs_person`
+  added to each step and `terms: { version, url, accepted }`.
+- **`terms <org>`**: whether the organisation has accepted the current terms (exits 1 while it has not), and, with
+  `--accept <version>`, accepts them for a registry set up before them or before their current version.
 - **`init --registry <name>`**, in a crate repository or workspace: adds the registry to `.cargo/config.toml`
   (keeping its formatting and comments), sets `package.repository` from the `origin` remote where it is missing
   (in `[workspace.package]`, with `repository.workspace = true` in members, for a workspace), and writes

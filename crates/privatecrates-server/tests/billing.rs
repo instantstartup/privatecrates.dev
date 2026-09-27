@@ -5,6 +5,7 @@ mod common;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use common::{Crate, Harness, Options, READER_WEBHOOK_SECRET, error_code, error_detail};
+use privatecrates_common::TERMS_VERSION;
 use privatecrates_server::AppState;
 use privatecrates_testkit::stripe::{self, FakeStripe};
 use serde_json::{Value, json};
@@ -20,6 +21,7 @@ const DAY: u64 = 24 * 60 * 60;
 
 async fn start() -> (Harness, FakeStripe) {
     let h = Harness::start_with(Options {
+        preview: false,
         stripe: true,
         ..Options::default()
     })
@@ -737,7 +739,11 @@ async fn start_up_keeps_the_latest_subscription_per_organisation() {
 
 #[tokio::test]
 async fn without_stripe_plans_are_still_computed() {
-    let h = Harness::start().await;
+    let h = Harness::start_with(Options {
+        preview: false,
+        ..Options::default()
+    })
+    .await;
     let (session, repo, reader) = setup_large(&h).await;
     let org = session_org(&h, &session).await;
     assert_eq!(org["members"], 12);
@@ -762,7 +768,11 @@ async fn without_stripe_plans_are_still_computed() {
 
 #[tokio::test]
 async fn without_stripe_a_small_organisation_is_free() {
-    let h = Harness::start().await;
+    let h = Harness::start_with(Options {
+        preview: false,
+        ..Options::default()
+    })
+    .await;
     let (session, _, _) = setup(&h).await;
     let org = session_org(&h, &session).await;
     assert_eq!(org["members"], 1);
@@ -771,4 +781,76 @@ async fn without_stripe_a_small_organisation_is_free() {
     let step = plan_step(&h, &session).await;
     assert_eq!(step["status"], "done");
     assert_eq!(step["detail"], "Free: 1 of 5 members");
+}
+
+/// The preview (docs/preview.md §1): free for everyone, and Stripe is never called, even when it is configured.
+#[tokio::test]
+async fn the_preview_is_free_and_never_calls_stripe() {
+    let h = Harness::start_with(Options {
+        stripe: true,
+        ..Options::default()
+    })
+    .await;
+    let stripe = h.stripe.clone().unwrap();
+    let (session, repo, reader) = setup_large(&h).await;
+    // A lapsed subscription in Stripe changes nothing.
+    stripe.add_subscription(h.org.id, "acme", "canceled");
+
+    // Over the member limit, reads and publishes work, with no trial reminder.
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    assert!(publish_warnings(&h, repo, "0.1.0").await.is_empty());
+
+    let doc: Value = h
+        .api_get("/api/session", &session)
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(doc["preview"], true);
+    assert_eq!(
+        doc["terms"],
+        json!({ "version": TERMS_VERSION, "url": h.apex("/legal/terms") })
+    );
+    let org = &doc["orgs"][0];
+    assert_eq!(org["members"], 12);
+    assert_eq!(org["plan"], "free");
+    assert_eq!(org["trial_available"], false);
+    assert_eq!(org["trial_ends_at"], Value::Null);
+    assert_eq!(org["tenant"]["status"], Value::Null);
+    let step = plan_step(&h, &session).await;
+    assert_eq!(step["status"], "done");
+    assert_eq!(step["detail"], "Free during the preview.");
+
+    for action in ["trial", "checkout", "portal", "billing-email"] {
+        let response = post(&h, &session, action).await;
+        assert_eq!(response.status(), 409, "{action}");
+        assert_eq!(error_code(response).await, "billing::preview", "{action}");
+    }
+    // Before the billing email is even checked.
+    let response = h
+        .api_post("/api/orgs/acme/trial", &session)
+        .body("{}")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(error_code(response).await, "billing::preview");
+
+    // Growing past the limit starts no trial, and the refresh lists nothing.
+    membership_changed(&h, "member_added", "preview-1").await;
+    h.state.billing.load().await.unwrap();
+    for tenant in h.state.tenants.all() {
+        h.state.start_trial_if_grown(&tenant).await;
+    }
+    // Stripe's webhooks are not served.
+    let (body, signature) = stripe::webhook(
+        "customer.subscription.updated",
+        json!({ "id": "sub_1" }),
+        now(),
+    );
+    assert_eq!(deliver(&h, &body, Some(&signature)).await.status(), 404);
+
+    assert_eq!(stripe.requests(), 0);
 }

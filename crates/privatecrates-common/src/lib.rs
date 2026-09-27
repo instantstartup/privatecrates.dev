@@ -13,6 +13,10 @@ pub const CRATES_IO_INDEX: &str = "https://github.com/rust-lang/crates.io-index"
 /// The sparse form of the crates.io index URL, which Cargo may also send.
 pub const CRATES_IO_SPARSE_INDEX: &str = "sparse+https://index.crates.io/";
 
+/// The version of the PrivateCrates terms an organisation admin accepts now (docs/preview.md §2). The account API
+/// publishes it with the terms' URL; nothing accepts it on anyone's behalf.
+pub const TERMS_VERSION: &str = "preview-2026-09-27";
+
 /// Whether a dependency's `registry` value refers to crates.io.
 pub fn is_crates_io(registry: &str) -> bool {
     registry == CRATES_IO_INDEX || registry == CRATES_IO_SPARSE_INDEX

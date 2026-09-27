@@ -10,6 +10,8 @@ use crate::tenant::is_reserved;
 
 /// The production apex; any other `BASE_DOMAIN` is kept out of search engines.
 const PRODUCTION_DOMAIN: &str = "privatecrates.dev";
+/// Our deployments, which must record terms acceptances in Postgres.
+const DEPLOYED_DOMAINS: &[&str] = &[PRODUCTION_DOMAIN, "dev.privatecrates.dev"];
 
 #[derive(Clone)]
 pub struct Config {
@@ -38,6 +40,12 @@ pub struct Config {
     pub session_secret: Vec<u8>,
     /// The website's static build, served on the apex host. Without it, the apex host serves only the account API.
     pub website_dir: Option<PathBuf>,
+    /// The preview (docs/preview.md): PrivateCrates is free, and billing is off whatever Stripe configuration is
+    /// present.
+    pub preview: bool,
+    /// Postgres, for the terms acceptances (the only records of our own). Without it, in local development only,
+    /// they are kept in memory.
+    pub database_url: Option<String>,
     /// Stripe billing. Without it, every tenant is treated as active.
     pub stripe: Option<StripeConfig>,
     /// Organisations with at most this many members use PrivateCrates for free.
@@ -94,6 +102,16 @@ pub enum ConfigError {
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
         let port: u16 = parse_or("PORT", 8080)?;
+        let base_domain = required("BASE_DOMAIN")?;
+        let public_scheme = optional("PUBLIC_SCHEME").unwrap_or_else(|| "https".into());
+        let preview = parse_or("PREVIEW", true)?;
+        let database_url = optional("DATABASE_URL");
+        if database_url.is_none() && database_required(&base_domain, &public_scheme, preview) {
+            // A registry is never created without its terms acceptance recorded.
+            return Err(ConfigError::Missing {
+                name: "DATABASE_URL",
+            });
+        }
         let stripe = match optional("STRIPE_SECRET_KEY") {
             Some(secret_key) => Some(StripeConfig {
                 api: url_or("STRIPE_API_URL", "https://api.stripe.com")?,
@@ -105,8 +123,8 @@ impl Config {
         };
         Ok(Self {
             bind: SocketAddr::from(([0, 0, 0, 0], port)),
-            base_domain: required("BASE_DOMAIN")?,
-            public_scheme: optional("PUBLIC_SCHEME").unwrap_or_else(|| "https".into()),
+            base_domain,
+            public_scheme,
             github_api: url_or("GITHUB_API_URL", "https://api.github.com")?,
             github_web: url_or("GITHUB_WEB_URL", "https://github.com")?,
             reader_client_id: required("READER_APP_CLIENT_ID")?,
@@ -129,6 +147,8 @@ impl Config {
                 .unwrap_or_default(),
             session_secret: secret("SESSION_SECRET")?,
             website_dir: optional("WEBSITE_DIR").map(PathBuf::from),
+            preview,
+            database_url,
             stripe,
             free_member_limit: parse_or("FREE_MEMBER_LIMIT", 5)?,
             trial_days: parse_or("TRIAL_DAYS", 90)?,
@@ -162,6 +182,11 @@ impl Config {
         format!("{}/account", self.apex_url())
     }
 
+    /// Where the terms an organisation admin accepts are published.
+    pub fn terms_url(&self) -> String {
+        format!("{}/legal/terms", self.apex_url())
+    }
+
     /// Whether this is the production deployment, the only one search engines may index.
     pub fn is_production(&self) -> bool {
         self.base_domain == PRODUCTION_DOMAIN
@@ -185,6 +210,11 @@ impl Config {
                 .map_or(HostKind::Unknown, HostKind::Tenant)
         }
     }
+}
+
+/// Whether this looks like a deployment rather than local development: one of our domains, or a public preview.
+fn database_required(base_domain: &str, public_scheme: &str, preview: bool) -> bool {
+    DEPLOYED_DOMAINS.contains(&base_domain) || (preview && public_scheme == "https")
 }
 
 fn secret(name: &'static str) -> Result<Vec<u8>, ConfigError> {
@@ -272,6 +302,8 @@ pub(crate) mod tests {
             webhook_secrets: Vec::new(),
             session_secret: vec![8; 32],
             website_dir: None,
+            preview: false,
+            database_url: None,
             stripe: None,
             free_member_limit: 5,
             trial_days: 90,
@@ -316,6 +348,15 @@ pub(crate) mod tests {
         assert!(config("privatecrates.dev").is_production());
         assert!(!config("dev.privatecrates.dev").is_production());
         assert!(!config("localhost:8080").is_production());
+    }
+
+    #[test]
+    fn deployments_need_a_database() {
+        assert!(database_required("privatecrates.dev", "https", false));
+        assert!(database_required("dev.privatecrates.dev", "http", false));
+        assert!(database_required("staging.example.com", "https", true));
+        assert!(!database_required("localhost:8080", "http", true));
+        assert!(!database_required("staging.example.com", "https", false));
     }
 
     #[test]

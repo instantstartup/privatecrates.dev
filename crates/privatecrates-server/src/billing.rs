@@ -4,6 +4,9 @@
 //! Stripe is the source of truth and there is no database. Each subscription's metadata names its GitHub
 //! organisation; subscriptions are listed at start-up and kept current by Stripe's webhooks, with a periodic reload
 //! as the backstop. Plans are computed without Stripe too, but without it every tenant is active.
+//!
+//! During the preview (docs/preview.md) billing is off whatever Stripe configuration is present: every organisation
+//! is free, and Stripe is never called.
 
 use std::{
     collections::HashMap,
@@ -389,6 +392,7 @@ pub fn trial_length(days: u32) -> String {
 
 pub struct Billing {
     stripe: Option<Stripe>,
+    preview: bool,
     free_member_limit: u64,
     trial_days: u32,
     /// GitHub organisation ID → its latest subscription.
@@ -400,6 +404,10 @@ pub struct Billing {
 impl Billing {
     pub fn new(config: &Config) -> Result<Self, BillingError> {
         let stripe = match &config.stripe {
+            _ if config.preview => {
+                tracing::info!("preview: PrivateCrates is free, and billing is off");
+                None
+            }
             Some(stripe) => Some(Stripe {
                 http: reqwest::Client::builder()
                     .timeout(Duration::from_secs(30))
@@ -414,6 +422,7 @@ impl Billing {
         };
         Ok(Self {
             stripe,
+            preview: config.preview,
             free_member_limit: config.free_member_limit,
             trial_days: config.trial_days,
             subscriptions: RwLock::default(),
@@ -423,6 +432,11 @@ impl Billing {
 
     pub fn enabled(&self) -> bool {
         self.stripe.is_some()
+    }
+
+    /// Whether this is the preview, free for everyone.
+    pub fn preview(&self) -> bool {
+        self.preview
     }
 
     /// The outcomes and latencies of our recent calls to Stripe, when it is configured.
@@ -484,6 +498,14 @@ impl Billing {
 
     /// The organisation's plan, given its member count.
     pub fn plan(&self, org_id: u64, members: Option<u64>) -> OrgPlan {
+        if self.preview {
+            return OrgPlan {
+                plan: Plan::Free,
+                members,
+                subscription: None,
+                trial_available: false,
+            };
+        }
         let subscription = self.subscription(org_id);
         let free = self.is_free(members);
         let plan = match subscription.as_ref().map(|s| s.status.as_str()) {
@@ -826,7 +848,12 @@ mod tests {
     }
 
     fn billing(stripe: bool) -> Billing {
+        billing_with(stripe, false)
+    }
+
+    fn billing_with(stripe: bool, preview: bool) -> Billing {
         let mut config = crate::config::tests::config("privatecrates.dev");
+        config.preview = preview;
         config.stripe = stripe.then(|| StripeConfig {
             api: "https://api.stripe.com".parse().unwrap(),
             secret_key: "sk_test".into(),
@@ -870,6 +897,20 @@ mod tests {
         assert_eq!(unbilled.plan(100, Some(6)).plan, Plan::Inactive);
         assert!(!unbilled.plan(100, Some(6)).trial_available);
         assert_eq!(unbilled.standing(100, Some(6)), Standing::Active);
+    }
+
+    #[test]
+    fn the_preview_is_free_whatever_stripe_says() {
+        let preview = billing_with(true, true);
+        assert!(preview.preview());
+        assert!(!preview.enabled());
+        assert!(preview.metrics().is_none());
+        let over = preview.plan(100, Some(50));
+        assert_eq!(over.plan, Plan::Free);
+        assert_eq!(over.members, Some(50));
+        assert!(!over.trial_available);
+        assert_eq!(over.trial_ending(0), None);
+        assert_eq!(preview.standing(100, Some(50)), Standing::Active);
     }
 
     #[test]

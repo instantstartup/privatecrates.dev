@@ -27,11 +27,22 @@ pub struct Harness {
 }
 
 /// What a test needs beyond the registry.
-#[derive(Default)]
 pub struct Options {
+    /// The preview (`PREVIEW`), free for everyone, as the server defaults to; billing tests turn it off.
+    pub preview: bool,
     /// Bill through a fake Stripe; otherwise every tenant is active.
     pub stripe: bool,
     pub website_dir: Option<PathBuf>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            preview: true,
+            stripe: false,
+            website_dir: None,
+        }
+    }
 }
 
 impl Harness {
@@ -75,6 +86,9 @@ impl Harness {
             ],
             session_secret: b"another test secret, long enough for a key".to_vec(),
             website_dir: options.website_dir,
+            preview: options.preview,
+            // Terms acceptances are kept in memory.
+            database_url: None,
             stripe: stripe.as_ref().map(|s| StripeConfig {
                 api: s.url.parse().unwrap(),
                 secret_key: privatecrates_testkit::stripe::SECRET_KEY.into(),

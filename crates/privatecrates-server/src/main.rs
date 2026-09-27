@@ -14,6 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env()?;
     let bind = config.bind;
     let state = Arc::new(AppState::new(config)?);
+    state.terms.records().migrate().await?;
     state.discover().await?;
     tracing::info!(tenants = state.tenants.all().len(), "tenants discovered");
     state.billing.load().await?;

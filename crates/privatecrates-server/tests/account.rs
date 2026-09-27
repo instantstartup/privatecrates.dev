@@ -3,6 +3,8 @@
 mod common;
 
 use common::{Harness, cookie, error_code};
+use privatecrates_common::TERMS_VERSION;
+use privatecrates_server::records::Accepted;
 use privatecrates_testkit::{READER_APP_ID, STORAGE_APP_ID};
 use serde_json::{Value, json};
 
@@ -32,6 +34,27 @@ fn statuses(onboarding: &Value) -> Vec<String> {
     steps(onboarding).into_iter().map(|(_, s)| s).collect()
 }
 
+/// `terms_accepted` for the first organisation in the session.
+async fn terms_accepted(h: &Harness, session: &str) -> Value {
+    let doc: Value = h
+        .api_get("/api/session", session)
+        .await
+        .json()
+        .await
+        .unwrap();
+    doc["orgs"][0]["terms_accepted"].clone()
+}
+
+/// The organisation's recorded acceptance of the current terms.
+async fn acceptance(h: &Harness, org_id: u64) -> Option<Accepted> {
+    h.state
+        .terms
+        .records()
+        .acceptance(org_id, TERMS_VERSION)
+        .await
+        .unwrap()
+}
+
 #[tokio::test]
 async fn sign_in_round_trip() {
     let h = Harness::start().await;
@@ -40,9 +63,10 @@ async fn sign_in_round_trip() {
     assert_eq!(response.headers()["cache-control"], "no-store");
     let body: Value = response.json().await.unwrap();
     let install_url = format!("{}/apps/privatecrates-reader/installations/new", h.fake.url);
+    let terms = json!({ "version": TERMS_VERSION, "url": h.apex("/legal/terms") });
     assert_eq!(
         body,
-        json!({ "user": null, "orgs": [], "install_url": install_url })
+        json!({ "user": null, "orgs": [], "install_url": install_url, "preview": true, "terms": terms })
     );
 
     let (_, session) = admin(&h).await;
@@ -54,6 +78,8 @@ async fn sign_in_round_trip() {
         .unwrap();
     assert_eq!(body["user"]["login"], "alice");
     assert_eq!(body["install_url"], install_url);
+    assert_eq!(body["preview"], true);
+    assert_eq!(body["terms"], terms);
     let orgs = body["orgs"].as_array().unwrap();
     assert_eq!(orgs.len(), 1);
     assert_eq!(orgs[0]["login"], "acme");
@@ -65,6 +91,8 @@ async fn sign_in_round_trip() {
     assert_eq!(orgs[0]["tenant"]["status"], Value::Null);
     assert_eq!(orgs[0]["members"], 1);
     assert_eq!(orgs[0]["plan"], "free");
+    // Set up before the terms: it keeps working, and an admin is asked to accept them.
+    assert_eq!(orgs[0]["terms_accepted"], false);
 
     let logout = h.api_post("/auth/logout", &session).send().await.unwrap();
     assert_eq!(logout.status(), 204);
@@ -254,11 +282,11 @@ async fn state_changing_requests_must_come_from_the_website() {
         .await
         .unwrap();
     assert_eq!(logout.status(), 403);
-    // From the website, the request goes through (and fails only because billing is not configured).
+    // From the website, the request goes through (and fails only because billing is off in the preview).
     let response = post(Some(&h.apex("")), "application/json; charset=utf-8")
         .await
         .unwrap();
-    assert_eq!(error_code(response).await, "billing::not_configured");
+    assert_eq!(error_code(response).await, "billing::preview");
 }
 
 #[tokio::test]
@@ -290,10 +318,10 @@ async fn onboarding_checklist() {
             ("plan".into(), "done".into()),
         ]
     );
-    // Members are counted with the reader App, which is not installed yet.
+    assert_eq!(doc["steps"][4]["detail"], "Free during the preview.");
     assert_eq!(
-        doc["steps"][4]["detail"],
-        "Free for organisations with up to 5 members"
+        doc["terms"],
+        json!({ "version": TERMS_VERSION, "url": h.apex("/legal/terms"), "accepted": false })
     );
     assert_eq!(
         doc["steps"][0]["action_url"],
@@ -326,7 +354,6 @@ async fn onboarding_checklist() {
     h.fake.install_app(&globex, READER_APP_ID);
     let doc = onboarding().await;
     assert_eq!(statuses(&doc), ["done", "done", "todo", "blocked", "done"]);
-    assert_eq!(doc["steps"][4]["detail"], "Free: 2 of 5 members");
     assert_eq!(
         doc["steps"][1]["action_url"],
         format!("{}/globex/crates-store/settings", h.fake.url)
@@ -374,7 +401,7 @@ async fn settings_create_the_registry() {
     let member = h.sign_in(&member_token).await;
     let settings = |session: &str, slug: &str| {
         h.api_post("/api/orgs/globex/settings", session)
-            .body(json!({ "slug": slug }).to_string())
+            .body(json!({ "slug": slug, "accept_terms": TERMS_VERSION }).to_string())
             .send()
     };
 
@@ -462,7 +489,7 @@ async fn settings_are_never_overwritten() {
     let session = h.sign_in(&token).await;
     let response = h
         .api_post("/api/orgs/initech/settings", &session)
-        .body(json!({ "slug": "other" }).to_string())
+        .body(json!({ "slug": "other", "accept_terms": TERMS_VERSION }).to_string())
         .send()
         .await
         .unwrap();
@@ -497,7 +524,7 @@ async fn storage_must_be_ready_before_settings() {
     let session = h.sign_in(&token).await;
     let response = h
         .api_post("/api/orgs/globex/settings", &session)
-        .body(json!({ "slug": "globex" }).to_string())
+        .body(json!({ "slug": "globex", "accept_terms": TERMS_VERSION }).to_string())
         .send()
         .await
         .unwrap();
@@ -564,7 +591,7 @@ async fn tools_use_a_bearer_token_without_the_csrf_check() {
         .client
         .post(h.apex("/api/orgs/globex/settings"))
         .header("Authorization", &bearer)
-        .body(json!({ "slug": "globex" }).to_string())
+        .body(json!({ "slug": "globex", "accept_terms": TERMS_VERSION }).to_string())
         .send()
         .await
         .unwrap();
@@ -573,6 +600,8 @@ async fn tools_use_a_bearer_token_without_the_csrf_check() {
     assert!(response.headers().get("set-cookie").is_none());
     let doc: Value = response.json().await.unwrap();
     assert_eq!(statuses(&doc), ["done", "done", "done", "done", "done"]);
+    // Accepted through a tool.
+    assert_eq!(acceptance(&h, globex.id).await.unwrap().via, "cli");
 
     // A cookie session is still checked.
     let (_, session) = admin(&h).await;
@@ -658,4 +687,156 @@ async fn the_apex_serves_the_device_flow_client() {
         body,
         json!({ "github_client_id": privatecrates_testkit::READER_CLIENT_ID, "github_url": h.fake.url })
     );
+}
+
+#[tokio::test]
+async fn settings_need_the_terms_accepted() {
+    let h = Harness::start().await;
+    let globex = h.fake.add_org_without_apps("globex");
+    h.fake.install_app(&globex, READER_APP_ID);
+    h.fake.install_app(&globex, STORAGE_APP_ID);
+    let token = h.fake.add_user("alice", "ghu_", &[]);
+    h.fake.add_member(&token, &globex, "admin");
+    let admin = h.sign_in(&token).await;
+    let settings = |body: Value| {
+        h.api_post("/api/orgs/globex/settings", &admin)
+            .body(body.to_string())
+            .send()
+    };
+
+    // Not accepted, or not the current version: refused, with where to read them.
+    for body in [
+        json!({ "slug": "globex" }),
+        json!({ "slug": "globex", "accept_terms": null }),
+        json!({ "slug": "globex", "accept_terms": true }),
+        json!({ "slug": "globex", "accept_terms": "preview-2026-01-01" }),
+        json!({ "slug": "globex", "accept_terms": "" }),
+    ] {
+        let response = settings(body.clone()).await.unwrap();
+        assert_eq!(response.status(), 400, "{body}");
+        let error: Value = response.json().await.unwrap();
+        assert_eq!(
+            error["errors"][0]["code"], "account::terms_not_accepted",
+            "{body}"
+        );
+        let detail = error["errors"][0]["detail"].as_str().unwrap();
+        assert!(detail.contains(&h.apex("/legal/terms")), "{detail}");
+        assert!(detail.contains(TERMS_VERSION), "{detail}");
+    }
+    assert!(acceptance(&h, globex.id).await.is_none());
+    assert!(
+        h.fake
+            .file(globex.storage_repo, "privatecrates.toml")
+            .is_none()
+    );
+
+    let before = time::OffsetDateTime::now_utc();
+    let response = settings(json!({ "slug": "globex", "accept_terms": TERMS_VERSION }))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(doc["terms"]["accepted"], true);
+    let accepted = acceptance(&h, globex.id).await.unwrap();
+    assert_eq!(accepted.org_id, globex.id);
+    assert_eq!(accepted.org_login, "globex");
+    assert_eq!(accepted.user_id, h.fake.user_id(&token));
+    assert_eq!(accepted.user_login, "alice");
+    assert_eq!(accepted.version, TERMS_VERSION);
+    assert_eq!(accepted.via, "website");
+    assert_eq!(
+        accepted.statement,
+        format!(
+            "I have read and accept the PrivateCrates preview terms ({TERMS_VERSION}) on behalf of globex"
+        )
+    );
+    assert!(accepted.accepted_at >= before);
+    // Nothing about the terms is written to the organisation's repository: only the settings.
+    let commits = h.fake.commits(globex.storage_repo);
+    assert_eq!(
+        commits.iter().map(|c| c.path.as_str()).collect::<Vec<_>>(),
+        ["privatecrates.toml"]
+    );
+
+    let session: Value = h
+        .api_get("/api/session", &admin)
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(session["orgs"][0]["login"], "globex");
+    assert_eq!(session["orgs"][0]["terms_accepted"], true);
+}
+
+#[tokio::test]
+async fn an_existing_registry_accepts_the_terms() {
+    let h = Harness::start().await;
+    let (alice, admin) = admin(&h).await;
+    let member_token = h.fake.add_user("bob", "ghu_", &[]);
+    h.fake.add_member(&member_token, &h.org, "member");
+    let member = h.sign_in(&member_token).await;
+    let accept = |session: &str, body: Value| {
+        h.api_post("/api/orgs/acme/terms", session)
+            .body(body.to_string())
+            .send()
+    };
+    let current = json!({ "accept_terms": TERMS_VERSION });
+
+    // The registry works meanwhile; the session asks an admin to accept.
+    assert_eq!(terms_accepted(&h, &admin).await, false);
+
+    let response = accept(&member, current.clone()).await.unwrap();
+    assert_eq!(response.status(), 403);
+    assert_eq!(error_code(response).await, "account::admin_required");
+    for body in [json!({}), json!({ "accept_terms": "preview-2026-01-01" })] {
+        let response = accept(&admin, body).await.unwrap();
+        assert_eq!(response.status(), 400);
+        assert_eq!(error_code(response).await, "account::terms_not_accepted");
+    }
+    let response = h
+        .api_post("/api/orgs/acme/terms", &admin)
+        .body("not json")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(error_code(response).await, "account::terms_not_accepted");
+    assert!(acceptance(&h, h.org.id).await.is_none());
+
+    let response = accept(&admin, current.clone()).await.unwrap();
+    assert_eq!(response.status(), 200);
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(doc["org"]["login"], "acme");
+    assert_eq!(doc["terms"]["accepted"], true);
+    assert_eq!(terms_accepted(&h, &admin).await, true);
+    assert_eq!(terms_accepted(&h, &member).await, true);
+    let first = acceptance(&h, h.org.id).await.unwrap();
+    assert_eq!(first.user_id, h.fake.user_id(&alice));
+    assert_eq!(first.via, "website");
+
+    // Again, by another admin: the first acceptance is kept.
+    let carol = h.fake.add_user("carol", "ghu_", &[]);
+    h.fake.add_member(&carol, &h.org, "admin");
+    let response = h
+        .client
+        .post(h.apex("/api/orgs/acme/terms"))
+        .header("Authorization", format!("Bearer {carol}"))
+        .body(current.to_string())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(acceptance(&h, h.org.id).await.unwrap(), first);
+
+    // No registry yet: the terms are accepted when it is set up.
+    let globex = h.fake.add_org_without_apps("globex");
+    h.fake.add_member(&alice, &globex, "admin");
+    let response = h
+        .api_post("/api/orgs/globex/terms", &admin)
+        .body(current.to_string())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 409);
+    assert_eq!(error_code(response).await, "account::not_set_up");
+    assert!(acceptance(&h, globex.id).await.is_none());
 }

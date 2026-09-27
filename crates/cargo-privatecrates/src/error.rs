@@ -9,6 +9,16 @@ pub enum Error {
     #[error("{0}")]
     Invalid(String),
 
+    #[error(
+        "setting up {org}'s registry needs an admin of {org} to accept the PrivateCrates terms ({version}). Read \
+         them at {url}; to accept them on behalf of {org}, run the command again with `--accept-terms {version}`"
+    )]
+    TermsRequired {
+        org: String,
+        version: String,
+        url: String,
+    },
+
     #[error("not signed in to {apex}; run `cargo privatecrates login{domain_flag}` first")]
     NotSignedIn { apex: String, domain_flag: String },
 
@@ -54,6 +64,17 @@ impl Error {
     pub fn code(&self) -> Option<&str> {
         match self {
             Self::Api { code, .. } => code.as_deref(),
+            Self::TermsRequired { .. } => Some("account::terms_not_accepted"),
+            _ => None,
+        }
+    }
+
+    /// The terms to accept, for `--json` output, when that is what stopped the command.
+    pub fn terms(&self) -> Option<serde_json::Value> {
+        match self {
+            Self::TermsRequired { version, url, .. } => Some(serde_json::json!({
+                "version": version, "url": url, "accepted": false,
+            })),
             _ => None,
         }
     }

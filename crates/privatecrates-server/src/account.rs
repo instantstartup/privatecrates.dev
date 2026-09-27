@@ -3,7 +3,8 @@
 //!
 //! Every GitHub call about the user is made with their own token, so GitHub decides which organisations they see
 //! and whether they are an admin. Our Apps' tokens are used only to check installations and to write the
-//! settings file.
+//! settings file. An admin accepts the terms before a registry is created (docs/preview.md §2); that is recorded in
+//! our own database.
 
 use std::sync::Arc;
 
@@ -16,6 +17,7 @@ use axum::{
     routing::{get, post},
 };
 use bytes::Bytes;
+use privatecrates_common::TERMS_VERSION;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
@@ -27,6 +29,7 @@ use crate::{
     compliance,
     error::ApiError,
     github::{AppKind, Conditional, FileWrite, GitHubError, Membership, Organization, Repo},
+    records::{self, Acceptance, Via},
     session::{self, Session, clear_session_cookie},
     tenant::{SETTINGS_PATH, Tenant, is_reserved, slug_is_valid},
 };
@@ -39,6 +42,7 @@ pub fn routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/session", get(session_info))
         .route("/api/orgs/{org}/onboarding", get(onboarding))
         .route("/api/orgs/{org}/settings", post(settings))
+        .route("/api/orgs/{org}/terms", post(terms))
         .route("/api/orgs/{org}/trial", post(trial))
         .route("/api/orgs/{org}/billing-email", post(set_billing_email))
         .route("/api/orgs/{org}/checkout", post(checkout))
@@ -87,6 +91,7 @@ fn org_json(
     org: &Organization,
     membership: &Membership,
     plan: &OrgPlan,
+    terms_accepted: bool,
 ) -> Value {
     let subscription = plan.subscription.as_ref();
     json!({
@@ -103,7 +108,13 @@ fn org_json(
         "current_period_end": rfc3339(subscription.and_then(Subscription::current_period_end)),
         "trial_available": plan.trial_available,
         "tenant": tenant_json(state, org.id, plan),
+        "terms_accepted": terms_accepted,
     })
+}
+
+/// The terms an organisation admin accepts now, and where to read them.
+fn terms_json(state: &AppState) -> Value {
+    json!({ "version": TERMS_VERSION, "url": state.config.terms_url() })
 }
 
 fn role(membership: &Membership) -> &'static str {
@@ -122,7 +133,11 @@ async fn session_info(
     // GitHub App user tokens only see organisations that have installed the App, so a new organisation starts by
     // installing it; `install_url` is how the website offers that.
     let install_url = install_url(&state.config, &state.config.reader_app_slug);
-    let signed_out = Json(json!({ "user": null, "orgs": [], "install_url": install_url }));
+    let preview = state.billing.preview();
+    let terms = terms_json(&state);
+    let signed_out = Json(json!({
+        "user": null, "orgs": [], "install_url": install_url, "preview": preview, "terms": terms,
+    }));
     let Some(session) = Session::from_headers(&state, &headers)? else {
         return Ok(signed_out.into_response());
     };
@@ -147,9 +162,10 @@ async fn session_info(
                 Err(e) => return Err(e),
             };
             let plan = state.plan(org.id, &org.login).await;
+            let terms_accepted = state.terms.accepted(org.id).await;
             Ok(Some((
                 org.login.clone(),
-                org_json(&state, &org, &membership, &plan),
+                org_json(&state, &org, &membership, &plan, terms_accepted),
             )))
         });
     }
@@ -162,6 +178,8 @@ async fn session_info(
         "user": { "login": user.login, "avatar_url": user.avatar_url, "name": user.name },
         "orgs": orgs.into_iter().map(|(_, org)| org).collect::<Vec<_>>(),
         "install_url": install_url,
+        "preview": preview,
+        "terms": terms,
     }))
     .into_response())
 }
@@ -375,10 +393,13 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
             })
             .collect();
     }
+    let mut terms = terms_json(state);
+    terms["accepted"] = state.terms.accepted(org.id).await.into();
     Ok(json!({
         "org": { "id": org.id, "login": org.login },
         "steps": steps,
         "suggested_slug": suggested_slug(state, org, tenant.as_deref()),
+        "terms": terms,
     }))
 }
 
@@ -392,6 +413,7 @@ fn plan_step(state: &AppState, plan: &OrgPlan) -> Step {
             .map_or_else(|| "its end".to_owned(), |t| t.date().to_string())
     };
     let (done, detail) = match plan.plan {
+        Plan::Free if billing.preview() => (true, "Free during the preview.".to_owned()),
         Plan::Free => (
             true,
             match plan.members {
@@ -508,13 +530,56 @@ async fn onboarding(
     Ok(Json(onboarding_doc(&state, &membership).await?))
 }
 
+/// `accept_terms` is any JSON value, so that a wrong one is refused as not accepting the terms.
 #[derive(Deserialize)]
 struct SettingsRequest {
     slug: String,
+    accept_terms: Option<Value>,
 }
 
-/// Sets the organisation's registry up: the storage App creates `privatecrates.toml`, and only creates it. Any
-/// later change is the organisation's own pull request.
+#[derive(Deserialize)]
+struct TermsRequest {
+    accept_terms: Option<Value>,
+}
+
+/// Checks that the request accepts the current terms: the admin sends the version they were shown.
+fn check_terms(state: &AppState, accept_terms: Option<&Value>) -> Result<(), ApiError> {
+    if accept_terms.and_then(Value::as_str) == Some(TERMS_VERSION) {
+        Ok(())
+    } else {
+        Err(ApiError::TermsNotAccepted {
+            version: TERMS_VERSION,
+            terms_url: state.config.terms_url(),
+        })
+    }
+}
+
+/// Records that the signed-in admin accepted the current terms on behalf of the organisation.
+async fn record_terms(
+    state: &AppState,
+    session: &Session,
+    membership: &Membership,
+) -> Result<(), ApiError> {
+    let org = &membership.organization;
+    let statement = records::statement(TERMS_VERSION, &org.login);
+    let acceptance = Acceptance {
+        org_id: org.id,
+        org_login: &org.login,
+        user_id: membership.user.id,
+        user_login: &membership.user.login,
+        version: TERMS_VERSION,
+        via: if session.bearer {
+            Via::Cli
+        } else {
+            Via::Website
+        },
+        statement: &statement,
+    };
+    Ok(state.terms.accept(&acceptance).await?)
+}
+
+/// Sets the organisation's registry up: the admin's acceptance of the terms is recorded, then the storage App
+/// creates `privatecrates.toml`, and only creates it. Any later change is the organisation's own pull request.
 async fn settings(
     State(state): State<Arc<AppState>>,
     session: Session,
@@ -523,15 +588,16 @@ async fn settings(
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
     let org = &membership.organization;
-    let slug = serde_json::from_slice::<SettingsRequest>(&body)
-        .map_err(|_| ApiError::SlugInvalid)?
-        .slug;
+    let request =
+        serde_json::from_slice::<SettingsRequest>(&body).map_err(|_| ApiError::SlugInvalid)?;
+    let slug = request.slug;
     if !slug_is_valid(&slug) {
         return Err(ApiError::SlugInvalid);
     }
     if is_reserved(&slug) {
         return Err(ApiError::SlugReserved { slug });
     }
+    check_terms(&state, request.accept_terms.as_ref())?;
     if let Some(tenant) = state.tenants.by_org(org.id) {
         return Err(ApiError::SettingsExist {
             repository: tenant.storage_repo.clone(),
@@ -556,6 +622,8 @@ async fn settings(
         "Create privatecrates.toml\n\nSet up the registry {registry}, requested by {}.\n",
         membership.user.login
     );
+    // Recorded first: without the acceptance on record, no registry is created.
+    record_terms(&state, &session, &membership).await?;
     let write = FileWrite {
         path: SETTINGS_PATH,
         content: content.as_bytes(),
@@ -582,6 +650,38 @@ async fn settings(
     Ok(Json(onboarding_doc(&state, &membership).await?))
 }
 
+/// Accepts the current terms for an organisation whose registry exists: set up before the terms, or before their
+/// current version. Accepting again records nothing new.
+async fn terms(
+    State(state): State<Arc<AppState>>,
+    session: Session,
+    Path(org): Path<String>,
+    body: Bytes,
+) -> Result<Json<Value>, ApiError> {
+    let membership = admin(&state, &session, &org).await?;
+    let accept_terms = serde_json::from_slice::<TermsRequest>(&body)
+        .ok()
+        .and_then(|r| r.accept_terms);
+    check_terms(&state, accept_terms.as_ref())?;
+    let org = &membership.organization;
+    if state.tenants.by_org(org.id).is_none() {
+        return Err(ApiError::NotSetUp {
+            org: org.login.clone(),
+        });
+    }
+    record_terms(&state, &session, &membership).await?;
+    Ok(Json(onboarding_doc(&state, &membership).await?))
+}
+
+/// Billing is off during the preview: there is nothing to pay.
+fn billing_on(state: &AppState) -> Result<(), ApiError> {
+    if state.billing.preview() {
+        Err(ApiError::BillingPreview)
+    } else {
+        Ok(())
+    }
+}
+
 fn account_url(state: &AppState, org: &Organization) -> String {
     format!("{}?org={}", state.config.account_url(), org.login)
 }
@@ -592,6 +692,7 @@ async fn checkout(
     Path(org): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
+    billing_on(&state)?;
     let org = &membership.organization;
     let back = account_url(&state, org);
     let url = state
@@ -631,6 +732,7 @@ async fn trial(
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
+    billing_on(&state)?;
     let org = &membership.organization;
     let email = billing_email(&body)?;
     state
@@ -655,6 +757,7 @@ async fn set_billing_email(
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
+    billing_on(&state)?;
     let org = &membership.organization;
     let email = billing_email(&body)?;
     state
@@ -671,6 +774,7 @@ async fn portal(
     Path(org): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
+    billing_on(&state)?;
     let org = &membership.organization;
     let url = state
         .billing

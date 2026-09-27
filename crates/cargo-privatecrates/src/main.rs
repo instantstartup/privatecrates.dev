@@ -3,6 +3,7 @@
 //!
 //! - `login` / `logout`: GitHub's device flow, sharing the credential provider's token store.
 //! - `setup <org>`: the organisation's onboarding checklist, and the steps the account API can do.
+//! - `terms <org>`: whether the organisation has accepted the PrivateCrates terms, and accepting them.
 //! - `init`: configures a crate repository or workspace to use and publish to a registry.
 //! - `doctor`: checks that configuration, and says how to fix what is missing.
 //!
@@ -65,15 +66,29 @@ enum Command {
     Setup {
         /// The GitHub organisation.
         org: String,
-        /// Save the registry name: its hostname and its name in Cargo.
+        /// Save the registry name: its hostname and its name in Cargo. Needs --accept-terms.
         #[arg(long, value_name = "NAME")]
         slug: Option<String>,
+        /// Accept the PrivateCrates terms on behalf of the organisation: the version shown with them. Only an admin
+        /// who has read the terms passes this; an agent must never pass it on their behalf.
+        #[arg(long, value_name = "VERSION")]
+        accept_terms: Option<String>,
         /// Start the no-card free trial (organisations over the free member limit). Needs --billing-email.
         #[arg(long)]
         start_trial: bool,
         /// Where Stripe sends the reminder before the trial ends, and the invoices after it.
         #[arg(long, value_name = "EMAIL", requires = "start_trial")]
         billing_email: Option<String>,
+    },
+    /// Show whether an organisation has accepted the current PrivateCrates terms, or accept them for a registry
+    /// set up before them. Exits non-zero while they are not accepted. Needs `login` first.
+    Terms {
+        /// The GitHub organisation.
+        org: String,
+        /// Accept the terms on behalf of the organisation: the version shown with them. Only an admin who has read
+        /// the terms passes this; an agent must never pass it on their behalf.
+        #[arg(long, value_name = "VERSION")]
+        accept: Option<String>,
     },
     /// Configure the crate repository or workspace in the current directory: the registry in
     /// .cargo/config.toml, package.repository from the `origin` remote, and a publish workflow.
@@ -156,6 +171,7 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
         Command::Setup {
             org,
             slug,
+            accept_terms,
             start_trial,
             billing_email,
         } => {
@@ -164,11 +180,17 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
                 &account::SetupOptions {
                     org,
                     slug: slug.as_deref(),
+                    accept_terms: accept_terms.as_deref(),
                     start_trial: *start_trial,
                     billing_email: billing_email.as_deref(),
                 },
             )?;
             Outcome::new(&setup, true)
+        }
+        Command::Terms { org, accept } => {
+            let report = account::terms(&domain, org, accept.as_deref())?;
+            let accepted = report.terms.accepted;
+            Outcome::new(&report, accepted)
         }
         Command::Init {
             registry,
@@ -222,10 +244,11 @@ fn main() -> ExitCode {
         }
         Err(e) => {
             if cli.json {
-                println!(
-                    "{:#}",
-                    json!({ "error": { "message": e.to_string(), "code": e.code() } })
-                );
+                let mut error = json!({ "message": e.to_string(), "code": e.code() });
+                if let Some(terms) = e.terms() {
+                    error["terms"] = terms;
+                }
+                println!("{:#}", json!({ "error": error }));
             } else {
                 eprintln!("error: {e}");
             }

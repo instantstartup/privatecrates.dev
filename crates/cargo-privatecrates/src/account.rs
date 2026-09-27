@@ -110,6 +110,8 @@ impl Api {
 pub struct SetupOptions<'a> {
     pub org: &'a str,
     pub slug: Option<&'a str>,
+    /// The version of the terms the admin accepts, as they pass it: never filled in by the CLI.
+    pub accept_terms: Option<&'a str>,
     pub start_trial: bool,
     /// Required to start the trial.
     pub billing_email: Option<&'a str>,
@@ -124,8 +126,20 @@ pub struct Setup {
     pub suggested_slug: String,
     /// The registry, once its name is saved.
     pub registry_url: Option<String>,
-    /// What this run did: `settings` and `trial`.
+    /// The terms an admin accepts on behalf of the organisation, and whether one has.
+    pub terms: Terms,
+    /// What this run did: `terms`, `settings` and `trial`.
     pub performed: Vec<&'static str>,
+    #[serde(skip)]
+    domain_flag: String,
+}
+
+/// The current terms, as the account API reports them.
+#[derive(Serialize, Deserialize)]
+pub struct Terms {
+    pub version: String,
+    pub url: String,
+    pub accepted: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -173,6 +187,18 @@ struct Onboarding {
     org: Org,
     steps: Vec<Step>,
     suggested_slug: String,
+    terms: Terms,
+}
+
+impl Onboarding {
+    fn parse(api: &Api, path: &str, doc: Value) -> Result<Self, Error> {
+        serde_json::from_value(doc).map_err(|e| Error::Api {
+            url: format!("{}{path}/onboarding", api.apex),
+            status: 200,
+            code: None,
+            detail: format!("unexpected onboarding document: {e}"),
+        })
+    }
 }
 
 /// The storage repository's conventional name, as the onboarding document suggests.
@@ -190,6 +216,7 @@ pub fn setup(domain: &Domain, options: &SetupOptions<'_>) -> Result<Setup, Error
             .flatten()
             .any(|s| s["id"] == id && s["status"] == "done")
     };
+    let accepted = |doc: &Value| doc["terms"]["accepted"] == true;
     if let Some(slug) = options.slug {
         if step_done(&onboarding, "settings") {
             let current = onboarding["suggested_slug"].as_str().unwrap_or_default();
@@ -201,9 +228,37 @@ pub fn setup(domain: &Domain, options: &SetupOptions<'_>) -> Result<Setup, Error
                 )));
             }
         } else {
-            onboarding = api.post(&format!("{path}/settings"), &json!({ "slug": slug }))?;
+            // Only the person passes the version, having read the terms.
+            let Some(version) = options.accept_terms else {
+                return Err(Error::TermsRequired {
+                    org: options.org.to_owned(),
+                    version: onboarding["terms"]["version"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_owned(),
+                    url: onboarding["terms"]["url"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_owned(),
+                });
+            };
+            onboarding = api.post(
+                &format!("{path}/settings"),
+                &json!({ "slug": slug, "accept_terms": version }),
+            )?;
             performed.push("settings");
         }
+    }
+    // A registry set up before the terms, or before their current version.
+    if let Some(version) = options.accept_terms
+        && step_done(&onboarding, "settings")
+        && !accepted(&onboarding)
+    {
+        onboarding = api.post(
+            &format!("{path}/terms"),
+            &json!({ "accept_terms": version }),
+        )?;
+        performed.push("terms");
     }
     if options.start_trial && !step_done(&onboarding, "plan") {
         let email = options.billing_email.ok_or_else(|| {
@@ -215,13 +270,69 @@ pub fn setup(domain: &Domain, options: &SetupOptions<'_>) -> Result<Setup, Error
         onboarding = api.post(&format!("{path}/trial"), &json!({ "billing_email": email }))?;
         performed.push("trial");
     }
-    let onboarding: Onboarding = serde_json::from_value(onboarding).map_err(|e| Error::Api {
-        url: format!("{}{path}/onboarding", api.apex),
-        status: 200,
-        code: None,
-        detail: format!("unexpected onboarding document: {e}"),
-    })?;
+    let onboarding = Onboarding::parse(&api, &path, onboarding)?;
     Ok(describe(domain, onboarding, performed))
+}
+
+/// An organisation's acceptance of the terms, and what `terms` did.
+#[derive(Serialize)]
+pub struct TermsReport {
+    pub apex: String,
+    pub org: Org,
+    pub terms: Terms,
+    /// Whether this run accepted them.
+    pub performed: bool,
+    #[serde(skip)]
+    domain_flag: String,
+}
+
+/// Shows whether the organisation has accepted the current terms, and accepts them with the version the admin
+/// passes.
+pub fn terms(domain: &Domain, org: &str, accept: Option<&str>) -> Result<TermsReport, Error> {
+    let api = Api::signed_in(domain)?;
+    let path = format!("/api/orgs/{org}");
+    let doc = match accept {
+        Some(version) => api.post(
+            &format!("{path}/terms"),
+            &json!({ "accept_terms": version }),
+        )?,
+        None => api.get(&format!("{path}/onboarding"))?,
+    };
+    let onboarding = Onboarding::parse(&api, &path, doc)?;
+    Ok(TermsReport {
+        apex: api.apex,
+        org: onboarding.org,
+        terms: onboarding.terms,
+        performed: accept.is_some(),
+        domain_flag: domain.flag(),
+    })
+}
+
+impl std::fmt::Display for TermsReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Terms {
+            version,
+            url,
+            accepted,
+        } = &self.terms;
+        let org = &self.org.login;
+        match (accepted, self.performed) {
+            (true, true) => write!(
+                f,
+                "Accepted the PrivateCrates terms ({version}) on behalf of {org}: {url}"
+            ),
+            (true, false) => write!(
+                f,
+                "{org} has accepted the PrivateCrates terms ({version}): {url}"
+            ),
+            (false, _) => write!(
+                f,
+                "{org} has not accepted the PrivateCrates terms ({version}) yet. An admin of {org} reads them at \
+                 {url}, then runs:\n  cargo privatecrates terms {org} --accept {version}{}",
+                self.domain_flag
+            ),
+        }
+    }
 }
 
 /// Adds to each step what a person or an agent does about it.
@@ -258,8 +369,8 @@ fn describe(domain: &Domain, onboarding: Onboarding, performed: Vec<&'static str
                 }
                 "settings" if todo => {
                     step.commands = vec![cli(format!(
-                        "setup {org} --slug {}",
-                        onboarding.suggested_slug
+                        "setup {org} --slug {} --accept-terms {}",
+                        onboarding.suggested_slug, onboarding.terms.version
                     ))];
                 }
                 "plan" if todo => {
@@ -278,15 +389,32 @@ fn describe(domain: &Domain, onboarding: Onboarding, performed: Vec<&'static str
         org: onboarding.org,
         steps,
         suggested_slug: onboarding.suggested_slug,
+        terms: onboarding.terms,
+        domain_flag: domain.flag(),
         performed,
     }
 }
 
 impl std::fmt::Display for Setup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Terms {
+            version,
+            url,
+            accepted,
+        } = &self.terms;
+        let org = &self.org.login;
         for action in &self.performed {
             match *action {
-                "settings" => writeln!(f, "Saved the registry name {}.", self.suggested_slug)?,
+                "terms" => writeln!(
+                    f,
+                    "Accepted the PrivateCrates terms ({version}) on behalf of {org}."
+                )?,
+                "settings" => writeln!(
+                    f,
+                    "Accepted the PrivateCrates terms ({version}) on behalf of {org}, and saved the registry name \
+                     {}.",
+                    self.suggested_slug
+                )?,
                 _ => writeln!(f, "Started the free trial.")?,
             }
         }
@@ -328,6 +456,20 @@ impl std::fmt::Display for Setup {
             if let Some(url) = step.action_url.as_ref().filter(|_| !step.done()) {
                 writeln!(f, "    Or open: {url}")?;
             }
+        }
+        match (accepted, &self.registry_url) {
+            (true, _) => writeln!(f, "\n  Terms ({version}): accepted, {url}")?,
+            (false, Some(_)) => writeln!(
+                f,
+                "\n  Terms ({version}): not accepted yet. An admin reads them at {url}, then runs:\n      \
+                 cargo privatecrates terms {org} --accept {version}{}",
+                self.domain_flag
+            )?,
+            (false, None) => writeln!(
+                f,
+                "\n  Terms ({version}): {url}\n    An admin reads them before choosing the registry name: \
+                 --accept-terms accepts them on behalf of {org}."
+            )?,
         }
         match &self.registry_url {
             Some(url) if self.steps.iter().all(Step::done) => {

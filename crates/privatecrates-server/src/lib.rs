@@ -13,6 +13,7 @@ pub mod members;
 pub mod metrics;
 pub mod oidc;
 pub mod publish;
+pub mod records;
 pub mod routes;
 pub mod search;
 pub mod session;
@@ -50,6 +51,7 @@ use crate::{
     error::ApiError,
     github::{GitHub, GitHubError},
     oidc::{Oidc, RegistryTokens},
+    records::{Memory, Postgres, Records, RecordsError, Terms},
     session::Sealer,
     tenant::{BlobCache, Tenant, Tenants},
     website::Website,
@@ -68,6 +70,12 @@ pub enum StartError {
     Billing {
         #[from]
         source: BillingError,
+    },
+    #[error("{source}")]
+    #[diagnostic(code(start::records))]
+    Records {
+        #[from]
+        source: RecordsError,
     },
 }
 
@@ -93,12 +101,23 @@ pub struct AppState {
     pub members: members::Members,
     pub website: Website,
     pub compliance: compliance::Compliance,
+    /// Who accepted the terms for each organisation.
+    pub terms: Terms,
     /// When the server started, in Unix seconds.
     pub started_at: u64,
 }
 
 impl AppState {
     pub fn new(config: Config) -> Result<Self, StartError> {
+        let records: Box<dyn Records> = match &config.database_url {
+            Some(url) => Box::new(Postgres::connect_lazy(url)?),
+            None => {
+                tracing::warn!(
+                    "DATABASE_URL is not set, so terms acceptances are kept in memory and lost at every restart"
+                );
+                Box::new(Memory::default())
+            }
+        };
         Ok(Self {
             gh: GitHub::new(&config)?,
             tenants: Tenants::default(),
@@ -122,6 +141,7 @@ impl AppState {
             members: members::Members::default(),
             website: Website::new(config.website_dir.as_deref()),
             compliance: compliance::Compliance::default(),
+            terms: Terms::new(records),
             started_at: github::now_secs(),
             config,
         })

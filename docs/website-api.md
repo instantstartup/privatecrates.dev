@@ -13,6 +13,15 @@ The website (SvelteKit, static build) is served by the Rust server on the **apex
 Reserved slugs (refused at onboarding, never routed as tenants): `www`, `dev`, `api`, `app`, `docs`, `status`,
 `mail`, `admin`, `billing`, `login`, `static`, `assets`.
 
+## The preview
+
+`PREVIEW` (default `true` until general availability; docs/preview.md §1) turns billing off whatever Stripe
+configuration is present: every organisation's `plan` is `free` (with `members` still reported), `trial_available` is
+`false`, nothing is enforced, no trial reminders are added to publishes, Stripe is never called (no subscription
+loading, trials, Checkout or portal, and `/webhooks/stripe` answers 404), and `/trial`, `/checkout`, `/portal` and
+`/billing-email` answer `409 billing::preview` for admins. The onboarding `plan` step is `done`, with the detail
+"Free during the preview." The billing model below applies with `PREVIEW=false`.
+
 ## Billing model
 
 - **Free** for organisations with **5 or fewer members** (`FREE_MEMBER_LIMIT`, default 5): every feature, no Stripe
@@ -34,7 +43,8 @@ Reserved slugs (refused at onboarding, never routed as tenants): `www`, `dev`, `
   but nothing is enforced: every tenant is active, `trial_available` is `false`, and `tenant.status` is `null`.
 - Stripe is the source of truth for subscriptions. Each subscription's metadata holds `github_org_id` and
   `github_org_login`. The server loads subscriptions at start-up, re-lists them every 10 minutes, and keeps them
-  current from Stripe webhooks; there is still no database.
+  current from Stripe webhooks: billing state has no database of ours. The only thing the server stores itself is the
+  terms acceptance records, in Postgres (see *Terms* below).
 - A tenant is **active** when it is free (at or under the limit), or its subscription is `trialing`, `active` or
   `past_due` (Stripe retries payment). Otherwise (subscription `canceled`/`unpaid`, e.g. a trial that ended with no
   card): publishing is refused at once with `billing::subscription_inactive` (HTTP 402); reads keep working for 14 days
@@ -44,6 +54,20 @@ Reserved slugs (refused at onboarding, never routed as tenants): `www`, `dev`, `
   enabled in the Dashboard (see `docs/deploy.md`).
 - An organisation that shrinks to the limit becomes free again at once; the account page tells admins with a
   subscription that they can cancel it in the billing portal (we do not cancel automatically: counts can fluctuate).
+
+## Terms
+
+An organisation admin accepts the current PrivateCrates terms (version `preview-2026-09-27`, published at
+`https://{BASE_DOMAIN}/legal/terms`) before its registry is created, and an admin of a registry set up earlier is
+asked to. Each acceptance is recorded in our own Postgres (`DATABASE_URL`), not in the customer's repository: the
+organisation (id, login), the admin (GitHub id, login), the version, the time, `via` (`website` for the session
+cookie, `cli` for a bearer token) and the exact statement accepted, "I have read and accept the PrivateCrates preview
+terms (preview-2026-09-27) on behalf of {org}". The table is append-only; the first acceptance of each version is kept
+and a repeat is a no-op. A registry without an acceptance keeps working.
+
+`accept_terms` must be the current version as a string; anything else (missing, another version, another type) is
+refused with `account::terms_not_accepted` (400), whose detail names the version and the terms' URL. Neither the
+website nor the CLI fills it in on the admin's behalf.
 
 ## Session
 
@@ -69,7 +93,8 @@ Reserved slugs (refused at onboarding, never routed as tenants): `www`, `dev`, `
 ## Endpoints (apex host only)
 
 All JSON. Errors use `{"errors":[{"detail": "...", "code": "..."}]}` with the apollo-errors code. `POST` bodies are
-`{}`, except for `/settings` (`{"slug": …}`), and `/trial` and `/billing-email` (`{"billing_email": …}`).
+`{}`, except for `/settings` (`{"slug": …, "accept_terms": …}`), `/terms` (`{"accept_terms": …}`), and `/trial` and
+`/billing-email` (`{"billing_email": …}`).
 
 ### `GET /auth/github/login?return_to=/account`
 Redirects to GitHub's authorisation page for the reader App, with a signed `state` (includes `return_to`, which must be
@@ -91,11 +116,17 @@ Clears the cookie. `204`.
       "plan": "trial", "trial_ends_at": "2026-12-26T00:00:00Z", "has_payment_method": false,
       "billing_email_missing": false, "current_period_end": null, "trial_available": false,
       "tenant": { "slug": "acme", "registry_url": "https://acme.privatecrates.dev", "status": "trialing",
-                  "trial_ends_at": "2026-12-26T00:00:00Z", "current_period_end": null } }
+                  "trial_ends_at": "2026-12-26T00:00:00Z", "current_period_end": null },
+      "terms_accepted": true }
   ],
-  "install_url": "https://github.com/apps/privatecrates-reader/installations/new"
+  "install_url": "https://github.com/apps/privatecrates-reader/installations/new",
+  "preview": false,
+  "terms": { "version": "preview-2026-09-27", "url": "https://privatecrates.dev/legal/terms" }
 }
 ```
+`preview` is `true` during the preview (then every `plan` is `free`). `terms` (also when signed out) is the version an
+admin accepts now and where to read it. Per organisation, `terms_accepted` says whether an admin has accepted that
+version (looked up in our records, cached for a minute; `false` if the lookup fails).
 Per organisation, `plan` is one of `free` (at or under the member limit), `trial`, `paid`, `past_due` or `inactive`
 (ended or never started while over the limit); `members` is `null` when the count is unknown (the reader App is not
 installed yet). `trial_available` says whether `POST /trial` will work. `billing_email_missing` is `true` when the
@@ -120,14 +151,23 @@ For an org the user belongs to. Each step is `done`, `todo` or `blocked`, with a
     { "id": "settings", "status": "todo", "detail": "Choose your registry name." },
     { "id": "plan", "status": "todo", "detail": "12 members: start your 3-month free trial, no card needed." }
   ],
-  "suggested_slug": "acme"
+  "suggested_slug": "acme",
+  "terms": { "version": "preview-2026-09-27", "url": "https://privatecrates.dev/legal/terms", "accepted": false }
 }
 ```
 Only org admins can act; members see the same checklist with `blocked` steps and a note to ask an admin.
 
-### `POST /api/orgs/{org}/settings` `{"slug": "acme"}`
-Admin only. Validates the slug (format, reserved, not taken) and has the storage App **create** `privatecrates.toml`
-in the storage repository (creation only; refused if it exists). Returns the onboarding document.
+### `POST /api/orgs/{org}/settings` `{"slug": "acme", "accept_terms": "preview-2026-09-27"}`
+Admin only. Validates the slug (format, reserved), then `accept_terms` (`account::terms_not_accepted` 400), then that
+the organisation has no registry and the slug is not taken. It records the admin's acceptance of the terms first (if
+that fails, `records::unavailable` 503 and nothing is created), then has the storage App **create**
+`privatecrates.toml` in the storage repository (creation only; refused if it exists). Returns the onboarding document.
+
+### `POST /api/orgs/{org}/terms` `{"accept_terms": "preview-2026-09-27"}`
+Admin only. For a registry set up before the terms, or before their current version: records the admin's acceptance.
+Accepting again succeeds and records nothing new. Refused with `account::terms_not_accepted` 400 for anything but the
+current version, and `account::not_set_up` 409 if the organisation has no registry (its terms are accepted at set-up).
+Returns the onboarding document.
 
 The `plan` step (formerly `subscription`) is `done` when the organisation is free or has an active, trialing or
 past-due subscription; otherwise `todo` with a `detail` saying which action applies.

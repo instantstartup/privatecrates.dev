@@ -43,6 +43,14 @@ for CI* the deploy starts only once CI has passed on that commit [R3]. Tags (`vX
 memory and updates them from webhooks; a second replica would miss the webhooks the first received. Do not raise
 the replica count or enable App Sleeping (serverless).
 
+**One small Postgres database per environment, for terms acceptances only.** Everything else the server knows comes
+from GitHub or Stripe and is rebuilt at start-up. The record that an organisation admin accepted the terms
+(docs/preview.md §2) is our evidence, so it cannot live in the customer's storage repository, which they can delete:
+it is kept in Railway Postgres, in the same project and region (§6.3). The `terms_acceptances` table is
+**append-only**: the server only inserts (the first acceptance of each version is kept, and a repeat is a no-op) and
+never updates or deletes a row. Deployments refuse to start without `DATABASE_URL`, so that a registry is never
+created without its acceptance recorded.
+
 **Cloudflare DNS only ("grey cloud") for every record; Railway terminates TLS.** Railway supports custom domains and
 wildcard custom domains at any single level, including nested ones such as `*.dev.privatecrates.dev`, and issues
 their certificates itself; for a wildcard it needs an `_acme-challenge` CNAME delegated to `authorize.railwaydns.net`,
@@ -236,6 +244,7 @@ Customers, Subscriptions, Checkout Sessions and Customer portal, and read access
 cd <your clone of worldbuilding-dev/privatecrates.dev>
 railway init --name privatecrates                 # new project; its first environment is "production"
 railway add --service privatecrates --repo worldbuilding-dev/privatecrates.dev
+railway add --database postgres                   # the terms acceptances (§6.3); service "Postgres"
 railway environment new dev --duplicate production
 railway link                                      # choose privatecrates / dev / privatecrates
 ```
@@ -256,6 +265,10 @@ dashboard [R2]: Dockerfile builder, health check `GET /healthz` (up to 120 s; th
 discovery at start-up has finished), restart on failure (up to 10 times), 30 s draining, and watch patterns so that
 changes to docs alone do not redeploy. Railway sets `PORT` and routes the domains to it; the image defaults to 8080.
 
+Duplicating production gives dev its own Postgres, with its own data. In a project whose environments already exist,
+run `railway add --database postgres` in each (`railway link` to the environment first). Put the Postgres service in
+the same region as the server (US East (Virginia)) in both environments.
+
 Connect production's source only once its variables are set (§6.2), or its first deploy fails to start. The
 Railway CLI's `service source connect` sets the source for every environment at once; set per-environment branches
 in the dashboard.
@@ -268,6 +281,8 @@ history, and `--skip-deploys` avoids a deploy per variable [R4]. For dev:
 ```sh
 E=dev S=privatecrates D=~/privatecrates-secrets
 railway variable set -e $E -s $S --skip-deploys BASE_DOMAIN=dev.privatecrates.dev
+# A reference to the environment's own Postgres service, resolved by Railway (single quotes: no shell expansion)
+railway variable set -e $E -s $S --skip-deploys 'DATABASE_URL=${{Postgres.DATABASE_URL}}'
 railway variable set -e $E -s $S --skip-deploys REGISTRY_TOKEN_SECRET --stdin < $D/$E/REGISTRY_TOKEN_SECRET
 railway variable set -e $E -s $S --skip-deploys SESSION_SECRET        --stdin < $D/$E/SESSION_SECRET
 railway variable set -e $E -s $S --skip-deploys WEBHOOK_SECRET        --stdin < $D/$E/WEBHOOK_SECRET
@@ -292,6 +307,30 @@ live-mode Stripe values. Check with `railway variable list -e $E -s $S` (it prin
 Once the variables are in, delete the local copies of the private keys and client secrets, or move them into the
 password manager.
 
+### 6.3 The database and its backups
+
+The server runs its migrations (embedded in the binary, `crates/privatecrates-server/migrations`) at start-up, so
+there is nothing to run by hand. `DATABASE_URL` is the private-network URL, so the server's queries never leave
+Railway. The only table, `terms_acceptances`, is append-only (§1): nobody should update or delete its rows, not even
+by hand, except to honour a legal obligation, and then with a note of why.
+
+Backups, in each environment's Postgres service → **Backups** [R7][R8]:
+
+- Turn on the **Daily** (kept 6 days), **Weekly** (kept about a month) and **Monthly** (kept about 3 months)
+  schedules; several can run at once, and a backup can also be taken by hand, for instance before a migration [R7].
+  They are incremental, copy-on-write snapshots, billed like volume storage for the data they alone hold [R7].
+- A backup restores only into the same project and environment, restoring removes the backups newer than it, and
+  **wiping the volume deletes every backup** [R7][R8]. So in production, also keep an offsite logical dump from time
+  to time (the only copy that survives deleting the project [R8]), in the password manager's secure file storage:
+
+  ```sh
+  railway link                                   # privatecrates / production / Postgres
+  railway connect postgres --tunnel-only         # prints a local connection; in another terminal:
+  pg_dump "<the tunnel's URL>" --format=custom --no-owner --file=terms-$(date +%F).dump
+  ```
+
+- Try a restore into a scratch database once, so that it is known to work before it is needed [R8].
+
 ## 7. Environment variables
 
 `dev` / `production` values; *secret* means treat as a credential (Railway stores all variables encrypted, but
@@ -300,6 +339,7 @@ secrets must never be logged, committed or shared).
 | Variable | Secret | dev | production | Purpose, source |
 |---|---|---|---|---|
 | `BASE_DOMAIN` | no | `dev.privatecrates.dev` | `privatecrates.dev` | Apex host; tenants are `{slug}.BASE_DOMAIN`. |
+| `DATABASE_URL` | **yes** | `${{Postgres.DATABASE_URL}}` | `${{Postgres.DATABASE_URL}}` | §6.3. A Railway reference to the environment's Postgres; the terms acceptances. Required: the server refuses to start without it (except for local development over `http`). |
 | `REGISTRY_TOKEN_SECRET` | **yes** | generated | generated | §3. Signs `pcr_` tokens; ≥ 32 bytes. |
 | `SESSION_SECRET` | **yes** | generated | generated | §3. Encrypts the `pc_session` cookie. |
 | `WEBHOOK_SECRET` | **yes** | generated | generated | §3. GitHub webhook signatures; set on both Apps. |
@@ -324,6 +364,7 @@ Leave these unset (the defaults are right for both environments):
 | `PUBLIC_SCHEME` | `https` | `http` only for local testing. |
 | `GITHUB_API_URL`, `GITHUB_WEB_URL` | `https://api.github.com`, `https://github.com` | Tests point these at a fake. |
 | `STRIPE_API_URL` | Stripe's API | Tests point this at a fake. |
+| `PREVIEW` | `true` | The preview (docs/preview.md): free for everyone, billing off whatever Stripe configuration is set. `false` from general availability. |
 | `FREE_MEMBER_LIMIT` | 5 | Organisations with at most this many members (active members, from the reader App; not outside collaborators or pending invitations) are free. |
 | `TRIAL_DAYS` | 90 | Length of the no-card trial larger organisations get once. |
 | `OIDC_ISSUER`, `OIDC_JWKS_URL` | GitHub Actions' | |
@@ -645,6 +686,10 @@ Consulted in September 2026.
   and *Troubleshooting SSL*: <https://docs.railway.com/networking/troubleshooting/ssl>
 - [R6] Cloudflare, Universal SSL covers the apex and one level of subdomain; Advanced Certificate Manager for deeper
   names: <https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/limitations/>
+- [R7] Railway, *Backups* (schedules and retention, restore, same project and environment, wiping deletes backups,
+  incremental billing): <https://docs.railway.com/volumes/backups>
+- [R8] Railway, *Back Up and Restore Postgres* (volume backups, point-in-time recovery, `pg_dump`, restore drills):
+  <https://docs.railway.com/guides/postgres-backups-restores>
 - [G1] GitHub, *Registering a GitHub App from a manifest*:
   <https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest>
 - [G2] GitHub REST, *Create a GitHub App from a manifest*:

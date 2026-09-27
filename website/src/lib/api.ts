@@ -35,7 +35,8 @@ export interface Org {
 	/** A trial started by itself (the organisation grew past the free limit) and Stripe has no address to remind. */
 	billing_email_missing?: boolean;
 	/**
-	 * Whether the organisation has accepted the current terms (a `terms/{version}.toml` in its storage repository).
+	 * Whether the organisation has accepted the current terms (recorded in PrivateCrates' own database, not the storage
+	 * repository, so the evidence survives the customer revoking access).
 	 * Absent from servers older than the preview terms: then nothing is asked.
 	 */
 	terms_accepted?: boolean;
@@ -83,6 +84,8 @@ export interface Step {
 export interface Onboarding {
 	org: { id: number; login: string };
 	steps: Step[];
+	/** The current terms and whether this organisation has accepted them. */
+	terms?: { version: string; url: string; accepted: boolean };
 	suggested_slug?: string;
 }
 

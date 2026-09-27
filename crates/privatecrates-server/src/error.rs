@@ -11,7 +11,10 @@ use axum::{
 };
 use miette::Diagnostic;
 
-use crate::{billing::BillingError, github::GitHubError, oidc::OidcError, tenant::TenantError};
+use crate::{
+    billing::BillingError, github::GitHubError, oidc::OidcError, records::RecordsError,
+    tenant::TenantError,
+};
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum ApiError {
@@ -327,6 +330,11 @@ pub enum ApiError {
     #[http_status(503)]
     BillingNotConfigured,
 
+    #[error("PrivateCrates is free during the preview; there is nothing to pay")]
+    #[diagnostic(code(billing::preview))]
+    #[http_status(409)]
+    BillingPreview,
+
     #[error("{org} already has a subscription; manage it from the billing portal")]
     #[diagnostic(code(billing::already_subscribed))]
     #[http_status(409)]
@@ -448,6 +456,24 @@ pub enum ApiError {
     },
 
     #[error(
+        "creating a registry needs an organisation admin to accept the PrivateCrates terms: read them at \
+         {terms_url}, then send `accept_terms` with the current version, {version}"
+    )]
+    #[diagnostic(code(account::terms_not_accepted))]
+    #[http_status(400)]
+    TermsNotAccepted {
+        #[extension]
+        version: &'static str,
+        #[extension]
+        terms_url: String,
+    },
+
+    #[error("{org} has no registry yet; its terms are accepted when an admin sets it up")]
+    #[diagnostic(code(account::not_set_up))]
+    #[http_status(409)]
+    NotSetUp { org: String },
+
+    #[error(
         "the storage App must be installed on exactly one repository of {org}, the storage repository, before \
          the registry can be set up"
     )]
@@ -479,6 +505,14 @@ pub enum ApiError {
     GitHub {
         #[source]
         source: GitHubError,
+    },
+
+    #[error("our records are unavailable, so nothing was changed; please try again")]
+    #[diagnostic(code(records::unavailable))]
+    #[http_status(503)]
+    Records {
+        #[source]
+        source: RecordsError,
     },
 
     #[error("internal error; please try again")]
@@ -526,6 +560,12 @@ impl From<TenantError> for ApiError {
 impl From<BillingError> for ApiError {
     fn from(source: BillingError) -> Self {
         Self::Stripe { source }
+    }
+}
+
+impl From<RecordsError> for ApiError {
+    fn from(source: RecordsError) -> Self {
+        Self::Records { source }
     }
 }
 

@@ -9,8 +9,9 @@ use std::{
 
 use axum::{
     Form, Json, Router,
-    extract::{Path, Query, State},
+    extract::{Path, Query, Request, State},
     http::{HeaderMap, StatusCode, header},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -32,6 +33,8 @@ const DAY: u64 = 24 * 60 * 60;
 #[derive(Default)]
 struct World {
     next_id: u64,
+    /// How many requests the fake received, of any kind.
+    requests: usize,
     customers: Vec<Value>,
     /// In creation order; `customer` is the customer's ID.
     subscriptions: Vec<Value>,
@@ -195,6 +198,11 @@ impl FakeStripe {
             .collect()
     }
 
+    /// How many requests reached the fake.
+    pub fn requests(&self) -> usize {
+        self.world().requests
+    }
+
     pub fn customers(&self) -> Vec<Value> {
         self.world().customers.clone()
     }
@@ -266,7 +274,13 @@ fn router(fake: FakeStripe) -> Router {
         .route("/v1/subscriptions/{id}", get(subscription))
         .route("/v1/checkout/sessions", post(create_checkout))
         .route("/v1/billing_portal/sessions", post(create_portal))
+        .layer(middleware::from_fn_with_state(fake.clone(), count))
         .with_state(fake)
+}
+
+async fn count(State(fake): State<FakeStripe>, request: Request, next: Next) -> Response {
+    fake.world().requests += 1;
+    next.run(request).await
 }
 
 fn error(status: StatusCode, message: &str) -> Response {

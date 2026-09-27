@@ -43,6 +43,37 @@ jobs:
       - name: Package the publishable crates
         run: cargo publish --dry-run --locked -p privatecrates-common -p privatecrates-auth -p cargo-credential-privatecrates -p cargo-privatecrates -p privatecrates-verify
 
+  postgres:
+    name: Rust (Postgres records)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
+        env:
+          POSTGRES_USER: privatecrates
+          POSTGRES_PASSWORD: privatecrates
+          POSTGRES_DB: privatecrates
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U privatecrates"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-09-12
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # The SQL of the terms acceptances: migrations, inserts, the conflict no-op and lookups.
+      - run: cargo test -p privatecrates-server --test records --locked -- --ignored
+        env:
+          DATABASE_URL: postgres://privatecrates:privatecrates@localhost:5432/privatecrates
+
   website:
     name: Website (check, lint, build)
     runs-on: ubuntu-24.04
