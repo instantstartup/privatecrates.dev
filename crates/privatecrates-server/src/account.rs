@@ -246,7 +246,6 @@ async fn has_settings(state: &AppState, token: &str, repo: &Repo) -> Result<bool
     {
         Ok(Conditional::Modified { value, .. }) => value,
         Ok(Conditional::NotModified) => return Ok(false),
-        // An empty repository has no branch yet.
         Err(GitHubError::NotFound) => return Ok(false),
         Err(e) => return Err(e.into()),
     };
@@ -495,7 +494,8 @@ async fn settings(
     };
     match state
         .gh
-        .put_file(&token, &repo.full_name, &repo.default_branch, write)
+        // The default branch: a new storage repository is empty, and this becomes its first commit.
+        .put_file(&token, &repo.full_name, None, write)
         .await
     {
         Ok(_) => {}

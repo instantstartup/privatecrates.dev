@@ -51,6 +51,19 @@
 		}
 	}
 
+	// Installing the reader App happens in a new tab; when the user comes back, their new organisation may be listed.
+	let awaitingInstall = $state(false);
+	$effect(() => {
+		const onVisible = () => {
+			if (document.visibilityState === 'visible' && awaitingInstall) {
+				awaitingInstall = false;
+				void loadSession(false);
+			}
+		};
+		document.addEventListener('visibilitychange', onVisible);
+		return () => document.removeEventListener('visibilitychange', onVisible);
+	});
+
 	// Load on arrival, and again whenever the query changes (e.g. returning from GitHub or Stripe).
 	$effect(() => {
 		void search;
@@ -191,11 +204,22 @@
 				</p>
 				{#if installUrl}
 					<div>
-						<a class="btn btn-primary" href={installUrl}>Set up a new organisation</a>
+						<a
+							class="btn btn-primary"
+							href={installUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							onclick={() => (awaitingInstall = true)}
+							>Set up a new organisation<span class="new-tab" aria-hidden="true">↗</span><span
+								class="visually-hidden"
+							>
+								(opens in a new tab)</span
+							></a
+						>
 					</div>
 					<p class="fine">
-						On GitHub, choose the organisation and approve the install; it needs an organisation owner. GitHub
-						then brings you back here.
+						GitHub opens in a new tab: choose the organisation and approve the install (it needs an
+						organisation owner), then come back to this tab.
 					</p>
 				{:else}
 					<p>Ask an owner of your organisation to install the reader App, then reload this page.</p>
@@ -211,8 +235,19 @@
 					<OrgList {orgs} selected={selected?.login ?? null} />
 					{#if installUrl}
 						<div class="add-org">
-							<a class="btn btn-quiet" href={installUrl}>Set up a new organisation</a>
-							<p class="fine">Installs the reader App on another organisation, then returns here.</p>
+							<a
+								class="btn btn-quiet"
+								href={installUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								onclick={() => (awaitingInstall = true)}
+								>Set up a new organisation<span class="new-tab" aria-hidden="true">↗</span><span
+									class="visually-hidden"
+								>
+									(opens in a new tab)</span
+								></a
+							>
+							<p class="fine">Installs the reader App on another organisation, in a new tab.</p>
 						</div>
 					{/if}
 				</div>

@@ -568,6 +568,17 @@ impl GitHub {
         if response.status() == StatusCode::NOT_MODIFIED {
             return Ok(Conditional::NotModified);
         }
+        // A repository with no commits yet, such as a newly created storage repository, has no tree: GitHub answers
+        // 409 "Git Repository is empty". It holds no files.
+        if response.status() == StatusCode::CONFLICT {
+            return Ok(Conditional::Modified {
+                value: Tree {
+                    tree: Vec::new(),
+                    truncated: false,
+                },
+                etag: None,
+            });
+        }
         let etag = response
             .headers()
             .get(header::ETAG)
@@ -604,18 +615,21 @@ impl GitHub {
 
     /// Creates or updates one file in one commit. A mismatch between `write.sha` and the file's current blob sha
     /// is a [`GitHubError::Conflict`]. Returns the new blob sha.
+    /// `branch` is `None` for the repository's default branch, which also works in an empty repository, where the
+    /// write becomes the first commit.
     pub async fn put_file(
         &self,
         token: &str,
         repo: &str,
-        branch: &str,
+        branch: Option<&str>,
         write: FileWrite<'_>,
     ) -> Result<String, GitHubError> {
         #[derive(Serialize)]
         struct Body<'a> {
             message: &'a str,
             content: String,
-            branch: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            branch: Option<&'a str>,
             #[serde(skip_serializing_if = "Option::is_none")]
             sha: Option<&'a str>,
         }

@@ -60,6 +60,20 @@
 	const current = $derived(doc.steps.find((s) => s.status === 'todo')?.id ?? null);
 	const doneCount = $derived(doc.steps.filter((s) => s.status === 'done').length);
 
+	// GitHub steps open in a new tab; when the user comes back to this one, check what they did there.
+	let awaitingGitHub = $state(false);
+
+	$effect(() => {
+		const onVisible = () => {
+			if (document.visibilityState === 'visible' && awaitingGitHub && !refreshing) {
+				awaitingGitHub = false;
+				void onrefresh();
+			}
+		};
+		document.addEventListener('visibilitychange', onVisible);
+		return () => document.removeEventListener('visibilitychange', onVisible);
+	});
+
 	let checkingOut = $state(false);
 	let checkoutError = $state<ApiError | null>(null);
 
@@ -142,7 +156,18 @@
 								</div>
 							{:else if step.action_url}
 								<div class="row">
-									<a class="btn btn-primary" href={step.action_url}>{c.action ?? 'Continue on GitHub'}</a>
+									<a
+										class="btn btn-primary"
+										href={step.action_url}
+										target="_blank"
+										rel="noopener noreferrer"
+										onclick={() => (awaitingGitHub = true)}
+										>{c.action ?? 'Continue on GitHub'}<span class="new-tab" aria-hidden="true">↗</span><span
+											class="visually-hidden"
+										>
+											(opens in a new tab)</span
+										></a
+									>
 									<button class="btn btn-quiet" type="button" onclick={onrefresh} disabled={refreshing}>
 										{refreshing ? 'Checking…' : 'I’ve done this: check again'}
 									</button>

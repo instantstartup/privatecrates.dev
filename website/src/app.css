@@ -338,3 +338,8 @@
 		scroll-behavior: auto !important;
 	}
 }
+
+/* Marks a link that opens in a new tab; the text for screen readers is in a visually hidden span. */
+.new-tab {
+	margin-inline-start: 0.35em;
+}

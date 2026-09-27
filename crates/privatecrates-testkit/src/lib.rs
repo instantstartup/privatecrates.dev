@@ -1014,6 +1014,10 @@ async fn tree(
         Err(e) => return e,
     };
     let files = &w.repos[&repo].files;
+    // Like GitHub, a repository with no commits has no tree.
+    if files.is_empty() {
+        return error(StatusCode::CONFLICT, "Git Repository is empty.");
+    }
     let etag = format!("\"{}\"", hex::encode(Sha256::digest(format!("{files:?}"))));
     if headers
         .get(header::IF_NONE_MATCH)

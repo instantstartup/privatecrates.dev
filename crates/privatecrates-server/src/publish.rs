@@ -419,7 +419,7 @@ async fn create_owner(
         .put_file(
             &token,
             &tenant.storage_repo,
-            &tenant.branch,
+            Some(&tenant.branch),
             FileWrite {
                 path: &path,
                 content: &content,
@@ -544,7 +544,7 @@ async fn append_index(
             .put_file(
                 &token,
                 &tenant.storage_repo,
-                &tenant.branch,
+                Some(&tenant.branch),
                 FileWrite {
                     path: &path,
                     content: &content,
@@ -601,7 +601,7 @@ pub async fn set_yanked(
             .put_file(
                 &token,
                 &tenant.storage_repo,
-                &tenant.branch,
+                Some(&tenant.branch),
                 FileWrite {
                     path: &path,
                     content: &content,
