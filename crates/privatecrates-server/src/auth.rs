@@ -1,13 +1,17 @@
 //! Who is calling, and what GitHub lets them read or push (SPEC §6).
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::http::{HeaderMap, header};
 use sha2::{Digest, Sha256};
 
 use crate::{
     error::ApiError,
-    github::{GitHub, GitHubError},
+    github::{AppKind, GitHub, GitHubError},
     oidc::{REGISTRY_TOKEN_PREFIX, RegistryTokens},
     tenant::{CiRead, Tenant},
 };
@@ -83,13 +87,23 @@ impl From<CachedDenial> for ApiError {
     }
 }
 
+/// (token hash, reader installation): the key of one token's repository set in one tenant.
+type UserKey = ([u8; 32], u64);
+
 pub struct PermissionCache {
-    /// (token hash, installation) → repository set, for App user tokens.
-    users: moka::future::Cache<([u8; 32], u64), Cached<Arc<UserAccess>>>,
-    /// (token hash, repository) → push permission if readable, for other GitHub tokens.
-    repos: moka::future::Cache<([u8; 32], u64), Cached<Option<bool>>>,
+    /// (token hash, reader installation) → repository set, for App user tokens.
+    users: moka::future::Cache<UserKey, Cached<Arc<UserAccess>>>,
+    /// GitHub user ID → the keys of their repository sets, so that a webhook can drop them (SPEC §7). An entry is
+    /// refreshed whenever a key is added, so it outlives the sets it lists; keys of expired sets are pruned then.
+    by_user: moka::future::Cache<u64, Arc<HashSet<UserKey>>>,
+    /// (token hash, reader installation, repository) → push permission if readable, for other GitHub tokens.
+    repos: moka::future::Cache<([u8; 32], u64, u64), Cached<Option<bool>>>,
     /// token hash → user, for other GitHub tokens.
     logins: moka::future::Cache<[u8; 32], Cached<String>>,
+    /// (token hash, reader installation) → whether the user is an owner of the organisation (SPEC §6.2).
+    org_admins: moka::future::Cache<UserKey, Cached<bool>>,
+    /// Reader installation → the repositories in it, to tell when an owning repository was deleted (SPEC §6.2).
+    live_repos: moka::future::Cache<u64, Arc<HashSet<u64>>>,
 }
 
 const DENIAL_TTL: Duration = Duration::from_secs(30);
@@ -115,6 +129,10 @@ impl PermissionCache {
                 .time_to_live(ttl)
                 .expire_after(Expiry)
                 .build(),
+            by_user: moka::future::Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(ttl)
+                .build(),
             repos: moka::future::Cache::builder()
                 .max_capacity(1_000_000)
                 .time_to_live(ttl)
@@ -125,7 +143,79 @@ impl PermissionCache {
                 .time_to_live(ttl)
                 .expire_after(Expiry)
                 .build(),
+            org_admins: moka::future::Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(ttl)
+                .expire_after(Expiry)
+                .build(),
+            live_repos: moka::future::Cache::builder()
+                .max_capacity(10_000)
+                .time_to_live(ttl)
+                .build(),
         }
+    }
+
+    async fn insert_user(&self, key: UserKey, value: Cached<Arc<UserAccess>>) {
+        let user_id = value.as_ref().ok().map(|access| access.user_id);
+        self.users.insert(key, value).await;
+        let Some(user_id) = user_id else {
+            return;
+        };
+        self.by_user
+            .entry(user_id)
+            .and_upsert_with(|existing| async move {
+                let mut keys: HashSet<UserKey> = existing
+                    .map(|e| {
+                        e.into_value()
+                            .iter()
+                            .filter(|k| self.users.contains_key(*k))
+                            .copied()
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                keys.insert(key);
+                Arc::new(keys)
+            })
+            .await;
+    }
+
+    /// Drops what is cached about one user's access, for a webhook saying it changed (SPEC §7): their repository
+    /// sets in every tenant and, in the tenant with this reader installation, the entries of other token types,
+    /// whose users are not known.
+    pub async fn forget_user(&self, user_id: u64, reader_installation: Option<u64>) {
+        if let Some(keys) = self.by_user.remove(&user_id).await {
+            for key in keys.iter() {
+                self.users.invalidate(key).await;
+            }
+        }
+        if let Some(installation) = reader_installation {
+            invalidate_where(&self.repos, |k| k.1 == installation).await;
+            invalidate_where(&self.org_admins, |k| k.1 == installation).await;
+        }
+    }
+
+    /// Drops everything cached about permissions in the tenant with this reader installation (SPEC §7).
+    pub async fn forget_installation(&self, reader_installation: u64) {
+        invalidate_where(&self.users, |k| k.1 == reader_installation).await;
+        invalidate_where(&self.repos, |k| k.1 == reader_installation).await;
+        invalidate_where(&self.org_admins, |k| k.1 == reader_installation).await;
+        self.live_repos.invalidate(&reader_installation).await;
+    }
+}
+
+/// Invalidates the entries whose keys match: a scan, but the webhooks that need one are rare.
+async fn invalidate_where<K, V>(cache: &moka::future::Cache<K, V>, matches: impl Fn(&K) -> bool)
+where
+    K: std::hash::Hash + Eq + Send + Sync + 'static,
+    V: Clone + Send + Sync + 'static,
+{
+    let keys: Vec<Arc<K>> = cache
+        .iter()
+        .filter(|(k, _)| matches(k))
+        .map(|(k, _)| k)
+        .collect();
+    for key in keys {
+        cache.invalidate(key.as_ref()).await;
     }
 }
 
@@ -140,7 +230,10 @@ fn denial(e: GitHubError) -> Result<CachedDenial, ApiError> {
 
 /// An authenticated caller of one tenant.
 pub enum Caller {
-    User(Arc<UserAccess>),
+    User {
+        access: Arc<UserAccess>,
+        token: String,
+    },
     GitHubToken {
         token: String,
         hash: [u8; 32],
@@ -163,7 +256,10 @@ impl Resolver<'_> {
     /// are only for publishing, where the audience binds them to the bytes (see `publish`).
     pub async fn caller(&self, credential: Credential) -> Result<Caller, ApiError> {
         match credential {
-            Credential::AppUser(token) => self.user(&token).await.map(Caller::User),
+            Credential::AppUser(token) => {
+                let access = self.user(&token).await?;
+                Ok(Caller::User { access, token })
+            }
             Credential::Registry(token) => {
                 let claims = self
                     .registry_tokens
@@ -207,7 +303,7 @@ impl Resolver<'_> {
             Ok(access) => Ok(access),
             Err(e) => Err(denial(e)?),
         };
-        self.cache.users.insert(key, value.clone()).await;
+        self.cache.insert_user(key, value.clone()).await;
         value.map_err(Into::into)
     }
 
@@ -218,7 +314,7 @@ impl Resolver<'_> {
         hash: [u8; 32],
         repository_id: u64,
     ) -> Result<Option<bool>, ApiError> {
-        let key = (hash, repository_id);
+        let key = (hash, self.tenant.reader_installation, repository_id);
         if let Some(cached) = self.cache.repos.get(&key).await {
             return cached.map_err(Into::into);
         }
@@ -231,21 +327,76 @@ impl Resolver<'_> {
     }
 
     pub async fn can_read(&self, caller: &Caller, repository_id: u64) -> Result<bool, ApiError> {
-        match caller {
-            Caller::User(access) => Ok(access.repos.contains_key(&repository_id)),
-            Caller::GitHubToken { token, hash } => Ok(self
+        let readable = match caller {
+            Caller::User { access, .. } => access.repos.contains_key(&repository_id),
+            Caller::GitHubToken { token, hash } => self
                 .repo_access(token, *hash, repository_id)
                 .await?
-                .is_some()),
-            Caller::Ci { .. } => match self.tenant.settings.ci_read {
-                CiRead::Organisation => Ok(true),
-            },
+                .is_some(),
+            Caller::Ci { .. } => {
+                return match self.tenant.settings.ci_read {
+                    CiRead::Organisation => Ok(true),
+                };
+            }
+        };
+        if readable {
+            return Ok(true);
         }
+        // SPEC §6.2: while a crate's owning repository is deleted, organisation owners can still read the crate.
+        if self.repository_exists(repository_id).await? {
+            return Ok(false);
+        }
+        self.is_org_admin(caller).await
+    }
+
+    /// Whether a repository still exists in the tenant, as the reader App's installation sees it. One lookup per
+    /// tenant per cache period, with our installation token.
+    async fn repository_exists(&self, repository_id: u64) -> Result<bool, ApiError> {
+        let installation = self.tenant.reader_installation;
+        if let Some(live) = self.cache.live_repos.get(&installation).await {
+            return Ok(live.contains(&repository_id));
+        }
+        let token = self
+            .gh
+            .installation_token(AppKind::Reader, installation)
+            .await?;
+        let live: Arc<HashSet<u64>> = Arc::new(
+            self.gh
+                .installation_repositories(&token)
+                .await?
+                .into_iter()
+                .map(|r| r.id)
+                .collect(),
+        );
+        self.cache
+            .live_repos
+            .insert(installation, live.clone())
+            .await;
+        Ok(live.contains(&repository_id))
+    }
+
+    /// Whether the caller is an owner of the tenant's organisation: an active member with the `admin` role.
+    async fn is_org_admin(&self, caller: &Caller) -> Result<bool, ApiError> {
+        let (token, hash) = match caller {
+            Caller::User { token, .. } => (token.as_str(), token_hash(token)),
+            Caller::GitHubToken { token, hash } => (token.as_str(), *hash),
+            Caller::Ci { .. } => return Ok(false),
+        };
+        let key = (hash, self.tenant.reader_installation);
+        if let Some(cached) = self.cache.org_admins.get(&key).await {
+            return cached.map_err(Into::into);
+        }
+        let value = match self.gh.org_membership(token, &self.tenant.org_login).await {
+            Ok(membership) => Ok(membership.is_some_and(|m| m.is_active_admin())),
+            Err(e) => Err(denial(e)?),
+        };
+        self.cache.org_admins.insert(key, value.clone()).await;
+        value.map_err(Into::into)
     }
 
     pub async fn can_push(&self, caller: &Caller, repository_id: u64) -> Result<bool, ApiError> {
         match caller {
-            Caller::User(access) => Ok(access.repos.get(&repository_id) == Some(&true)),
+            Caller::User { access, .. } => Ok(access.repos.get(&repository_id) == Some(&true)),
             Caller::GitHubToken { token, hash } => {
                 Ok(self.repo_access(token, *hash, repository_id).await? == Some(true))
             }
@@ -256,7 +407,7 @@ impl Resolver<'_> {
     /// Whether the caller may use this registry at all: they can read at least one repository in it (SPEC §4.1).
     pub async fn can_use_registry(&self, caller: &Caller) -> Result<bool, ApiError> {
         match caller {
-            Caller::User(access) => Ok(!access.repos.is_empty()),
+            Caller::User { access, .. } => Ok(!access.repos.is_empty()),
             Caller::Ci { .. } => Ok(true),
             Caller::GitHubToken { .. } => {
                 if self.can_read(caller, self.tenant.storage_repo_id).await? {
@@ -275,7 +426,7 @@ impl Resolver<'_> {
     /// The caller's GitHub login, for the audit trail.
     pub async fn login(&self, caller: &Caller) -> Result<String, ApiError> {
         match caller {
-            Caller::User(access) => Ok(access.login.clone()),
+            Caller::User { access, .. } => Ok(access.login.clone()),
             Caller::Ci { repository_id } => Ok(format!("ci:repository:{repository_id}")),
             Caller::GitHubToken { token, hash } => {
                 if let Some(cached) = self.cache.logins.get(hash).await {

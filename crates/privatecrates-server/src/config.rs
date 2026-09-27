@@ -22,7 +22,8 @@ pub struct Config {
     pub storage_app: AppConfig,
     /// Secret for signing read-only registry tokens (`pcr_…`).
     pub registry_token_secret: Vec<u8>,
-    pub webhook_secret: Option<Vec<u8>>,
+    /// Secrets for verifying GitHub webhooks, one per App: each App has its own. Empty if webhooks are off.
+    pub webhook_secrets: Vec<Vec<u8>>,
     pub oidc_issuer: String,
     pub oidc_jwks_url: Url,
     pub crates_io_api: Url,
@@ -76,7 +77,11 @@ impl Config {
                 private_key_pem: required("STORAGE_APP_PRIVATE_KEY")?.into_bytes(),
             },
             registry_token_secret,
-            webhook_secret: optional("WEBHOOK_SECRET").map(String::into_bytes),
+            // Comma-separated, e.g. `WEBHOOK_SECRET=reader-secret,storage-secret`: a delivery signed with any of
+            // them is accepted. The secrets themselves cannot contain commas.
+            webhook_secrets: optional("WEBHOOK_SECRET")
+                .map(|v| secrets(&v))
+                .unwrap_or_default(),
             oidc_issuer: optional("OIDC_ISSUER")
                 .unwrap_or_else(|| "https://token.actions.githubusercontent.com".into()),
             oidc_jwks_url: url_or(
@@ -136,6 +141,16 @@ where
     })
 }
 
+/// A comma-separated list of secrets, ignoring surrounding whitespace and empty entries.
+fn secrets(value: &str) -> Vec<Vec<u8>> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.as_bytes().to_vec())
+        .collect()
+}
+
 fn url_or(name: &'static str, default: &str) -> Result<Url, ConfigError> {
     parse(name, &optional(name).unwrap_or_else(|| default.into()))
 }
@@ -161,7 +176,7 @@ pub(crate) mod tests {
                 private_key_pem: vec![],
             },
             registry_token_secret: vec![7; 32],
-            webhook_secret: None,
+            webhook_secrets: Vec::new(),
             oidc_issuer: "https://token.actions.githubusercontent.com".into(),
             oidc_jwks_url: "https://token.actions.githubusercontent.com/.well-known/jwks"
                 .parse()
@@ -185,5 +200,15 @@ pub(crate) mod tests {
         assert_eq!(c.slug_for_host("acme.example.com"), None);
         let local = config("localhost:8080");
         assert_eq!(local.slug_for_host("acme.localhost:8080"), Some("acme"));
+    }
+
+    #[test]
+    fn webhook_secrets() {
+        assert_eq!(secrets("one"), vec![b"one".to_vec()]);
+        assert_eq!(
+            secrets(" reader , storage,"),
+            vec![b"reader".to_vec(), b"storage".to_vec()]
+        );
+        assert!(secrets(",").is_empty());
     }
 }

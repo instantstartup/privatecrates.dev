@@ -1917,6 +1917,7 @@ dependencies = [
  "bytes",
  "flate2",
  "hex",
+ "hmac",
  "http",
  "jsonwebtoken",
  "miette",

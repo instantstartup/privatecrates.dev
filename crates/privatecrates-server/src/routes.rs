@@ -52,7 +52,7 @@ impl FromRequestParts<Arc<AppState>> for TenantHost {
     }
 }
 
-fn resolver<'a>(state: &'a AppState, tenant: &'a Tenant) -> Resolver<'a> {
+pub(crate) fn resolver<'a>(state: &'a AppState, tenant: &'a Tenant) -> Resolver<'a> {
     Resolver {
         gh: &state.gh,
         cache: &state.permissions,
@@ -74,7 +74,7 @@ fn credential(
         .ok_or_else(|| ApiError::token_required(login_url(state, tenant)))
 }
 
-async fn caller(
+pub(crate) async fn caller(
     state: &AppState,
     tenant: &Tenant,
     headers: &HeaderMap,
@@ -188,33 +188,44 @@ pub async fn download(
         return Ok(found(&url));
     }
     let token = tenant.storage_token(&state.gh).await?;
-    let asset_id = match state.asset_ids.get(&key).await {
-        Some(id) => id,
-        None => {
-            let release = state
-                .gh
-                .release_by_tag(&token, &tenant.storage_repo, &tag)
-                .await?
-                .filter(|r| !r.draft)
-                .ok_or(ApiError::NotFound)?;
-            let asset_name = crate_asset_name(&name, &version);
-            let id = release
-                .assets
-                .iter()
-                .find(|a| a.name == asset_name)
-                .map(|a| a.id)
-                .ok_or(ApiError::NotFound)?;
-            // Releases are immutable, so an asset ID never changes.
-            state.asset_ids.insert(key.clone(), id).await;
-            id
-        }
-    };
+    let asset_id = crate_asset_id(&state, &tenant, &token, &name, &version).await?;
     let url = state
         .gh
         .asset_download_url(&token, &tenant.storage_repo, asset_id)
         .await?;
     state.download_urls.insert(key, url.clone()).await;
     Ok(found(&url))
+}
+
+/// The ID of a version's `.crate` release asset, given a storage App token.
+pub(crate) async fn crate_asset_id(
+    state: &AppState,
+    tenant: &Tenant,
+    token: &str,
+    name: &str,
+    version: &str,
+) -> Result<u64, ApiError> {
+    let tag = release_tag(name, version);
+    let key = (tenant.storage_repo_id, tag.clone());
+    if let Some(id) = state.asset_ids.get(&key).await {
+        return Ok(id);
+    }
+    let release = state
+        .gh
+        .release_by_tag(token, &tenant.storage_repo, &tag)
+        .await?
+        .filter(|r| !r.draft)
+        .ok_or(ApiError::NotFound)?;
+    let asset_name = crate_asset_name(name, version);
+    let id = release
+        .assets
+        .iter()
+        .find(|a| a.name == asset_name)
+        .map(|a| a.id)
+        .ok_or(ApiError::NotFound)?;
+    // Releases are immutable, so an asset ID never changes.
+    state.asset_ids.insert(key, id).await;
+    Ok(id)
 }
 
 fn found(url: &str) -> Response {

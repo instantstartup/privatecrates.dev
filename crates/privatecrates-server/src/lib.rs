@@ -9,7 +9,9 @@ pub mod github;
 pub mod oidc;
 pub mod publish;
 pub mod routes;
+pub mod search;
 pub mod tenant;
+pub mod webhooks;
 
 use std::{
     sync::{
@@ -50,6 +52,9 @@ pub struct AppState {
     /// (storage repository ID, release tag) → signed download URL.
     pub download_urls: moka::future::Cache<(u64, String), String>,
     pub publish_limiter: PublishLimiter,
+    pub search: search::Search,
+    /// GitHub webhook deliveries already handled (SPEC §7).
+    pub webhook_deliveries: moka::future::Cache<String, ()>,
 }
 
 impl AppState {
@@ -70,6 +75,8 @@ impl AppState {
                 .time_to_live(routes::DOWNLOAD_URL_TTL)
                 .build(),
             publish_limiter: PublishLimiter::new(config.publish_rate_per_minute),
+            search: search::Search::default(),
+            webhook_deliveries: webhooks::deliveries(),
             config,
         })
     }
@@ -147,11 +154,13 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/v1/oidc/exchange", post(routes::oidc_exchange))
         .route("/api/v1/auth", get(routes::auth_info))
+        .merge(search::routes())
+        .merge(webhooks::routes())
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state)
 }
 
-/// Keeps tenants and their storage snapshots fresh. Webhooks (SPEC §7) will make most of this unnecessary; the
+/// Keeps tenants and their storage snapshots fresh. Webhooks (SPEC §7) make most of this unnecessary; the
 /// timers remain as the backstop.
 pub fn spawn_refresh(state: Arc<AppState>) {
     let storage = state.clone();

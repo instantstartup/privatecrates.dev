@@ -148,6 +148,20 @@ pub struct User {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct Membership {
+    /// `admin` for an organisation owner, otherwise `member`.
+    pub role: String,
+    /// `active`, or `pending` for an invitation not yet accepted.
+    pub state: String,
+}
+
+impl Membership {
+    pub fn is_active_admin(&self) -> bool {
+        self.role == "admin" && self.state == "active"
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct TreeEntry {
     pub path: String,
     #[serde(rename = "type")]
@@ -374,6 +388,30 @@ impl GitHub {
         {
             Ok(repo) => Ok(Some(repo)),
             Err(GitHubError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// The user's membership of an organisation. `None` if they are not a member, or if the token may not read
+    /// memberships (a personal access token without `read:org`).
+    pub async fn org_membership(
+        &self,
+        token: &str,
+        org: &str,
+    ) -> Result<Option<Membership>, GitHubError> {
+        match json(
+            self.request(Method::GET, &format!("/user/memberships/orgs/{org}"), token)
+                .send()
+                .await?,
+        )
+        .await
+        {
+            Ok(membership) => Ok(Some(membership)),
+            Err(GitHubError::NotFound)
+            | Err(GitHubError::Status {
+                status: StatusCode::FORBIDDEN,
+                ..
+            }) => Ok(None),
             Err(e) => Err(e),
         }
     }
@@ -650,6 +688,14 @@ impl GitHub {
             .ok_or_else(|| GitHubError::Unexpected {
                 reason: "redirect without Location".into(),
             })
+    }
+
+    /// Fetches a signed URL from [`Self::asset_download_url`]. No credentials: the signature authorises it.
+    pub async fn download(&self, url: &str) -> Result<Bytes, GitHubError> {
+        Ok(check(self.http.get(url).send().await?)
+            .await?
+            .bytes()
+            .await?)
     }
 }
 

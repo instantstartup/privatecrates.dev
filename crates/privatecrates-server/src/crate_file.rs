@@ -29,7 +29,37 @@ pub enum CrateFileError {
     Mismatch { found: String, expected: String },
 }
 
+/// What a `.crate`'s `Cargo.toml` says about it, for search (SPEC §9.1).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Metadata {
+    pub description: Option<String>,
+    pub keywords: Vec<String>,
+}
+
 pub fn check(bytes: &[u8], name: &str, version: &str) -> Result<(), CrateFileError> {
+    manifest(bytes, name, version).map(drop)
+}
+
+/// Reads the description and keywords of a `.crate`, checking it as [`check`] does.
+pub fn metadata(bytes: &[u8], name: &str, version: &str) -> Result<Metadata, CrateFileError> {
+    let package = manifest(bytes, name, version)?;
+    Ok(Metadata {
+        description: package
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned),
+        keywords: package
+            .get("keywords")
+            .and_then(|v| v.as_array())
+            .into_iter()
+            .flatten()
+            .filter_map(|k| k.as_str().map(str::to_owned))
+            .collect(),
+    })
+}
+
+/// The `[package]` table of a `.crate`'s `Cargo.toml`, once the archive's layout and the name and version check.
+fn manifest(bytes: &[u8], name: &str, version: &str) -> Result<toml::Table, CrateFileError> {
     let prefix = format!("{name}-{version}/");
     let manifest_path = format!("{prefix}Cargo.toml");
     let decoder = GzDecoder::new(bytes).take(MAX_UNPACKED);
@@ -69,16 +99,15 @@ pub fn check(bytes: &[u8], name: &str, version: &str) -> Result<(), CrateFileErr
     let manifest = manifest.ok_or(CrateFileError::NoManifest {
         path: manifest_path,
     })?;
-    let manifest: toml::Table =
+    let mut manifest: toml::Table =
         toml::from_str(&manifest).map_err(|e| CrateFileError::Manifest {
             reason: e.to_string(),
         })?;
-    let package = manifest
-        .get("package")
-        .and_then(|p| p.as_table())
-        .ok_or_else(|| CrateFileError::Manifest {
+    let Some(toml::Value::Table(package)) = manifest.remove("package") else {
+        return Err(CrateFileError::Manifest {
             reason: "no [package] table".into(),
-        })?;
+        });
+    };
     let found_name = package.get("name").and_then(|v| v.as_str()).unwrap_or("");
     let found_version = package
         .get("version")
@@ -90,7 +119,7 @@ pub fn check(bytes: &[u8], name: &str, version: &str) -> Result<(), CrateFileErr
             expected: format!("{name} {version}"),
         });
     }
-    Ok(())
+    Ok(package)
 }
 
 /// Builds a `.crate` for tests.
@@ -125,6 +154,26 @@ mod tests {
             ("story_engine-0.2.0/src/lib.rs", ""),
         ]);
         assert_eq!(check(&bytes, "story_engine", "0.2.0"), Ok(()));
+    }
+
+    #[test]
+    fn reads_description_and_keywords() {
+        let bytes = build(&[(
+            "story_engine-0.2.0/Cargo.toml",
+            "[package]\nname = \"story_engine\"\nversion = \"0.2.0\"\ndescription = \"Stories\"\nkeywords = [\"narrative\", \"games\"]\n",
+        )]);
+        assert_eq!(
+            metadata(&bytes, "story_engine", "0.2.0"),
+            Ok(Metadata {
+                description: Some("Stories".into()),
+                keywords: vec!["narrative".into(), "games".into()],
+            })
+        );
+        let bytes = build(&[("story_engine-0.2.0/Cargo.toml", MANIFEST)]);
+        assert_eq!(
+            metadata(&bytes, "story_engine", "0.2.0"),
+            Ok(Metadata::default())
+        );
     }
 
     #[test]
