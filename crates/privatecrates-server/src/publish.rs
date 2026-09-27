@@ -17,6 +17,7 @@ use time::OffsetDateTime;
 use crate::{
     AppState,
     auth::{Caller, Credential, Resolver},
+    billing::Standing,
     crate_file,
     error::ApiError,
     github::{AppKind, FileWrite, GitHubError, Release, now_secs},
@@ -145,6 +146,10 @@ pub async fn publish(
         owner: existing_owner.as_ref(),
     };
     let (publisher, new_owner) = authorize(state, tenant, &resolver, credential, &target).await?;
+    // Checked only once the publisher is known to belong here, so that it says nothing to anyone else.
+    if state.standing(tenant).await != Standing::Active {
+        return Err(crate::routes::subscription_inactive(state, tenant));
+    }
     let mut warnings = Vec::new();
 
     if new_owner.is_some() {
@@ -242,9 +247,7 @@ async fn authorize(
                 Err(e) => return Err(e.into()),
             };
             if claims.owner_id() != Some(tenant.org_id) {
-                return Err(ApiError::WorkflowOutsideOrganisation {
-                    org: tenant.org_login.clone(),
-                });
+                return Err(ApiError::WorkflowOutsideOrganisation);
             }
             let repository_id = claims
                 .repository_id()
@@ -319,6 +322,10 @@ async fn authorize(
         Credential::Registry(_) => Err(ApiError::RegistryTokenReadOnly),
         credential @ (Credential::AppUser(_) | Credential::GitHub(_)) => {
             let caller = resolver.caller(credential).await?;
+            // Before anything about this registry's settings or organisation: an outsider learns nothing more.
+            if !resolver.can_use_registry(&caller).await? {
+                return Err(ApiError::NoAccess);
+            }
             let settings = &tenant.settings;
             let (repository_id, repository, new_owner) = match owner {
                 Some(owner) => {

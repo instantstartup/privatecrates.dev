@@ -107,8 +107,7 @@ pub struct Tenant {
     snapshot: RwLock<Snapshot>,
     /// Serialises writes to the storage repository from this instance.
     pub write_lock: Mutex<()>,
-    /// Whether this is a real tenant or a phantom for an unknown registry name.
-    /// Phantoms exist to avoid revealing customer presence; they behave like real registries without access.
+    /// A stand-in for a name with no registry: no organisation, no crates, and nobody can use it (SPEC §6.7).
     pub is_phantom: bool,
 }
 
@@ -145,9 +144,7 @@ pub enum TenantError {
 }
 
 impl Tenant {
-    /// Create a phantom tenant for an unknown registry slug.
-    /// Phantom tenants are used to avoid revealing customer presence by responding
-    /// identically to unknown registries as real registries without access.
+    /// The stand-in served for a well-formed name with no registry (SPEC §6.7).
     pub fn phantom(slug: String) -> Self {
         Tenant {
             slug: slug.clone(),

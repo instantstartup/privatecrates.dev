@@ -362,6 +362,9 @@ impl Resolver<'_> {
     /// Whether a repository still exists in the tenant, as the reader App's installation sees it. One lookup per
     /// tenant per cache period, with our installation token.
     async fn repository_exists(&self, repository_id: u64) -> Result<bool, ApiError> {
+        if self.tenant.is_phantom {
+            return Ok(true);
+        }
         let installation = self.tenant.reader_installation;
         if let Some(live) = self.cache.live_repos.get(&installation).await {
             return Ok(live.contains(&repository_id));

@@ -33,8 +33,9 @@ pub fn request_host(headers: &HeaderMap, uri: &Uri) -> Option<String> {
         .map(str::to_ascii_lowercase)
 }
 
-/// The tenant a request is for, from its `Host` header. A tenant whose subscription lapsed more than the grace
-/// period ago is refused here, for every request; publishing is refused as soon as it lapses (see `publish`).
+/// The tenant a request is for, from its `Host` header. A name with no registry gets an empty stand-in, so that
+/// nobody can learn which organisations use PrivateCrates by probing names (SPEC §6.7). Nothing about the
+/// subscription is checked here, before the caller is known; see `caller` and `publish`.
 pub struct TenantHost(pub Arc<Tenant>);
 
 impl FromRequestParts<Arc<AppState>> for TenantHost {
@@ -45,22 +46,19 @@ impl FromRequestParts<Arc<AppState>> for TenantHost {
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
         let host = request_host(&parts.headers, &parts.uri).ok_or(ApiError::NotFound)?;
-        let tenant = if let Some(slug) = state.config.slug_for_host(&host) {
-            state.tenants.get(slug).ok_or(ApiError::NotFound)?
-        } else {
-            // Unknown registry: create a phantom tenant to avoid revealing customer presence.
-            // Phantom tenants will require auth and deny access, looking the same as real registries with no access.
-            let slug = host.split('.').next().unwrap_or("").to_string();
-            Arc::new(Tenant::phantom(slug))
-        };
-        if !tenant.is_phantom && state.standing(&tenant).await == Standing::Lapsed {
-            return Err(subscription_inactive(state, &tenant));
-        }
+        let slug = state
+            .config
+            .slug_for_host(&host)
+            .ok_or(ApiError::NotFound)?;
+        let tenant = state
+            .tenants
+            .get(slug)
+            .unwrap_or_else(|| Arc::new(Tenant::phantom(slug.to_owned())));
         Ok(TenantHost(tenant))
     }
 }
 
-fn subscription_inactive(state: &AppState, tenant: &Tenant) -> ApiError {
+pub(crate) fn subscription_inactive(state: &AppState, tenant: &Tenant) -> ApiError {
     ApiError::SubscriptionInactive {
         org: tenant.org_login.clone(),
         account_url: state.config.account_url(),
@@ -95,7 +93,17 @@ pub(crate) async fn caller(
     headers: &HeaderMap,
 ) -> Result<Caller, ApiError> {
     let credential = credential(state, tenant, headers)?;
-    resolver(state, tenant).caller(credential).await
+    let resolver = resolver(state, tenant);
+    let caller = resolver.caller(credential).await?;
+    // Only someone who may use the registry learns that its subscription has lapsed.
+    if state.standing(tenant).await == Standing::Lapsed {
+        return Err(if resolver.can_use_registry(&caller).await? {
+            subscription_inactive(state, tenant)
+        } else {
+            ApiError::NoAccess
+        });
+    }
+    Ok(caller)
 }
 
 /// What the credential provider needs to sign a developer in: the reader App's client ID, for GitHub's device flow.
@@ -130,9 +138,7 @@ pub async fn config_json(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let caller = caller(&state, &tenant, &headers).await?;
     if !resolver(&state, &tenant).can_use_registry(&caller).await? {
-        return Err(ApiError::NoAccess {
-            org: tenant.org_login.clone(),
-        });
+        return Err(ApiError::NoAccess);
     }
     let base = state.config.tenant_base_url(&tenant.slug);
     Ok(Json(serde_json::json!({
@@ -262,9 +268,6 @@ pub async fn publish(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    if state.standing(&tenant).await != Standing::Active {
-        return Err(subscription_inactive(&state, &tenant));
-    }
     let credential = credential(&state, &tenant, &headers)?;
     if !state.publish_limiter.allow(&headers).await {
         return Err(ApiError::PublishRateLimited);
@@ -330,9 +333,10 @@ pub async fn oidc_exchange(
         .await
         .map_err(ApiError::from)?;
     if claims.owner_id() != Some(tenant.org_id) {
-        return Err(ApiError::WorkflowOutsideOrganisation {
-            org: tenant.org_login.clone(),
-        });
+        return Err(ApiError::WorkflowOutsideOrganisation);
+    }
+    if state.standing(&tenant).await == Standing::Lapsed {
+        return Err(subscription_inactive(&state, &tenant));
     }
     let repository_id = claims
         .repository_id()
@@ -352,13 +356,8 @@ pub async fn login_page(
 ) -> Html<String> {
     let base = state.config.tenant_base_url(&tenant.slug);
     let apex = state.config.apex_url();
+    // The same page for every name, registry or not, and without the organisation's name (SPEC §6.7).
     let slug = &tenant.slug;
-    // Don't reveal the organization name; use it only if it's a real (non-phantom) tenant.
-    let org_or_generic = if tenant.is_phantom {
-        "your organisation".to_string()
-    } else {
-        tenant.org_login.clone()
-    };
     Html(format!(
         r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -366,7 +365,8 @@ pub async fn login_page(
 <style>body{{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}}pre{{background:#f4f4f4;padding:1rem;overflow-x:auto}}@media (prefers-color-scheme:dark){{body{{background:#111;color:#eee}}pre{{background:#222}}a{{color:#8cf}}}}</style>
 </head><body>
 <h1>Private registry: {slug}</h1>
-<p>This is the <code>{slug}</code> registry. Access follows your GitHub permissions: you can use a crate if you can read its repository on GitHub. There is no separate account.</p>
+<p>This is the <code>{slug}</code> registry. Access follows your GitHub permissions: you can use a crate if you can
+read its repository on GitHub. There is no separate account.</p>
 
 <h2 id="setup">Joining the team</h2>
 <p>If a project already uses this registry, you need one thing: the credential provider.</p>
@@ -389,14 +389,15 @@ terminal</em>. Run that once, then reload the editor.</p>
 <h2 id="troubleshooting">When something does not work</h2>
 <ul>
 <li><strong>A crate is "not found".</strong> Either it does not exist, or you cannot read the repository it is
-published from; the registry does not say which, so private names stay private. Ask someone in {org_or_generic} for read access
-to that repository. <code>cargo privatecrates doctor --crate NAME</code> checks your setup and sign-in.</li>
+published from; the registry does not say which, so private names stay private. Ask someone in your organisation for read
+access to that repository. <code>cargo privatecrates doctor --crate NAME</code> checks your setup and sign-in.</li>
 <li><strong>"no matching package" right after someone published.</strong> Retry after a minute, or run
 <code>cargo update</code>.</li>
 <li><strong>Signed in as the wrong GitHub account.</strong> <code>cargo logout --registry {slug}</code>, then
 <code>cargo login --registry {slug}</code>.</li>
-<li><strong>Signed in, but every crate is "not found".</strong> Your GitHub account must be a member of {org_or_generic}; if
-it is, sign out and in again, and on GitHub grant the PrivateCrates app access to {org_or_generic} when asked.</li>
+<li><strong>Signed in, but every crate is "not found".</strong> Your GitHub account must be a member of the organisation
+that uses this registry; if it is, sign out and in again, and on GitHub grant the PrivateCrates app access to that
+organisation when asked.</li>
 </ul>
 
 <h2 id="ci">GitHub Actions</h2>

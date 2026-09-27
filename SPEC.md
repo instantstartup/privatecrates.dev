@@ -560,6 +560,23 @@ is tolerated). Accepted:
 Caller tokens are never forwarded anywhere except GitHub's API, and only to make permission lookups on the caller's
 behalf. Every storage read and write uses the storage App's installation token.
 
+### 6.7 Registry names reveal nothing
+
+Registry names are guessable (usually the organisation's login), so the registry must not confirm which
+organisations use PrivateCrates, or which organisation a registry belongs to, to anyone who cannot use it:
+
+- A well-formed name with no registry is served as an empty registry that nobody can use. Every request gets the
+  answer a registry gives an outsider: 401 with Cargo's login challenge without a token, 403 `auth::no_access` for
+  the registry's configuration, 404 for crates, and 403 `auth::workflow_outside_organisation` for an Actions token.
+- The `/login` page is the same for every name and does not name the organisation; neither do the errors an outsider
+  can receive.
+- The subscription is checked only once the caller is known to be able to use the registry (§2.2); anyone else gets
+  `auth::no_access`. A manual publish checks that the caller can use the registry before anything about its settings.
+- Certificates are a single wildcard, so certificate transparency logs list no registry names.
+
+Response times still differ slightly (a real registry makes more GitHub lookups for some callers); this reveals less
+than the above did, and is accepted.
+
 ## 7. Webhooks
 
 Webhooks keep caches, tenants and search current without polling. They are an optimisation: GitHub does not

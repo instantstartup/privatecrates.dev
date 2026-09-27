@@ -74,17 +74,19 @@ pub enum ApiError {
         url: String,
     },
 
+    /// Also what a name with no registry answers, so neither names the organisation (SPEC §6.7).
     #[error(
-        "you do not have access to any repository in the {org} organisation that uses this registry"
+        "you do not have access to any repository in the GitHub organisation that uses this registry, or there is \
+         no registry by this name"
     )]
     #[diagnostic(code(auth::no_access))]
     #[http_status(403)]
-    NoAccess { org: String },
+    NoAccess,
 
-    #[error("the workflow's repository is not in the {org} organisation")]
+    #[error("the workflow's repository is not in the GitHub organisation that uses this registry")]
     #[diagnostic(code(auth::workflow_outside_organisation))]
     #[http_status(403)]
-    WorkflowOutsideOrganisation { org: String },
+    WorkflowOutsideOrganisation,
 
     #[error("the OIDC token has no valid repository_id")]
     #[diagnostic(code(auth::oidc_repository_missing))]

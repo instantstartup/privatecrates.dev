@@ -459,7 +459,11 @@ const catalog: CatalogEntry[] = [
 	['auth::registry_token_invalid', 'the registry token is invalid or has expired', 401],
 	['auth::oidc_token_invalid', 'the OIDC token is invalid: {reason}', 401],
 	['auth::sso_required', 'the token is not authorised for SAML single sign-on; authorise it at {url}', 403],
-	['auth::no_access', 'you do not have access to any repository in this registry', 403],
+	[
+		'auth::no_access',
+		'you do not have access to any repository in the GitHub organisation that uses this registry, or there is no registry by this name',
+		403
+	],
 	['auth::push_required', '{action} needs push access to {repository}', 403],
 	[
 		'billing::subscription_inactive',

@@ -167,6 +167,9 @@ impl AppState {
 
     /// What a tenant may do: everything while it is free or subscribed.
     pub async fn standing(&self, tenant: &Tenant) -> Standing {
+        if tenant.is_phantom {
+            return Standing::Active;
+        }
         let members = self.members(tenant.org_id, &tenant.org_login).await;
         self.billing.standing(tenant.org_id, members)
     }

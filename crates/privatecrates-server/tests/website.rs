@@ -178,14 +178,16 @@ async fn routes_by_host() {
     assert_eq!(www.status(), 301);
     assert_eq!(www.headers()["location"], h.apex("/docs?x=1"));
 
-    // Reserved names are never tenants; unknown tenants and other hosts get nothing.
+    // Reserved names are never tenants and other hosts get nothing; a name with no registry answers like one
+    // (SPEC §6.7).
     for url in [
         format!("http://api.localhost:{}/index/config.json", h.port),
-        format!("http://other.localhost:{}/index/config.json", h.port),
         format!("http://api.localhost:{}/", h.port),
     ] {
         assert_eq!(get(url.clone()).await.unwrap().status(), 404, "{url}");
     }
+    let unknown = format!("http://other.localhost:{}/index/config.json", h.port);
+    assert_eq!(get(unknown).await.unwrap().status(), 401);
     let foreign = h
         .client
         .get(h.apex("/"))

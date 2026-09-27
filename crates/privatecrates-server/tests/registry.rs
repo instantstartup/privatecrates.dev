@@ -41,7 +41,123 @@ async fn config_json_needs_a_token_and_access() {
         .send()
         .await
         .unwrap();
-    assert_eq!(unknown_tenant.status(), 404);
+    assert_eq!(unknown_tenant.status(), 403);
+}
+
+/// Anyone outside an organisation gets the same answers from its registry as from a name with no registry, so
+/// probing names cannot reveal which organisations use PrivateCrates, nor which organisation a registry belongs to.
+#[tokio::test]
+async fn unknown_names_look_like_registries_without_access() {
+    let h = Harness::start().await;
+    let beta = h.fake.add_org("beta-corp", "beta");
+    h.state.discover().await.unwrap();
+    let engine = h.fake.add_repo(&beta, "engine");
+    let base = |slug: &str| format!("http://{slug}.localhost:{}", h.port);
+    let krate = Crate::new("engine", "0.1.0", "beta-corp/engine");
+    let claims = h
+        .fake
+        .actions_claims(&beta, "beta-corp/engine", engine, "release.yml");
+    let token = h.fake.oidc_token(
+        &audience::publish(&base("beta"), &krate.name, &krate.version, &krate.cksum()),
+        &claims,
+    );
+    let published = h
+        .client
+        .put(format!("{}/api/v1/crates/new", base("beta")))
+        .header("Authorization", token)
+        .body(krate.body())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        published.status(),
+        200,
+        "{}",
+        published.text().await.unwrap()
+    );
+
+    // People and workflows of another organisation, acme, which has its own registry.
+    let acme_repo = h.repo("story-engine");
+    let app_user = h.fake.add_user("mallory", "ghu_", &[(acme_repo, true)]);
+    let oauth = h.fake.add_user("trudy", "gho_", &[(acme_repo, true)]);
+    let acme_claims = h
+        .fake
+        .actions_claims(&h.org, "acme/story-engine", acme_repo, "release.yml");
+    let next = Crate::new("engine", "0.2.0", "beta-corp/engine");
+
+    let answer =
+        |slug: &'static str, method: &'static str, path: &'static str, auth: Option<String>| {
+            let url = format!("{}{path}", base(slug));
+            let request = match method {
+                "GET" => h.client.get(url),
+                "POST" => h.client.post(url),
+                "PUT" => h.client.put(url).body(next.body()),
+                "DELETE" => h.client.delete(url),
+                _ => unreachable!(),
+            };
+            let request = match auth {
+                Some(auth) => request.header("Authorization", auth),
+                None => request,
+            };
+            async move {
+                let response = request.send().await.unwrap();
+                let status = response.status().as_u16();
+                let challenge = response
+                    .headers()
+                    .get("www-authenticate")
+                    .map(|v| v.to_str().unwrap().replace(slug, "NAME"));
+                let body = response.text().await.unwrap();
+                assert!(
+                    !body.contains("beta-corp"),
+                    "{slug} {method} {path}: {body}"
+                );
+                (status, challenge, body.replace(slug, "NAME"))
+            }
+        };
+    let publish_token = |slug: &str| {
+        h.fake.oidc_token(
+            &audience::publish(&base(slug), &next.name, &next.version, &next.cksum()),
+            &acme_claims,
+        )
+    };
+    let read_token = |slug: &str| {
+        h.fake
+            .oidc_token(&audience::read(&base(slug)), &acme_claims)
+    };
+
+    let mut cases = Vec::new();
+    for (method, path) in [
+        ("GET", "/"),
+        ("GET", "/login"),
+        ("GET", "/api/v1/auth"),
+        ("GET", "/index/config.json"),
+        ("GET", "/index/en/gi/engine"),
+        ("GET", "/api/v1/crates/engine/0.1.0/download"),
+        ("PUT", "/api/v1/crates/new"),
+        ("DELETE", "/api/v1/crates/engine/0.1.0/yank"),
+        ("POST", "/api/v1/oidc/exchange"),
+    ] {
+        for auth in [None, Some(app_user.clone()), Some(oauth.clone())] {
+            cases.push((method, path, auth.clone(), auth));
+        }
+    }
+    cases.push((
+        "PUT",
+        "/api/v1/crates/new",
+        Some(publish_token("beta")),
+        Some(publish_token("nosuch")),
+    ));
+    cases.push((
+        "POST",
+        "/api/v1/oidc/exchange",
+        Some(read_token("beta")),
+        Some(read_token("nosuch")),
+    ));
+    for (method, path, real_auth, unknown_auth) in cases {
+        let real = answer("beta", method, path, real_auth).await;
+        let unknown = answer("nosuch", method, path, unknown_auth).await;
+        assert_eq!(real, unknown, "{method} {path}");
+    }
 }
 
 #[tokio::test]

@@ -262,9 +262,18 @@ async fn a_push_to_the_storage_repository_reloads_it() {
 async fn a_new_installation_adds_a_tenant() {
     let h = Harness::start().await;
     let config = format!("http://other.localhost:{}/index/config.json", h.port);
-    assert_eq!(h.client.get(&config).send().await.unwrap().status(), 404);
-
     let globex = h.fake.add_org("globex", "other");
+    let repo = h.fake.add_repo(&globex, "tools");
+    let member = h.fake.add_user("gina", "ghu_", &[(repo, false)]);
+    let get = || {
+        h.client
+            .get(&config)
+            .header("Authorization", &member)
+            .send()
+    };
+    // Not a registry yet: the same answer as a registry the caller cannot use.
+    assert_eq!(get().await.unwrap().status(), 403);
+
     let installed = json!({
         "action": "created",
         "installation": { "id": globex.storage_installation, "account": { "login": "globex", "id": globex.id } },
@@ -275,6 +284,5 @@ async fn a_new_installation_adds_a_tenant() {
             .status(),
         204
     );
-    // The tenant exists now, so the registry asks for a token.
-    assert_eq!(h.client.get(&config).send().await.unwrap().status(), 401);
+    assert_eq!(get().await.unwrap().status(), 200);
 }
