@@ -107,6 +107,9 @@ pub struct Tenant {
     snapshot: RwLock<Snapshot>,
     /// Serialises writes to the storage repository from this instance.
     pub write_lock: Mutex<()>,
+    /// Whether this is a real tenant or a phantom for an unknown registry name.
+    /// Phantoms exist to avoid revealing customer presence; they behave like real registries without access.
+    pub is_phantom: bool,
 }
 
 /// Blobs by sha, shared by all tenants. A blob sha is a hash of the content, so entries never go stale.
@@ -142,6 +145,32 @@ pub enum TenantError {
 }
 
 impl Tenant {
+    /// Create a phantom tenant for an unknown registry slug.
+    /// Phantom tenants are used to avoid revealing customer presence by responding
+    /// identically to unknown registries as real registries without access.
+    pub fn phantom(slug: String) -> Self {
+        Tenant {
+            slug: slug.clone(),
+            org_login: String::new(),
+            org_id: 0,
+            reader_installation: 0,
+            storage_installation: 0,
+            storage_repo: String::new(),
+            storage_repo_id: 0,
+            branch: "main".into(),
+            settings: Settings {
+                slug,
+                name_clash: Default::default(),
+                ci_read: Default::default(),
+                allow_manual_publish: false,
+                repositories: BTreeMap::new(),
+            },
+            snapshot: RwLock::new(Snapshot::default()),
+            write_lock: Mutex::new(()),
+            is_phantom: true,
+        }
+    }
+
     pub async fn storage_token(&self, gh: &GitHub) -> Result<String, GitHubError> {
         gh.installation_token(AppKind::Storage, self.storage_installation)
             .await
@@ -403,6 +432,7 @@ async fn load(
         },
         snapshot: RwLock::new(Snapshot::default()),
         write_lock: Mutex::new(()),
+        is_phantom: false,
     };
     // Keep what the previous instance of this tenant already knew, so a rediscovery costs a conditional request.
     if let Some(existing) = existing.filter(|t| t.storage_repo_id == repo.id) {
@@ -422,6 +452,7 @@ async fn load(
     Ok(Arc::new(Tenant {
         slug: settings.slug.clone(),
         settings,
+        is_phantom: false,
         ..tenant
     }))
 }
@@ -467,6 +498,7 @@ pub(crate) mod tests {
             },
             snapshot: RwLock::new(Snapshot::default()),
             write_lock: Mutex::new(()),
+            is_phantom: false,
         }
     }
 

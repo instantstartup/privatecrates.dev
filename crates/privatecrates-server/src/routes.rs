@@ -45,12 +45,15 @@ impl FromRequestParts<Arc<AppState>> for TenantHost {
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
         let host = request_host(&parts.headers, &parts.uri).ok_or(ApiError::NotFound)?;
-        let tenant = state
-            .config
-            .slug_for_host(&host)
-            .and_then(|slug| state.tenants.get(slug))
-            .ok_or(ApiError::NotFound)?;
-        if state.standing(&tenant).await == Standing::Lapsed {
+        let tenant = if let Some(slug) = state.config.slug_for_host(&host) {
+            state.tenants.get(slug).ok_or(ApiError::NotFound)?
+        } else {
+            // Unknown registry: create a phantom tenant to avoid revealing customer presence.
+            // Phantom tenants will require auth and deny access, looking the same as real registries with no access.
+            let slug = host.split('.').next().unwrap_or("").to_string();
+            Arc::new(Tenant::phantom(slug))
+        };
+        if !tenant.is_phantom && state.standing(&tenant).await == Standing::Lapsed {
             return Err(subscription_inactive(state, &tenant));
         }
         Ok(TenantHost(tenant))
@@ -350,22 +353,26 @@ pub async fn login_page(
     let base = state.config.tenant_base_url(&tenant.slug);
     let apex = state.config.apex_url();
     let slug = &tenant.slug;
-    let org = &tenant.org_login;
+    // Don't reveal the organization name; use it only if it's a real (non-phantom) tenant.
+    let org_or_generic = if tenant.is_phantom {
+        "your organisation".to_string()
+    } else {
+        tenant.org_login.clone()
+    };
     Html(format!(
         r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{slug} · PrivateCrates</title>
 <style>body{{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}}pre{{background:#f4f4f4;padding:1rem;overflow-x:auto}}@media (prefers-color-scheme:dark){{body{{background:#111;color:#eee}}pre{{background:#222}}a{{color:#8cf}}}}</style>
 </head><body>
-<h1>Private crates for {org}</h1>
-<p>This is the <code>{slug}</code> registry, for the <strong>{org}</strong> organisation on GitHub. Access follows your
-GitHub permissions: you can use a crate if you can read its repository on GitHub. There is no separate account.</p>
+<h1>Private registry: {slug}</h1>
+<p>This is the <code>{slug}</code> registry. Access follows your GitHub permissions: you can use a crate if you can read its repository on GitHub. There is no separate account.</p>
 
 <h2 id="setup">Joining the team</h2>
 <p>If a project already uses this registry, you need one thing: the credential provider.</p>
 <pre>cargo install cargo-credential-privatecrates --locked</pre>
 <p>Then build as usual. The first time, Cargo shows a code: approve it on GitHub, and you are signed in for every
-project using {org}'s registry. To sign in before building (for example, before opening the project in an editor):</p>
+project using this registry. To sign in before building (for example, before opening the project in an editor):</p>
 <pre>cargo login --registry {slug}</pre>
 <p>A project that does not use the registry yet needs it in <code>.cargo/config.toml</code>:</p>
 <pre>[registries.{slug}]
@@ -382,14 +389,14 @@ terminal</em>. Run that once, then reload the editor.</p>
 <h2 id="troubleshooting">When something does not work</h2>
 <ul>
 <li><strong>A crate is "not found".</strong> Either it does not exist, or you cannot read the repository it is
-published from; the registry does not say which, so private names stay private. Ask someone in {org} for read access
+published from; the registry does not say which, so private names stay private. Ask someone in {org_or_generic} for read access
 to that repository. <code>cargo privatecrates doctor --crate NAME</code> checks your setup and sign-in.</li>
 <li><strong>"no matching package" right after someone published.</strong> Retry after a minute, or run
 <code>cargo update</code>.</li>
 <li><strong>Signed in as the wrong GitHub account.</strong> <code>cargo logout --registry {slug}</code>, then
 <code>cargo login --registry {slug}</code>.</li>
-<li><strong>Signed in, but every crate is "not found".</strong> Your GitHub account must be a member of {org}; if
-it is, sign out and in again, and on GitHub grant the PrivateCrates app access to {org} when asked.</li>
+<li><strong>Signed in, but every crate is "not found".</strong> Your GitHub account must be a member of {org_or_generic}; if
+it is, sign out and in again, and on GitHub grant the PrivateCrates app access to {org_or_generic} when asked.</li>
 </ul>
 
 <h2 id="ci">GitHub Actions</h2>
