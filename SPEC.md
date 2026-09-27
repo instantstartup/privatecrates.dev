@@ -45,7 +45,7 @@ its packs from `worldbuilding-dev/story-engine`.
 ### Non-goals, for now
 - A crates.io mirror or proxy. Dependencies from crates.io stay on crates.io.
 - Download statistics.
-- GitHub Enterprise Server (a self-hosted licence may come later, §2.3).
+- GitHub Enterprise Server (a self-hosted licence may come later, §2.4).
 - CI outside GitHub Actions, at launch (§3.3).
 - Package formats other than Cargo.
 
@@ -66,13 +66,32 @@ The set of tenants is derived at start-up and kept current by webhooks (§7). Th
 ### 2.2 Pricing and billing
 
 - **$100 per month per GitHub organisation, no user limit.** SSO included; it costs us nothing to provide.
-- Billed through GitHub Marketplace, which bills per organisation and sends `marketplace_purchase` webhooks. Plan
-  state is read from the Marketplace API and cached. Check Marketplace's current revenue share and listing
-  requirements before launch.
+- 14-day free trial. Billed through **Stripe** (Checkout for sign-up, the customer portal for changes). Stripe is the
+  source of truth: each subscription's metadata names the GitHub organisation, the server loads subscriptions at
+  start-up and keeps them current from Stripe webhooks, so there is still no database.
+- A tenant is active while its subscription is `trialing`, `active` or `past_due`. Once it ends, publishing is refused
+  at once and reads continue for 14 days, then stop, both with an error pointing to the account page.
+- The full model, and the website's account API, are in `docs/website-api.md`.
 - A higher tier later, priced on things that cost us more: hosted documentation and API search for coding agents
   (§12), several organisations under one enterprise, a support SLA.
 
-### 2.3 What is open source
+### 2.3 Environments and the website
+
+| Environment | Website and account API | Registries | GitHub Apps | Stripe |
+|---|---|---|---|---|
+| dev | `dev.privatecrates.dev` | `{slug}.dev.privatecrates.dev` | separate dev Apps | test mode |
+| prod | `privatecrates.dev` | `{slug}.privatecrates.dev` | production Apps | live mode |
+
+One server per environment on Railway serves both: a request for the apex host gets the website (a static SvelteKit
+build) and the account API; a request for `{slug}.{apex}` gets that tenant's registry. Slugs that could be confused
+with our own hosts (`www`, `dev`, `api`, `docs` and similar) are reserved. Signing in to the website uses the reader
+App's web flow; the session is an encrypted cookie holding the user's token, so nothing is stored server-side.
+
+Onboarding (`/account`) walks an organisation administrator through installing the Apps, creating the storage
+repository with immutable releases, choosing a slug (the storage App then *creates* `privatecrates.toml`; it may
+never change it afterwards) and starting the subscription.
+
+### 2.4 What is open source
 
 - **Open source (MIT or Apache-2.0):** the credential provider (§3.1) and the storage verifier (§10.3). Customers
   can inspect everything that touches their machines and CI, and can verify everything we write without trusting
@@ -294,8 +313,9 @@ short-lived signed download URL, obtained with the tenant's **storage App** inst
   redirect;
 - the `Location` header is returned to Cargo.
 
-The signed URL is cached per asset for its validity (read from the URL's expiry, minus a safety margin), so a burst
-of CI jobs fetching the same crate costs one GitHub call, not one per job (§8).
+The signed URL is cached per asset for 60 seconds, well within its validity, so a burst of CI jobs fetching the same
+crate costs one GitHub call, not one per job (§8). The asset ID behind a version is cached forever: releases are
+immutable.
 
 The bytes then come straight from GitHub's CDN. Cargo verifies them against `cksum` from the index. If the signed-URL
 approach ever fails (for example, a proxy strips redirects), fall back to streaming the body.
@@ -450,8 +470,8 @@ Every Actions OIDC token is checked for:
 read-only registry token (`pcr_…`): a JWT signed by the service (key in a KMS, §10.2), valid for one hour, carrying
 the tenant and `repository_id`. The service verifies it without storing it.
 - With `ci_read = "organisation"` (the default), it may read every crate in the tenant.
-- With `"same-access"`, it may read only crates whose owning repository the calling repository could read, checked
-  with the reader App's installation token.
+- Planned, not yet built: `"same-access"`, reading only crates whose owning repository the calling repository could
+  read, checked with the reader App's installation token.
 
 A leaked `pcr_` token expires within the hour. To revoke sooner, rotate the signing key; that invalidates every
 outstanding token, which costs CI jobs a fresh exchange at most. The distinctive prefix lets us apply to GitHub's
@@ -506,15 +526,17 @@ guarantee delivery, so the TTLs in §8 remain the upper bound on staleness. Ever
 | `membership` (team membership added, removed) | reader | drop that user's cached repository sets |
 | `team` (added_to_repository, removed_from_repository, edited) | reader | drop the tenant's cached repository sets |
 | `member` (collaborator added, removed, edited) | reader | drop that user's cached repository sets |
-| `repository` (renamed, transferred, deleted, visibility changed) | reader | update `owners/` names; handle deleted owners (§6.2); drop the tenant's caches |
+| `repository` (renamed, transferred, deleted, visibility changed) | reader | handle deleted owners (§6.2); drop the tenant's caches. Owners files are not rewritten: `repository_id` is authoritative, and the storage App may never change an existing owners file |
 | `github_app_authorization` (revoked) | reader | drop that user's cached repository sets |
 | `push` to the storage repository | storage | reload `privatecrates.toml`, `owners/` and changed index files; update the search index |
-| `marketplace_purchase` | reader | update the tenant's plan |
 
 To drop a user's cached sets, the permission cache keeps a secondary index from GitHub user ID to token hashes.
 
 With these, removing someone from the organisation or a team cuts off their access within seconds, not at the end
 of the cache TTL.
+
+Stripe webhooks (`checkout.session.completed`, `customer.subscription.created|updated|deleted`) arrive at
+`POST /webhooks/stripe`, verified with `Stripe-Signature`, and update the tenant's billing state.
 
 Later: publish automatically when a version tag is pushed on an owning repository (trusted publishing covers most of
 this need already).
@@ -529,11 +551,11 @@ this need already).
   unyank, and on storage-repository `push` webhooks, so steady-state reads cost no GitHub calls.
 - **Owners and settings:** loaded at start and updated by `push` webhooks, with a conditional refresh every 10
   minutes as a backstop.
-- **Signed download URLs:** cached per asset for their validity (§4.3).
+- **Signed download URLs:** cached per asset for 60 seconds (§4.3).
 - **Budgets:**
   - a developer: one to three calls on their own rate limit per cache period;
   - CI with OIDC: nothing on any user's rate limit; a few calls on our installation tokens per crate per URL
-    validity period;
+    minute;
   - an installation starts at 5,000 calls an hour and rises with the organisation's size.
 - **Later, if a large tenant needs it:** cache `.crate` bytes in object storage with free egress (for example
   Cloudflare R2). Crates are immutable, so this is safe; GitHub stays the source of truth.
@@ -621,8 +643,9 @@ Threats this design has to survive, and how:
 - **Open-source verifier** (`privatecrates-verify`), which customers run in their own CI on a schedule (hourly is
   recommended) with a read-only token. It reports:
   - any index history change other than App-authored appends and `yanked` flips;
-  - any change to an existing `owners/` file or to `privatecrates.toml` made by the storage App (the App only ever
-    creates an owners file at a crate's first publish; every other change there must come from a person);
+  - any change to an existing `owners/` file or to an existing `privatecrates.toml` made by the storage App (the App
+    only ever creates an owners file at a crate's first publish, and `privatecrates.toml` during onboarding; every
+    other change there must come from a person);
   - any version whose release is missing, not immutable, or whose `.crate` digest differs from the index `cksum`;
   - any version whose provenance is missing (unless the crate allows manual publishing, in which case the version is
     listed as a manual publish), has an invalid GitHub signature, has an audience that does not name that crate,
@@ -638,9 +661,10 @@ The pitch this supports: "don't trust us, verify us."
 
 ## 11. Implementation
 
-- **Stack:** Rust, axum (HTTP), reqwest (GitHub REST), serde, sha2, flate2 and tar (metadata check), jsonwebtoken
-  (OIDC and registry tokens), and an in-memory cache (moka or a small LRU). Check the latest version of every
-  dependency when implementing.
+- **Stack:** Rust, axum (HTTP), reqwest (GitHub and Stripe REST), serde, sha2, flate2 and tar (metadata check),
+  jsonwebtoken (OIDC and registry tokens), moka (in-memory caches), apollo-errors (every server error has a stable
+  code and HTTP status; the client tools use thiserror to stay small). The website is SvelteKit with Tailwind, built
+  statically and served by the server. Check the latest version of every dependency when implementing.
 - **Code layout (service):**
   - `tenant` (tenant discovery, `privatecrates.toml`, hostname routing)
   - `index` (paths and line format)
@@ -649,17 +673,13 @@ The pitch this supports: "don't trust us, verify us."
   - `auth` (token extraction, repository-set cache, OIDC exchange, registry tokens, SSO errors)
   - `webhooks` (verification, de-duplication, cache and tenant updates)
   - `search` (per-tenant index, crates.io client)
-  - `billing` (Marketplace plan lookups)
+  - `billing` (Stripe subscriptions, Checkout, portal, webhooks)
+  - `account` and `session` (website sign-in, onboarding API)
   - `routes`
 - **Separate crates, open source:** `cargo-credential-privatecrates` and `privatecrates-verify`, each released with prebuilt,
   attested binaries.
-- **Configuration**, from the environment only:
-  - `BASE_DOMAIN`
-  - `READER_APP_ID`, `READER_APP_CLIENT_ID`, `READER_APP_KEY_KMS_ID`
-  - `STORAGE_APP_ID`, `STORAGE_APP_KEY_KMS_ID`
-  - `REGISTRY_TOKEN_KEY_KMS_ID`
-  - `WEBHOOK_SECRET`
-  - `MAX_CRATE_BYTES`, `PERMISSION_TTL_SECS`, `PUBLISH_RATE_PER_MINUTE`
+- **Configuration**, from the environment only; `docs/deploy.md` lists every variable per environment. Until
+  milestone 4 moves them into a KMS, the App private keys and signing secrets are environment variables.
 - **Deployment:** one container on Railway, with health check `GET /healthz` (no GitHub calls). Logs are structured,
   without tokens.
 - **Conventions:** the same as worldbuilding.dev: clippy with warnings as errors, `cargo fmt`, tests as part of done,
@@ -731,17 +751,16 @@ The pitch this supports: "don't trust us, verify us."
 
 ## 14. Milestones
 
-1. **Read path, single tenant:** both Apps, `config.json` with 401, sparse index, downloads with signed-URL caching,
-   repository-set permissions, SSO errors, the credential provider. Existing crates are seeded with a small admin
-   CLI (`privatecrates import`) that runs `cargo package` and uploads; the verifier lists imported versions, like manual
-   publishes, as having no provenance.
-2. **Write path:** trusted publishing with bound OIDC tokens from the credential provider, immutable releases,
+1. **Read path** (built): both Apps, `config.json` with 401, sparse index, downloads with signed-URL caching,
+   repository-set permissions, SSO errors, the credential provider. There is no import tool: existing crates are
+   published afresh from CI, so every version has provenance.
+2. **Write path** (built): trusted publishing with bound OIDC tokens from the credential provider, immutable releases,
    provenance assets, yank and unyank, append-only enforcement, and `privatecrates-verify`.
 3. **CI and freshness:** OIDC exchange for reads in the credential provider, prebuilt provider binaries, webhooks,
    search. Deploy on Railway and move
    worldbuilding.dev and the movie site from git dependencies to the registry, with their Railway images built in
    GitHub Actions (§3.3).
-4. **Launch:** multi-tenancy, KMS-held keys, Marketplace listing and billing, the `/login` page and documentation.
+4. **Launch:** the website and onboarding, Stripe billing, dev and production environments, KMS-held keys.
 5. **Later phases:** §12.
 
 ## 15. Open questions
@@ -767,7 +786,7 @@ These are believed true from GitHub's and Cargo's documentation, but the design 
 - **Name and domain:** PrivateCrates, at `privatecrates.dev`.
 - **Credential provider name:** `cargo-credential-privatecrates`, following Cargo's naming convention for
   credential providers.
-- **Licence:** BSL 1.1, converting to Apache-2.0 after four years (§2.3).
+- **Licence:** BSL 1.1, converting to Apache-2.0 after four years (§2.4).
 - **CI outside GitHub:** not at launch; no long-lived credentials (§3.3).
 - **Railway builds:** Railway exposes build-time variables only as `ARG`s, so images are built in GitHub Actions or
   from vendored sources (§3.3).
@@ -788,7 +807,7 @@ These are believed true from GitHub's and Cargo's documentation, but the design 
 - GitHub: [OpenID Connect in Actions](https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect),
   [device flow for GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app),
   [webhook events](https://docs.github.com/en/webhooks/webhook-events-and-payloads),
-  [GitHub Marketplace](https://docs.github.com/en/apps/github-marketplace),
+  [Stripe Billing](https://docs.stripe.com/billing),
   [immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases),
   [release asset digests](https://github.blog/changelog/2025-06-03-releases-now-expose-digests-for-release-assets/),
   [installation repositories for a user token](https://docs.github.com/en/rest/apps/installations#list-repositories-accessible-to-the-user-access-token).
