@@ -65,12 +65,16 @@ The set of tenants is derived at start-up and kept current by webhooks (§7). Th
 
 ### 2.2 Pricing and billing
 
-- **$100 per month per GitHub organisation, no user limit.** SSO included; it costs us nothing to provide.
-- 14-day free trial. Billed through **Stripe** (Checkout for sign-up, the customer portal for changes). Stripe is the
-  source of truth: each subscription's metadata names the GitHub organisation, the server loads subscriptions at
-  start-up and keeps them current from Stripe webhooks, so there is still no database.
-- A tenant is active while its subscription is `trialing`, `active` or `past_due`. Once it ends, publishing is refused
-  at once and reads continue for 14 days, then stop, both with an error pointing to the account page.
+- **Free for organisations with 5 or fewer members**, with every feature and no card. Growth-led: developers adopt it
+  on small teams and bring it to the companies that pay.
+- **Larger organisations: $100 per month per GitHub organisation, no user limit**, after a **3-month free trial that
+  needs no card**. An organisation that grows past 5 members has its trial started automatically, so growth never
+  breaks anything. SSO and every other feature are included at every level: no SSO tax.
+- Billed through **Stripe**. Stripe is the source of truth: each subscription's metadata names the GitHub
+  organisation, and the server loads subscriptions at start-up and keeps them current from Stripe webhooks, so there
+  is still no database. Member counts come from GitHub.
+- A tenant is active while free, or while its subscription is trialing, active or past due. Once it ends, publishing
+  is refused at once and reads continue for 14 days, then stop, both with an error pointing to the account page.
 - The full model, and the website's account API, are in `docs/website-api.md`.
 - A higher tier later, priced on things that cost us more: hosted documentation and API search for coding agents
   (§12), several organisations under one enterprise, a support SLA.
