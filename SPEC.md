@@ -237,9 +237,13 @@ error: story_engine is published from CI only, so every version has verifiable p
        Add .github/workflows/publish.yml (see https://acme.privatecrates.dev/login#publish) and push a tag.
 ```
 
-A crate can opt in to publishing from developers' machines with `allow_manual_publish = true` in its owners file.
-Then anyone with Write access to the owning repository can publish from their machine. Such versions have no
-provenance, and the verifier and search label them as manual publishes.
+Publishing from developers' machines is the organisation's choice, made when the registry is created:
+`allow_manual_publish` in `privatecrates.toml` is the default for every repository, a `[repositories.<name>]` table
+overrides it for one repository (both ways), and a crate's owners file can allow it for that crate alone (§5). Where
+it is allowed, anyone with Write access to the owning repository can publish from their machine, first versions
+included, if the package was built from a clean git checkout: Cargo's `.cargo_vcs_info.json` must name a commit and
+not be dirty, and the commit is recorded with the publisher. The commit is the publisher's claim, not provenance: such
+versions have none, and the verifier, search and the compliance dashboard label them as manual publishes.
 
 **A brand-new crate** is first published from CI too (§6.2), so its first version always has provenance. The error
 above tells a developer who tries it from their machine what to do.
@@ -342,7 +346,8 @@ Validation, rejected with Cargo's error format `{"errors":[{"detail":"…"}]}` a
 1. **Token:** either
    - a bound OIDC token (§6.4) whose audience names this crate, version and the sha256 of the uploaded bytes, from the
      owning repository and an allowed workflow; or
-   - if `allow_manual_publish` is set for the crate, a token whose user has push permission on the owning repository.
+   - where manual publishing is allowed for the crate (§3.4), a token whose user has push permission on the owning
+     repository, and a `.crate` packaged from a clean git checkout (`publish::not_clean` otherwise).
    For a crate's first publish, see §6.2.
 2. **Name:** a valid crate name, not reserved. If the name also exists on crates.io, the publish is refused, unless
    `name_clash = "warn"` in `privatecrates.toml`; see §9.3.
@@ -398,6 +403,10 @@ crates-store/
 slug = "acme"                 # hostname and suggested registry name
 name_clash = "refuse"         # "refuse" (default) or "warn" when a crate name also exists on crates.io
 ci_read = "organisation"      # what an Actions OIDC token may read (§6.4): "organisation" or "same-access"
+allow_manual_publish = false  # the default: may crates also be published from developers' machines (§3.4)
+
+[repositories.tools]          # one repository's own settings, by name (current, or as at its first publish)
+allow_manual_publish = true
 ```
 
 `owners/story_engine.toml`:
@@ -451,7 +460,10 @@ and transfers inside the organisation do not break it.
 - the service creates `owners/{name}.toml` with that repository and the token's workflow file as the only entry in
   `publish_workflows`, in the same publish.
 
-A crate's first version therefore always has provenance, even if an administrator later allows manual publishing.
+Where manual publishing is allowed for the repository `package.repository` names (§3.4), a first publish can instead
+come from a developer's machine: the user must be able to read and push to that repository, and the owners file is
+created with an empty `publish_workflows`, meaning any workflow in the owning repository may publish later versions
+(narrow it by listing workflows). Otherwise a crate's first version always has provenance.
 
 Changing a crate's owning repository or its trusted-publishing workflows is an administrator's edit to
 `owners/{name}.toml`. It is deliberately not an API.

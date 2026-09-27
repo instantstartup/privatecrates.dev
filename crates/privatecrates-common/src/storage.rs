@@ -1,6 +1,7 @@
 //! The layout of a tenant's storage repository (SPEC §5), shared by the server and the verifier.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 pub const SETTINGS_PATH: &str = "privatecrates.toml";
 pub const INDEX_DIR: &str = "index/";
@@ -12,6 +13,8 @@ pub const OWNERS_DIR: &str = "owners/";
 pub struct Owner {
     pub repository_id: u64,
     pub repository: String,
+    /// The workflow files in the owning repository that may publish. Empty (a crate first published from a
+    /// developer's machine) means any of them.
     #[serde(default)]
     pub publish_workflows: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -25,6 +28,11 @@ pub struct Owner {
 }
 
 impl Owner {
+    /// Whether a workflow file of the owning repository may publish (SPEC §6.2).
+    pub fn allows_workflow(&self, workflow: &str) -> bool {
+        self.publish_workflows.is_empty() || self.publish_workflows.iter().any(|w| w == workflow)
+    }
+
     /// Whether `actor` is a bot listed in `publish_bots`. GitHub logins are case-insensitive.
     pub fn allows_bot(&self, actor: &str) -> bool {
         actor.ends_with("[bot]")
@@ -63,6 +71,50 @@ pub fn provenance_asset_name(name: &str, version: &str) -> String {
     format!("{}.provenance.jwt", release_tag(name, version))
 }
 
+/// A repository's own settings in `privatecrates.toml` (`[repositories.<name>]`), overriding the defaults.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct RepositorySettings {
+    pub allow_manual_publish: Option<bool>,
+}
+
+/// Whether crates in a repository may be published from a developer's machine (SPEC §6.4): the setting of the first
+/// of `names` (`owner/name`: the current name, then earlier ones) that has its own, else the default. A key is a
+/// repository's name, with or without the organisation.
+pub fn manual_publish_allowed(
+    default: bool,
+    repositories: &BTreeMap<String, RepositorySettings>,
+    names: &[&str],
+) -> bool {
+    names
+        .iter()
+        .find_map(|full_name| {
+            let name = full_name.rsplit('/').next().unwrap_or(full_name);
+            repositories
+                .iter()
+                .find(|(key, _)| {
+                    key.eq_ignore_ascii_case(full_name) || key.eq_ignore_ascii_case(name)
+                })
+                .and_then(|(_, settings)| settings.allow_manual_publish)
+        })
+        .unwrap_or(default)
+}
+
+/// The publishing settings of `privatecrates.toml`, read leniently (other settings are ignored), for the verifier.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PublishSettings {
+    #[serde(default)]
+    pub allow_manual_publish: bool,
+    #[serde(default)]
+    pub repositories: BTreeMap<String, RepositorySettings>,
+}
+
+impl PublishSettings {
+    pub fn allows_manual_publish(&self, names: &[&str]) -> bool {
+        manual_publish_allowed(self.allow_manual_publish, &self.repositories, names)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,6 +135,16 @@ mod tests {
             provenance_asset_name("a", "1.0.0"),
             "a-1.0.0.provenance.jwt"
         );
+    }
+
+    #[test]
+    fn allowed_workflows() {
+        let mut owner: Owner =
+            serde_json::from_str(r#"{"repository_id":5,"repository":"acme/a"}"#).unwrap();
+        assert!(owner.allows_workflow("anything.yml"));
+        owner.publish_workflows = vec!["release.yml".into()];
+        assert!(owner.allows_workflow("release.yml"));
+        assert!(!owner.allows_workflow("anything.yml"));
     }
 
     #[test]

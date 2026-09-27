@@ -132,6 +132,20 @@
 					fix: 'Rename the crate, or check that every dependency on it names the registry. Reserve names that matter on crates.io with a placeholder crate.'
 				};
 			case 'manual_publish_allowed':
+				if (r.repository)
+					return {
+						title: `Crates in ${r.repository} may be published from a developer’s machine`,
+						why: 'Those versions, first versions included, carry no provenance: the commit they claim is not checked by GitHub, and a stolen sign-in could publish.',
+						fix: `Remove [repositories.${r.repository}] from privatecrates.toml in your storage repository, or set allow_manual_publish = false in it, and publish from CI.`,
+						link: ['/docs/publishing#laptop', 'Publishing from a developer’s machine']
+					};
+				if (!r.crate)
+					return {
+						title: 'Crates may be published from a developer’s machine by default',
+						why: 'Those versions, first versions included, carry no provenance: the commit they claim is not checked by GitHub, and a stolen sign-in could publish.',
+						fix: 'Set allow_manual_publish = false in privatecrates.toml in your storage repository, and publish from CI.',
+						link: ['/docs/publishing#laptop', 'Publishing from a developer’s machine']
+					};
 				return {
 					title: `${crate} allows manual publishing`,
 					why: 'Versions published from a developer’s machine carry no provenance, so a forged version would look like just another manual publish.',

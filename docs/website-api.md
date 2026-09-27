@@ -157,8 +157,9 @@ For an org the user belongs to. Each step is `done`, `todo` or `blocked`, with a
 ```
 Only org admins can act; members see the same checklist with `blocked` steps and a note to ask an admin.
 
-### `POST /api/orgs/{org}/settings` `{"slug": "acme", "accept_terms": "preview-2026-09-27"}`
-Admin only. Validates the slug (format, reserved), then `accept_terms` (`account::terms_not_accepted` 400), then that
+### `POST /api/orgs/{org}/settings` `{"slug": "acme", "accept_terms": "preview-2026-09-27", "allow_manual_publish": false}`
+Admin only. `allow_manual_publish` (optional, default `false`) is the admin's choice of whether crates may also be
+published from developers' machines; it is written to `privatecrates.toml` as the default for every repository. Validates the slug (format, reserved), then `accept_terms` (`account::terms_not_accepted` 400), then that
 the organisation has no registry and the slug is not taken. It records the admin's acceptance of the terms first (if
 that fails, `records::unavailable` 503 and nothing is created), then has the storage App **create**
 `privatecrates.toml` in the storage repository (creation only; refused if it exists). Returns the onboarding document.
@@ -257,7 +258,7 @@ discarded by a `push` webhook for the storage repository. `Cache-Control: no-sto
   immutable. The organisation's own verifier, run in its storage repository, remains the independent check.
 - **`publishers`**: one per owners file, sorted by crate: who may publish it.
 - **`risks`**, each with a `code` and a `detail`, and `crate` and `version` where they apply: `missing_provenance` (a
-  version without provenance, allowed or not), `manual_publish_allowed` (a crate that allows manual publishing), `name_clash`
+  version without provenance, allowed or not), `manual_publish_allowed` (manual publishing allowed: with no `crate` or `repository`, by the default in `privatecrates.toml`; with `repository`, by that repository's own setting; with `crate`, by its owners file), `name_clash`
   (a crate whose name exists on crates.io), `no_verify_workflow` (no file in the storage repository's
   `.github/workflows/` mentions `privatecrates-verify`).
 - **`audit`**: the storage repository's commits that changed `index/`, `owners/` or `privatecrates.toml`, newest

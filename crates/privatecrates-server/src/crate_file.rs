@@ -37,12 +37,47 @@ pub struct Metadata {
 }
 
 pub fn check(bytes: &[u8], name: &str, version: &str) -> Result<(), CrateFileError> {
-    manifest(bytes, name, version).map(drop)
+    read(bytes, name, version).map(drop)
+}
+
+/// Where Cargo says a `.crate` was packaged from: `.cargo_vcs_info.json`, which `cargo package` writes when the crate
+/// is in a git checkout. It is the packager's claim, not proof; for a manual publish it is what we can record.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Vcs {
+    /// The commit checked out, when Cargo recorded one.
+    pub commit: Option<String>,
+    /// Whether the checkout had uncommitted changes (`cargo publish --allow-dirty`).
+    pub dirty: bool,
+}
+
+pub fn vcs(bytes: &[u8], name: &str, version: &str) -> Result<Vcs, CrateFileError> {
+    #[derive(serde::Deserialize)]
+    struct Info {
+        git: Option<Git>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Git {
+        sha1: String,
+        #[serde(default)]
+        dirty: bool,
+    }
+    let (_, info) = read(bytes, name, version)?;
+    let git = info
+        .and_then(|text| serde_json::from_str::<Info>(&text).ok())
+        .and_then(|info| info.git)
+        .filter(|git| git.sha1.len() == 40 && git.sha1.bytes().all(|b| b.is_ascii_hexdigit()));
+    Ok(match git {
+        Some(git) => Vcs {
+            commit: Some(git.sha1.to_ascii_lowercase()),
+            dirty: git.dirty,
+        },
+        None => Vcs::default(),
+    })
 }
 
 /// Reads the description and keywords of a `.crate`, checking it as [`check`] does.
 pub fn metadata(bytes: &[u8], name: &str, version: &str) -> Result<Metadata, CrateFileError> {
-    let package = manifest(bytes, name, version)?;
+    let (package, _) = read(bytes, name, version)?;
     Ok(Metadata {
         description: package
             .get("description")
@@ -58,10 +93,17 @@ pub fn metadata(bytes: &[u8], name: &str, version: &str) -> Result<Metadata, Cra
     })
 }
 
-/// The `[package]` table of a `.crate`'s `Cargo.toml`, once the archive's layout and the name and version check.
-fn manifest(bytes: &[u8], name: &str, version: &str) -> Result<toml::Table, CrateFileError> {
+/// The `[package]` table of a `.crate`'s `Cargo.toml`, once the archive's layout and the name and version check,
+/// and its `.cargo_vcs_info.json`, if it has one.
+fn read(
+    bytes: &[u8],
+    name: &str,
+    version: &str,
+) -> Result<(toml::Table, Option<String>), CrateFileError> {
     let prefix = format!("{name}-{version}/");
     let manifest_path = format!("{prefix}Cargo.toml");
+    let vcs_path = format!("{prefix}.cargo_vcs_info.json");
+    let mut vcs = None;
     let decoder = GzDecoder::new(bytes).take(MAX_UNPACKED);
     let mut archive = tar::Archive::new(decoder);
     let mut manifest = None;
@@ -94,6 +136,17 @@ fn manifest(bytes: &[u8], name: &str, version: &str) -> Result<toml::Table, Crat
                     reason: e.to_string(),
                 })?;
             manifest = Some(text);
+        } else if path == vcs_path {
+            let mut text = String::new();
+            // Unreadable is the same as absent: the caller decides what that means.
+            if entry
+                .by_ref()
+                .take(MAX_MANIFEST)
+                .read_to_string(&mut text)
+                .is_ok()
+            {
+                vcs = Some(text);
+            }
         }
     }
     let manifest = manifest.ok_or(CrateFileError::NoManifest {
@@ -119,7 +172,7 @@ fn manifest(bytes: &[u8], name: &str, version: &str) -> Result<toml::Table, Crat
             expected: format!("{name} {version}"),
         });
     }
-    Ok(package)
+    Ok((package, vcs))
 }
 
 /// Builds a `.crate` for tests.

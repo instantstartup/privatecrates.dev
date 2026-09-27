@@ -112,6 +112,8 @@ pub struct SetupOptions<'a> {
     pub slug: Option<&'a str>,
     /// The version of the terms the admin accepts, as they pass it: never filled in by the CLI.
     pub accept_terms: Option<&'a str>,
+    /// The default for every repository: may developers publish from their own machines?
+    pub allow_manual_publish: bool,
     pub start_trial: bool,
     /// Required to start the trial.
     pub billing_email: Option<&'a str>,
@@ -244,7 +246,11 @@ pub fn setup(domain: &Domain, options: &SetupOptions<'_>) -> Result<Setup, Error
             };
             onboarding = api.post(
                 &format!("{path}/settings"),
-                &json!({ "slug": slug, "accept_terms": version }),
+                &json!({
+                    "slug": slug,
+                    "accept_terms": version,
+                    "allow_manual_publish": options.allow_manual_publish,
+                }),
             )?;
             performed.push("settings");
         }

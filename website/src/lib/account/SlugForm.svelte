@@ -44,6 +44,8 @@
 
 	let touched = $state(false);
 	let accepted = $state(false);
+	/** Who may publish: written to privatecrates.toml as allow_manual_publish. CI only unless the admin chooses. */
+	let publishing = $state<'ci' | 'machines'>('ci');
 	/** The server refuses without the terms, so the button waits for the box (and says why, below it). */
 	const waitingForTerms = $derived(!!terms && !accepted);
 	let saving = $state(false);
@@ -68,7 +70,7 @@
 		saving = true;
 		error = null;
 		try {
-			onsaved(await api.saveSettings(org, slug.trim(), terms?.version));
+			onsaved(await api.saveSettings(org, slug.trim(), terms?.version, publishing === 'machines'));
 		} catch (e) {
 			error = e instanceof ApiError ? e : new ApiError(0, [{ detail: String(e) }]);
 		} finally {
@@ -103,6 +105,36 @@
 			<p class="problem" id="slug-problem-{org}">{problem}</p>
 		{/if}
 	</div>
+	<fieldset class="publishing">
+		<legend>Who can publish crates</legend>
+		<label class="choice">
+			<input type="radio" name="publishing-{org}" value="ci" bind:group={publishing} />
+			<span>
+				<strong>GitHub Actions only</strong> (recommended)
+				<span class="choice-hint"
+					>Developers publish by pushing a tag. Every version is built from a commit, with provenance signed
+					by GitHub.</span
+				>
+			</span>
+		</label>
+		<label class="choice">
+			<input type="radio" name="publishing-{org}" value="machines" bind:group={publishing} />
+			<span>
+				<strong>Also from developers’ machines</strong>
+				<span class="choice-hint"
+					>Anyone with write access to a crate’s repository can run <code>cargo publish</code> from a clean git
+					checkout, first versions included. Those versions have no provenance, and a stolen sign-in could publish.</span
+				>
+			</span>
+		</label>
+		<p class="hint">
+			Saved in <code>privatecrates.toml</code> as the default for every repository. Later, a pull request can
+			change it, or set it for one repository.
+			<a href="/docs/publishing#laptop" target="_blank" rel="noopener"
+				>More about publishing<span class="visually-hidden"> (opens in a new tab)</span></a
+			>
+		</p>
+	</fieldset>
 	{#if terms}
 		<TermsCheckbox
 			{org}
@@ -121,11 +153,11 @@
 			disabled={saving || waitingForTerms}
 			aria-describedby={waitingForTerms ? `slug-wait-${org}` : undefined}
 		>
-			{saving ? 'Saving registry name…' : 'Save registry name'}
+			{saving ? 'Creating registry…' : 'Create registry'}
 		</button>
 		<!-- Kept in place (and only emptied), so ticking the box does not move the button. -->
 		<p class="wait" id="slug-wait-{org}" aria-live="polite">
-			{waitingForTerms ? 'Tick the box above to accept the terms, then save.' : ''}
+			{waitingForTerms ? 'Tick the box above to accept the terms, then create the registry.' : ''}
 		</p>
 	</div>
 </form>
@@ -170,6 +202,42 @@
 		gap: 0.5rem 0.75rem;
 	}
 	.wait {
+		font-size: var(--text-sm);
+		color: var(--ink-soft);
+	}
+	.publishing {
+		display: grid;
+		gap: 0.6rem;
+		border: 0;
+		padding: 0;
+		margin: 0;
+	}
+	legend {
+		font-weight: 700;
+		margin-bottom: 0.35rem;
+	}
+	.choice {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.7rem;
+		align-items: start;
+		padding: 0.75rem 1rem;
+		border: 2px solid var(--rule);
+		border-radius: 8px;
+		cursor: pointer;
+	}
+	.choice:has(input:checked) {
+		border-color: var(--line);
+		background: var(--deck);
+	}
+	.choice input {
+		width: 1.2rem;
+		height: 1.2rem;
+		margin-top: 0.2rem;
+		accent-color: var(--harbour);
+	}
+	.choice-hint {
+		display: block;
 		font-size: var(--text-sm);
 		color: var(--ink-soft);
 	}

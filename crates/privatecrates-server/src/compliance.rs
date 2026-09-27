@@ -147,6 +147,9 @@ struct Risk {
     krate: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<String>,
+    /// For a repository's own setting in privatecrates.toml.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repository: Option<String>,
     detail: String,
 }
 
@@ -359,6 +362,7 @@ async fn build(state: &Arc<AppState>, tenant: &Arc<Tenant>) -> Result<Report, Ap
                 code: "missing_provenance",
                 krate: Some(v.name.clone()),
                 version: Some(v.version.clone()),
+                repository: None,
                 detail: "published without provenance, so nothing shows which workflow built it"
                     .into(),
             });
@@ -380,17 +384,50 @@ async fn build(state: &Arc<AppState>, tenant: &Arc<Tenant>) -> Result<Report, Ap
             repository: owner.repository.clone(),
             workflows: owner.publish_workflows.clone(),
             environment: owner.publish_environment.clone(),
-            manual_publish: owner.allow_manual_publish,
+            manual_publish: owner.allow_manual_publish
+                || tenant.settings.allows_manual_publish(&[&owner.repository]),
         })
         .collect();
+    let settings = &tenant.settings;
+    if settings.allow_manual_publish {
+        risks.push(Risk {
+            code: "manual_publish_allowed",
+            krate: None,
+            version: None,
+            repository: None,
+            detail: "privatecrates.toml allows crates to be published from a developer's machine by default, \
+                     first versions included, without provenance"
+                .into(),
+        });
+    } else {
+        risks.extend(
+            settings
+                .repositories
+                .iter()
+                .filter(|(_, r)| r.allow_manual_publish == Some(true))
+                .map(|(name, _)| Risk {
+                    code: "manual_publish_allowed",
+                    krate: None,
+                    version: None,
+                    repository: Some(name.clone()),
+                    detail: format!(
+                        "privatecrates.toml allows crates in {name} to be published from a developer's machine, \
+                         first versions included, without provenance"
+                    ),
+                }),
+        );
+    }
     risks.extend(
         owners
             .iter()
-            .filter(|(_, owner)| owner.allow_manual_publish)
+            .filter(|(_, owner)| {
+                owner.allow_manual_publish && !settings.allows_manual_publish(&[&owner.repository])
+            })
             .map(|(name, _)| Risk {
                 code: "manual_publish_allowed",
                 krate: Some(display(name)),
                 version: None,
+                repository: None,
                 detail: "versions may be published from a developer's machine, without provenance"
                     .into(),
             }),
@@ -403,6 +440,7 @@ async fn build(state: &Arc<AppState>, tenant: &Arc<Tenant>) -> Result<Report, Ap
                 code: "name_clash",
                 krate: Some(name.clone()),
                 version: None,
+                repository: None,
                 detail: "a crate with this name exists on crates.io; a dependency that omits `registry` would get \
                          that one"
                     .into(),
@@ -417,6 +455,7 @@ async fn build(state: &Arc<AppState>, tenant: &Arc<Tenant>) -> Result<Report, Ap
             code: "no_verify_workflow",
             krate: None,
             version: None,
+            repository: None,
             detail: format!(
                 "no workflow in {} runs {VERIFIER}, the independent check of everything this service writes; see \
                  {}/docs/verify",
@@ -621,6 +660,11 @@ async fn check(
     let published = Published {
         owner: owner.as_ref(),
         first: v.first,
+        // As things stand now: the dashboard does not replay the settings' history, as the verifier does.
+        manual_allowed: owner.as_ref().is_some_and(|o| {
+            (!v.first && o.allow_manual_publish)
+                || tenant.settings.allows_manual_publish(&[&o.repository])
+        }),
     };
     let evidence = Evidence {
         release: release.as_ref(),

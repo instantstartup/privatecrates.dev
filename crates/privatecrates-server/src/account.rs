@@ -535,6 +535,9 @@ async fn onboarding(
 struct SettingsRequest {
     slug: String,
     accept_terms: Option<Value>,
+    /// The admin's choice: may developers publish from their own machines? Off unless chosen.
+    #[serde(default)]
+    allow_manual_publish: bool,
 }
 
 #[derive(Deserialize)]
@@ -614,9 +617,17 @@ async fn settings(
         .ok_or_else(storage_not_ready)?;
     let [repo]: [Repo; 1] = repos.try_into().map_err(|_| storage_not_ready())?;
     let registry = state.config.tenant_base_url(&slug);
+    let apex = state.config.apex_url();
     let content = format!(
-        "# PrivateCrates settings: {}/docs/setup. Change them with a pull request.\nslug = \"{slug}\"\n",
-        state.config.apex_url()
+        "# PrivateCrates settings: {apex}/docs/setup. Change them with a pull request.\nslug = \"{slug}\"\n\n\
+         # Whether crates may also be published from developers' machines, first versions included. Those versions\n\
+         # have no provenance: {apex}/docs/publishing#laptop. When false, crates are published from GitHub Actions.\n\
+         # This is the default for every repository.\n\
+         allow_manual_publish = {}\n\n\
+         # A repository's own setting overrides the default, by its name:\n\
+         # [repositories.my-repository]\n\
+         # allow_manual_publish = {}\n",
+        request.allow_manual_publish, !request.allow_manual_publish
     );
     let message = format!(
         "Create privatecrates.toml\n\nSet up the registry {registry}, requested by {}.\n",

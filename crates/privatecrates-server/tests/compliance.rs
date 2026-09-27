@@ -212,7 +212,7 @@ async fn manual_publishing() {
             "publish",
             "story_engine",
             "0.2.0",
-            "alice (manual publish, no provenance)",
+            "alice (manual publish from commit 0123456789abcdef0123456789abcdef01234567, no provenance)",
             false
         ])
     );

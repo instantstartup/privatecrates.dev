@@ -276,7 +276,12 @@ pub struct Crate {
     pub extra: String,
     pub description: Option<String>,
     pub keywords: Vec<String>,
+    /// `.cargo_vcs_info.json`, as `cargo package` writes it in a git checkout; `None` leaves it out.
+    pub vcs: Option<String>,
 }
+
+/// The commit test crates say they were packaged from.
+pub const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
 impl Crate {
     pub fn new(name: &str, version: &str, repository: &str) -> Self {
@@ -288,7 +293,24 @@ impl Crate {
             extra: String::new(),
             description: None,
             keywords: Vec::new(),
+            vcs: Some(format!(
+                "{{\n  \"git\": {{\n    \"sha1\": \"{COMMIT}\"\n  }},\n  \"path_in_vcs\": \"\"\n}}"
+            )),
         }
+    }
+
+    /// Packaged from a checkout with uncommitted changes (`--allow-dirty`).
+    pub fn dirty(mut self) -> Self {
+        self.vcs = Some(format!(
+            "{{\"git\":{{\"sha1\":\"{COMMIT}\",\"dirty\":true}},\"path_in_vcs\":\"\"}}"
+        ));
+        self
+    }
+
+    /// Packaged outside a git checkout.
+    pub fn without_vcs(mut self) -> Self {
+        self.vcs = None;
+        self
     }
 
     pub fn described(mut self, description: &str, keywords: &[&str]) -> Self {
@@ -321,10 +343,17 @@ impl Crate {
         if !self.keywords.is_empty() {
             manifest.push_str(&format!("keywords = {:?}\n", self.keywords));
         }
+        let vcs = self
+            .vcs
+            .clone()
+            .map(|info| (format!("{prefix}/.cargo_vcs_info.json"), info));
         for (path, content) in [
             (format!("{prefix}/Cargo.toml"), manifest),
             (format!("{prefix}/src/lib.rs"), self.extra.clone()),
-        ] {
+        ]
+        .into_iter()
+        .chain(vcs)
+        {
             let mut header = tar::Header::new_gnu();
             header.set_size(content.len() as u64);
             header.set_mode(0o644);

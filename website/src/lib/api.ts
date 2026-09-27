@@ -132,6 +132,8 @@ export type RiskCode = 'name_clash' | 'manual_publish_allowed' | 'missing_proven
 export interface Risk {
 	code: RiskCode | string;
 	crate?: string;
+	/** A repository's own setting in privatecrates.toml. */
+	repository?: string;
 	detail?: string;
 }
 
@@ -249,15 +251,16 @@ export const api = {
 	session: () => request<Session>('GET', '/api/session'),
 	onboarding: (login: string) => request<Onboarding>('GET', `${org(login)}/onboarding`),
 	/**
-	 * Saves the registry name. `acceptTerms` is the current terms version, which an admin accepted on behalf of the
-	 * organisation; the server refuses without it (`account::terms_not_accepted`).
+	 * Creates the registry: its name, and whether developers may publish from their own machines
+	 * (`allow_manual_publish` in privatecrates.toml). `acceptTerms` is the current terms version, which an admin
+	 * accepted on behalf of the organisation; the server refuses without it (`account::terms_not_accepted`).
 	 */
-	saveSettings: (login: string, slug: string, acceptTerms?: string) =>
-		request<Onboarding>(
-			'POST',
-			`${org(login)}/settings`,
-			acceptTerms ? { slug, accept_terms: acceptTerms } : { slug }
-		),
+	saveSettings: (login: string, slug: string, acceptTerms?: string, allowManualPublish = false) =>
+		request<Onboarding>('POST', `${org(login)}/settings`, {
+			slug,
+			allow_manual_publish: allowManualPublish,
+			...(acceptTerms ? { accept_terms: acceptTerms } : {})
+		}),
 	/** Accepts the current terms for an existing registry (admin only); returns nothing the page needs. */
 	acceptTerms: (login: string, version: string) =>
 		request<unknown>('POST', `${org(login)}/terms`, { accept_terms: version }),

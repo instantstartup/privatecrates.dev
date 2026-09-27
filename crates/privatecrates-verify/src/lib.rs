@@ -14,7 +14,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use privatecrates_common::{
     index::IndexFile,
-    storage::{INDEX_DIR, OWNERS_DIR, Owner, SETTINGS_PATH, owner_name, release_tag},
+    storage::{
+        INDEX_DIR, OWNERS_DIR, Owner, PublishSettings, SETTINGS_PATH, owner_name, release_tag,
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -93,6 +95,7 @@ struct Change<'a> {
 struct Appended {
     owner: Option<Owner>,
     first: bool,
+    manual_allowed: bool,
 }
 
 struct Verifier<'a> {
@@ -326,14 +329,25 @@ impl Verifier<'_> {
             let (Some(name), Some(version)) = (line["name"].as_str(), line["vers"].as_str()) else {
                 continue;
             };
-            let owner = files
+            let owner: Option<Owner> = files
                 .get(&privatecrates_common::storage::owner_path(name))
                 .and_then(|t| toml::from_str(t).ok());
+            // As the settings and owners file were when the version was appended.
+            let settings: PublishSettings = files
+                .get(SETTINGS_PATH)
+                .and_then(|t| toml::from_str(t).ok())
+                .unwrap_or_default();
+            let first = i == 0;
+            let manual_allowed = owner.as_ref().is_some_and(|o| {
+                (!first && o.allow_manual_publish)
+                    || settings.allows_manual_publish(&[&o.repository])
+            });
             appended.insert(
                 format!("{name}@{version}"),
                 Appended {
                     owner,
-                    first: i == 0,
+                    first,
+                    manual_allowed,
                 },
             );
         }
@@ -381,6 +395,7 @@ impl Verifier<'_> {
         let published = appended.map(|a| Published {
             owner: a.owner.as_ref(),
             first: a.first,
+            manual_allowed: a.manual_allowed,
         });
         let mut provenance = None;
         let mut crate_bytes = None;

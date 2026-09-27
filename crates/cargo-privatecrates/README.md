@@ -6,7 +6,7 @@ It is built for people and for coding agents: every command takes `--json` and e
 ```sh
 cargo privatecrates login                                   # GitHub device flow; prints a code and a link
 cargo privatecrates logout
-cargo privatecrates setup <org> [--slug <name> --accept-terms <version>] [--start-trial --billing-email <email>] [--json]
+cargo privatecrates setup <org> [--slug <name> --accept-terms <version> [--allow-manual-publish]] [--start-trial --billing-email <email>] [--json]
 cargo privatecrates terms <org> [--accept <version>] [--json]
 cargo privatecrates init --registry <name> [--dry-run | --yes] [--no-workflow] [--workflow-name publish.yml] [--force]
 cargo privatecrates doctor [--registry <name> …] [--crate <name> …] [--json]
@@ -20,7 +20,8 @@ cargo privatecrates doctor [--registry <name> …] [--crate <name> …] [--json]
   login. `--slug` saves the registry name, and needs `--accept-terms` with the version of the PrivateCrates terms
   shown with them: passing it accepts the terms on behalf of the organisation, so only an admin who has read them
   passes it (an agent asks the admin first, and never accepts for them). Without it, `setup --slug` prints the terms'
-  URL and the exact flag to add, and exits 1; the command never fills the version in itself. `--start-trial` starts
+  URL and the exact flag to add, and exits 1; the command never fills the version in itself. `--allow-manual-publish` lets developers also publish from their own machines by default
+  (versions without provenance); without it, crates are published from GitHub Actions only. `--start-trial` starts
   the no-card trial (not during the preview, which is free), with `--billing-email` the address that gets the
   reminder before it ends. `--json` prints the account API's onboarding document, with `commands` and `needs_person`
   added to each step and `terms: { version, url, accepted }`.

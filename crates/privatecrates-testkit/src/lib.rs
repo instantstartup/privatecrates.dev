@@ -274,6 +274,15 @@ impl FakeGitHub {
         id
     }
 
+    /// Renames a repository, keeping its ID, as GitHub does.
+    pub fn rename_repo(&self, id: u64, name: &str) {
+        self.world()
+            .repos
+            .get_mut(&id)
+            .expect("known repository")
+            .name = name.into();
+    }
+
     /// Adds a user and returns a token of the given kind (`ghu_` for an App user token, `gho_` for OAuth).
     pub fn add_user(&self, login: &str, prefix: &str, repos: &[(u64, bool)]) -> String {
         let mut w = self.world();

@@ -114,6 +114,7 @@ async fn cargo_consumes_publishes_and_yanks() {
         "story_engine",
         "[package]\nname = \"story_engine\"\nversion = \"0.2.0\"\nedition = \"2024\"\nlicense = \"MIT\"\ndescription = \"Stories\"\nrepository = \"https://github.com/acme/story-engine\"\n",
     );
+    // Not from a git checkout: the version could not be traced to a commit, so it is refused.
     let (ok, stderr) = cargo
         .run(
             krate.path(),
@@ -127,7 +128,38 @@ async fn cargo_consumes_publishes_and_yanks() {
             ],
         )
         .await;
+    assert!(!ok);
+    assert!(stderr.contains("clean git checkout"), "{stderr}");
+    // From a committed checkout, it is published, recording the commit.
+    let git = |args: &[&str]| {
+        let status = std::process::Command::new("git")
+            .args(["-c", "user.name=t", "-c", "user.email=t@example.com"])
+            .args(args)
+            .current_dir(krate.path())
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?}");
+    };
+    std::fs::write(krate.path().join(".gitignore"), "/target\n").unwrap();
+    git(&["init", "-q"]);
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "story_engine 0.2.0"]);
+    let (ok, stderr) = cargo
+        .run(
+            krate.path(),
+            &pusher,
+            &["publish", "--registry", "acme", "--no-verify"],
+        )
+        .await;
     assert!(ok, "publish failed:\n{stderr}");
+    let commit = h.fake.commits(h.org.storage_repo).pop().unwrap();
+    assert!(
+        commit
+            .message
+            .contains("alice (manual publish from commit "),
+        "{}",
+        commit.message
+    );
     let index = h
         .fake
         .file(h.org.storage_repo, "index/st/or/story_engine")

@@ -4,6 +4,13 @@
 	import Seo from '$lib/components/Seo.svelte';
 	import { ciPublish, ciPublishWorkspace, ownersToml, publishRefused, publishTarget } from '$lib/snippets';
 
+	const manualPublishSettings = `# The default for every repository
+allow_manual_publish = false
+
+# Except this one
+[repositories.tools]
+allow_manual_publish = true`;
+
 	const yank = `cargo yank --registry acme --version 0.2.0 story_engine
 cargo yank --registry acme --version 0.2.0 --undo story_engine`;
 </script>
@@ -95,12 +102,33 @@ cargo yank --registry acme --version 0.2.0 --undo story_engine`;
 </ul>
 
 <h2 id="laptop">Publishing from a developer’s machine</h2>
-<p>By default it is refused, with instructions:</p>
+<p>
+	When you create the registry you choose whether developers may run <code>cargo publish</code> from their own machines.
+	Unless you allow it, it is refused, with instructions:
+</p>
 <CodeBlock caption="cargo publish output" code={publishRefused} hashComments={false} />
 <p>
-	A crate can opt in with <code>allow_manual_publish = true</code> in its owners file. Then anyone with push access
-	to the owning repository can publish from their machine. Those versions have no provenance, and the verifier and
-	search label them as manual publishes.
+	The choice is <code>allow_manual_publish</code> in <code>privatecrates.toml</code>: the default for every
+	repository, which a repository’s own <code>[repositories.&lt;name&gt;]</code> table overrides, both ways. A crate’s
+	owners file can also allow it for that one crate. Change any of them with a pull request.
+</p>
+<CodeBlock caption="privatecrates.toml" code={manualPublishSettings} />
+<p>Where it is allowed, a publish from a machine is accepted when:</p>
+<ul>
+	<li>
+		the publisher has write access to the crate’s repository (for a first version, the repository its
+		<code>package.repository</code> names, in your organisation), and
+	</li>
+	<li>
+		the crate was packaged from a clean git checkout: Cargo records the commit in the package, and we refuse
+		packages without one or with uncommitted changes (<code>--allow-dirty</code>).
+	</li>
+</ul>
+<p>
+	The commit is the publisher’s claim, not something GitHub signed. These versions have no provenance, and the
+	verifier, search and the compliance dashboard show them as manual publishes, with who published them and
+	from which commit. A crate first published from a machine can later be published from any workflow in its
+	repository; add <code>publish_workflows</code> to its owners file to narrow that.
 </p>
 
 <h2 id="yank">Yanking</h2>

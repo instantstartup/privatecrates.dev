@@ -149,12 +149,40 @@ pub enum ApiError {
 
     // --- Publishing: who may publish ---
     #[error(
-        "{name} is published from GitHub Actions only, so that every version has verifiable provenance. Add a \
-         publish workflow to its repository (see {base_url}/login#publish) and push a tag"
+        "{name} is published from GitHub Actions only, so every version can be traced to a commit. To publish it: \
+         in its repository run `cargo privatecrates init --registry {slug}`, merge the workflow it adds, then push \
+         the tag {name}-v{version} (in a workspace) or v{version}. An organisation admin can allow publishing from \
+         developers' machines instead, with allow_manual_publish = true in privatecrates.toml in the storage \
+         repository. See {base_url}/login#publish"
     )]
     #[diagnostic(code(publish::ci_only))]
     #[http_status(403)]
-    CiOnly { name: String, base_url: String },
+    CiOnly {
+        name: String,
+        version: String,
+        slug: String,
+        base_url: String,
+    },
+
+    #[error(
+        "{name} {version} was not packaged from a clean git checkout, so it cannot be traced to a commit. Commit \
+         your changes and run cargo publish again, without --allow-dirty"
+    )]
+    #[diagnostic(code(publish::not_clean))]
+    #[http_status(403)]
+    ManualPublishNotClean { name: String, version: String },
+
+    #[error(
+        "the first publish of {name} needs `package.repository` in its Cargo.toml to name its GitHub repository in \
+         {org} (found: {declared})"
+    )]
+    #[diagnostic(code(publish::repository_required))]
+    #[http_status(403)]
+    ManualPublishRepository {
+        name: String,
+        org: String,
+        declared: String,
+    },
 
     #[error(
         "{reason}. A publish token must be requested for exactly this crate, version and checksum (audience \

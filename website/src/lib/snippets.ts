@@ -114,9 +114,14 @@ jobs:
 }
 
 export function settingsToml(slug: string): string {
-	return `slug = "${slug}"             # your hostname
-name_clash = "refuse"     # or "warn"
-ci_read = "organisation"  # or "same-access"`;
+	return `slug = "${slug}"                # your hostname
+name_clash = "refuse"        # or "warn"
+ci_read = "organisation"     # the only option today
+allow_manual_publish = false # the default for every repository
+
+# A repository's own setting, by its name
+[repositories.tools]
+allow_manual_publish = true`;
 }
 
 export const ownersToml = `repository_id = 123456789               # survives renames
@@ -125,8 +130,11 @@ publish_workflows = ["publish.yml"]     # may publish
 publish_environment = "crates"          # optional
 allow_manual_publish = false            # the default`;
 
-export const publishRefused = `error: story_engine is published from CI only, so every version has verifiable provenance.
-       Add .github/workflows/publish.yml (see https://acme.privatecrates.dev/login#publish) and push a tag.`;
+export const publishRefused = `error: story_engine is published from GitHub Actions only, so every version can be traced to a
+       commit. To publish it: in its repository run \`cargo privatecrates init --registry acme\`, merge the
+       workflow it adds, then push the tag story_engine-v0.2.0 (in a workspace) or v0.2.0. An organisation
+       admin can allow publishing from developers' machines instead, with allow_manual_publish = true in
+       privatecrates.toml in the storage repository. See https://acme.privatecrates.dev/login#publish`;
 
 // ---------------------------------------------------------------------------------------------------------------
 // cargo privatecrates, the set-up CLI, and the prompts for AI coding agents (docs/agent-onboarding.md).
@@ -154,7 +162,7 @@ export const CURRENT_TERMS = { version: TERMS_VERSION, url: `${SITE_URL}${TERMS_
 // The trial flags stay in the CLI for later; during the preview the server refuses them (billing::preview).
 export const cliUsage = `cargo privatecrates login
 cargo privatecrates logout
-cargo privatecrates setup <org> [--slug <name> --accept-terms <version>]${PREVIEW ? '' : ' [--start-trial --billing-email <address>]'} [--json]
+cargo privatecrates setup <org> [--slug <name> --accept-terms <version> [--allow-manual-publish]]${PREVIEW ? '' : ' [--start-trial --billing-email <address>]'} [--json]
 cargo privatecrates terms <org> --accept <version>
 cargo privatecrates init --registry <name> [--dry-run | --yes] [--no-workflow] [--domain <domain> | --url <url>]
 cargo privatecrates doctor [--json]`;
@@ -297,7 +305,7 @@ export function setupPrompt({
 		);
 	if (todo('settings'))
 		items.push(
-			`Show me the terms, ${terms.url}, and ask me to read them and accept them on behalf of ${org}. Wait until I say I accept. Never accept them for me, and do not go on if I decline. Only then choose the registry name: ${cli(`setup ${org} --slug ${slug} --accept-terms ${terms.version}`, apex)}`
+			`Show me the terms, ${terms.url}, and ask me to read them and accept them on behalf of ${org}. Wait until I say I accept. Never accept them for me, and do not go on if I decline. Then ask me who may publish crates: GitHub Actions only (recommended: every version is built from a commit, with provenance signed by GitHub), or also developers' own machines with cargo publish (no provenance). Only then choose the registry name: ${cli(`setup ${org} --slug ${slug} --accept-terms ${terms.version}`, apex)}, adding --allow-manual-publish only if I chose developers' machines`
 		);
 	if (!preview && todo('plan') && plan === 'trial')
 		items.push(

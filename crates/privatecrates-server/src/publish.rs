@@ -19,7 +19,7 @@ use crate::{
     auth::{Caller, Credential, Resolver},
     crate_file,
     error::ApiError,
-    github::{FileWrite, GitHubError, Release, now_secs},
+    github::{AppKind, FileWrite, GitHubError, Release, now_secs},
     oidc::{ActionsClaims, OidcError},
     tenant::{NameClash, Owner, Tenant, index_path, owner_path},
 };
@@ -74,8 +74,13 @@ enum Publisher {
         claims: Box<ActionsClaims>,
         token: String,
     },
-    /// A manual publish, allowed only when the crate opts in.
-    User { caller: Caller, login: String },
+    /// A manual publish, allowed only when the organisation or the crate opts in: from a clean git checkout, whose
+    /// commit is recorded (the packager's claim, not proof).
+    User {
+        caller: Caller,
+        login: String,
+        commit: String,
+    },
 }
 
 impl Publisher {
@@ -94,7 +99,9 @@ impl Publisher {
                     claims.actor, claims.job_workflow_ref, claims.event_name, claims.git_ref
                 )
             }
-            Self::User { login, .. } => format!("{login} (manual publish, no provenance)"),
+            Self::User { login, commit, .. } => {
+                format!("{login} (manual publish from commit {commit}, no provenance)")
+            }
         }
     }
 }
@@ -133,6 +140,7 @@ pub async fn publish(
         base_url: &base_url,
         name: &name,
         meta,
+        crate_bytes: &upload.crate_bytes,
         cksum: &cksum,
         owner: existing_owner.as_ref(),
     };
@@ -194,6 +202,7 @@ struct Target<'a> {
     base_url: &'a str,
     name: &'a CrateName,
     meta: &'a PublishMetadata,
+    crate_bytes: &'a [u8],
     cksum: &'a str,
     owner: Option<&'a Owner>,
 }
@@ -209,11 +218,14 @@ async fn authorize(
         base_url,
         name,
         meta,
+        crate_bytes,
         cksum,
         owner,
     } = *target;
     let ci_only = || ApiError::CiOnly {
         name: name.to_string(),
+        version: meta.vers.clone(),
+        slug: tenant.slug.clone(),
         base_url: base_url.to_owned(),
     };
     match credential {
@@ -255,7 +267,9 @@ async fn authorize(
                             repository: claims.repository.clone(),
                         });
                     }
-                    if !owner.publish_workflows.iter().any(|w| w == workflow) {
+                    // An owner created by a manual first publish names no workflow: any workflow in the owning
+                    // repository may publish, still subject to the trigger and actor checks.
+                    if !owner.allows_workflow(workflow) {
                         return Err(ApiError::WorkflowNotAllowed {
                             workflow: workflow.to_owned(),
                             name: name.to_string(),
@@ -305,23 +319,112 @@ async fn authorize(
         Credential::Registry(_) => Err(ApiError::RegistryTokenReadOnly),
         credential @ (Credential::AppUser(_) | Credential::GitHub(_)) => {
             let caller = resolver.caller(credential).await?;
-            let Some(owner) = owner else {
-                return Err(ci_only());
+            let settings = &tenant.settings;
+            let (repository_id, repository, new_owner) = match owner {
+                Some(owner) => {
+                    if !resolver.can_read(&caller, owner.repository_id).await? {
+                        return Err(ApiError::NotFound);
+                    }
+                    let allowed = owner.allow_manual_publish
+                        || if settings.repositories.is_empty() {
+                            settings.allow_manual_publish
+                        } else {
+                            // Per-repository settings name the repository as it is called now, which may not be
+                            // what it was called at the crate's first publish.
+                            let token = state
+                                .gh
+                                .installation_token(AppKind::Reader, tenant.reader_installation)
+                                .await?;
+                            let current = state
+                                .gh
+                                .repository_by_id(&token, owner.repository_id)
+                                .await?
+                                .map_or_else(|| owner.repository.clone(), |repo| repo.full_name);
+                            settings.allows_manual_publish(&[&current, &owner.repository])
+                        };
+                    if !allowed {
+                        return Err(ci_only());
+                    }
+                    (owner.repository_id, owner.repository.clone(), None)
+                }
+                // A first publish from a developer's machine (SPEC §6.2): only where the organisation allows it, and
+                // the owning repository is the one `package.repository` names, in the organisation.
+                None => {
+                    if !settings.any_manual_publish() {
+                        return Err(ci_only());
+                    }
+                    let repository_required = || ApiError::ManualPublishRepository {
+                        name: name.to_string(),
+                        org: tenant.org_login.clone(),
+                        declared: meta.repository.clone().unwrap_or_else(|| "not set".into()),
+                    };
+                    let declared = meta
+                        .repository
+                        .as_deref()
+                        .and_then(github_repository)
+                        .filter(|full_name| {
+                            full_name
+                                .split_once('/')
+                                .is_some_and(|(org, _)| org.eq_ignore_ascii_case(&tenant.org_login))
+                        })
+                        .ok_or_else(repository_required)?;
+                    let token = state
+                        .gh
+                        .installation_token(AppKind::Reader, tenant.reader_installation)
+                        .await?;
+                    // Unknown to the reader App, or unreadable by the caller: the same answer, so private names stay
+                    // private.
+                    let repo = state
+                        .gh
+                        .repository(&token, &declared)
+                        .await?
+                        .ok_or(ApiError::NotFound)?;
+                    if !resolver.can_read(&caller, repo.id).await? {
+                        return Err(ApiError::NotFound);
+                    }
+                    if !settings.allows_manual_publish(&[&repo.full_name]) {
+                        return Err(ci_only());
+                    }
+                    let owner = Owner {
+                        repository_id: repo.id,
+                        repository: repo.full_name.clone(),
+                        publish_workflows: Vec::new(),
+                        publish_environment: None,
+                        allow_manual_publish: false,
+                        publish_bots: Vec::new(),
+                    };
+                    (repo.id, repo.full_name, Some(owner))
+                }
             };
-            if !resolver.can_read(&caller, owner.repository_id).await? {
-                return Err(ApiError::NotFound);
-            }
-            if !owner.allow_manual_publish {
-                return Err(ci_only());
-            }
-            if !resolver.can_push(&caller, owner.repository_id).await? {
+            if !resolver.can_push(&caller, repository_id).await? {
                 return Err(ApiError::PushRequired {
                     action: format!("publishing {name}"),
-                    repository: owner.repository.clone(),
+                    repository,
                 });
             }
+            let vcs = crate_file::vcs(crate_bytes, name.as_str(), &meta.vers).map_err(|e| {
+                ApiError::CrateFileInvalid {
+                    reason: e.to_string(),
+                }
+            })?;
+            let commit = match vcs.commit {
+                Some(commit) if !vcs.dirty => commit,
+                _ => {
+                    return Err(ApiError::ManualPublishNotClean {
+                        name: name.to_string(),
+                        version: meta.vers.clone(),
+                    });
+                }
+            };
             let login = resolver.login(&caller).await?;
-            Ok((Publisher::User { caller, login }, None))
+            Ok((
+                Publisher::User {
+                    caller,
+                    login,
+                    commit,
+                },
+                new_owner,
+            ))
         }
     }
 }

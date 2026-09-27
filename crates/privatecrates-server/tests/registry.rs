@@ -2,7 +2,7 @@
 
 mod common;
 
-use common::{Crate, Harness, error_detail};
+use common::{COMMIT, Crate, Harness, error_detail};
 use privatecrates_common::audience;
 use serde_json::Value;
 
@@ -336,8 +336,151 @@ async fn manual_publishing_is_opt_in_and_needs_push() {
             .last()
             .unwrap()
             .message
-            .contains("Published by alice (manual publish, no provenance)")
+            .contains("Published by alice (manual publish from commit 0123456789abcdef0123456789abcdef01234567, no provenance)")
     );
+}
+
+#[tokio::test]
+async fn an_organisation_can_allow_publishing_from_machines() {
+    let h = Harness::start().await;
+    let repo = h.repo("story-engine");
+    let writer = h.fake.add_user("alice", "ghu_", &[(repo, true)]);
+    let reader = h.fake.add_user("bob", "ghu_", &[(repo, false)]);
+    let first = Crate::new("story_engine", "0.1.0", "acme/story-engine");
+
+    // Not allowed: the refusal says how to publish from CI, and that an admin can allow this.
+    let response = h.publish(&first, &writer).await;
+    assert_eq!(response.status(), 403);
+    let detail = error_detail(response).await;
+    assert!(
+        detail.contains("cargo privatecrates init --registry acme"),
+        "{detail}"
+    );
+    assert!(detail.contains("story_engine-v0.1.0"), "{detail}");
+    assert!(detail.contains("allow_manual_publish = true"), "{detail}");
+
+    h.fake.write_file(
+        h.org.storage_repo,
+        "privatecrates.toml",
+        "slug = \"acme\"\nallow_manual_publish = true\n",
+    );
+    h.refresh().await;
+    h.state.discover().await.unwrap();
+
+    // Not from a clean git checkout.
+    for krate in [first.clone().dirty(), first.clone().without_vcs()] {
+        let response = h.publish(&krate, &writer).await;
+        assert_eq!(response.status(), 403);
+        assert!(error_detail(response).await.contains("clean git checkout"));
+    }
+    // The repository must be named, and in the organisation.
+    for repository in [
+        None,
+        Some("https://github.com/elsewhere/story-engine".to_owned()),
+    ] {
+        let krate = Crate {
+            repository,
+            ..first.clone()
+        };
+        let response = h.publish(&krate, &writer).await;
+        assert_eq!(response.status(), 403);
+        assert!(
+            error_detail(response)
+                .await
+                .contains("needs `package.repository`")
+        );
+    }
+    // A repository that does not exist, and one the publisher cannot read, look the same.
+    let missing = Crate::new("story_engine", "0.1.0", "acme/missing");
+    assert_eq!(h.publish(&missing, &writer).await.status(), 404);
+    let other = h.repo("other");
+    let other_crate = Crate::new("story_engine", "0.1.0", "acme/other");
+    let response = h.publish(&other_crate, &writer).await;
+    assert_eq!(response.status(), 404, "{other}");
+    // Read access is not enough.
+    let response = h.publish(&first, &reader).await;
+    assert_eq!(response.status(), 403);
+    assert!(error_detail(response).await.contains("push access"));
+
+    // A writer publishes the first version from their machine; the crate belongs to the repository it names.
+    assert_eq!(h.publish(&first, &writer).await.status(), 200);
+    let owners = h
+        .fake
+        .file(h.org.storage_repo, "owners/story_engine.toml")
+        .unwrap();
+    assert!(
+        owners.contains(&format!("repository_id = {repo}")),
+        "{owners}"
+    );
+    assert!(owners.contains("publish_workflows = []"), "{owners}");
+    let commit = h.fake.commits(h.org.storage_repo).pop().unwrap();
+    assert!(
+        commit
+            .message
+            .contains(&format!("alice (manual publish from commit {COMMIT}")),
+        "{}",
+        commit.message
+    );
+
+    // Later versions can come from any workflow in the owning repository, or from the machine again.
+    let next = Crate::new("story_engine", "0.2.0", "acme/story-engine");
+    let token = h.publish_token("acme/story-engine", repo, "publish.yml", &next);
+    assert_eq!(h.publish(&next, &token).await.status(), 200);
+    let third = Crate::new("story_engine", "0.3.0", "acme/story-engine");
+    assert_eq!(h.publish(&third, &writer).await.status(), 200);
+}
+
+#[tokio::test]
+async fn repositories_can_override_the_default() {
+    let h = Harness::start().await;
+    let tools = h.repo("tools");
+    let core = h.repo("core");
+    let alice = h
+        .fake
+        .add_user("alice", "ghu_", &[(tools, true), (core, true)]);
+    let settings = |text: &str| {
+        h.fake.write_file(
+            h.org.storage_repo,
+            "privatecrates.toml",
+            &format!("slug = \"acme\"\n{text}"),
+        );
+    };
+    let reload = || async {
+        h.refresh().await;
+        h.state.discover().await.unwrap();
+    };
+
+    // Off by default, on for tools.
+    settings("\n[repositories.tools]\nallow_manual_publish = true\n");
+    reload().await;
+    let tool = Crate::new("tool", "0.1.0", "acme/tools");
+    assert_eq!(h.publish(&tool, &alice).await.status(), 200);
+    let kernel = Crate::new("kernel", "0.1.0", "acme/core");
+    let response = h.publish(&kernel, &alice).await;
+    assert_eq!(response.status(), 403);
+    assert!(error_detail(response).await.contains("GitHub Actions only"));
+
+    // On by default, off for core; tools still allowed, including under a new name that the settings use.
+    settings("allow_manual_publish = true\n\n[repositories.core]\nallow_manual_publish = false\n");
+    reload().await;
+    assert_eq!(h.publish(&kernel, &alice).await.status(), 403);
+    h.fake.rename_repo(tools, "toolbox");
+    settings("\n[repositories.toolbox]\nallow_manual_publish = true\n");
+    reload().await;
+    let next = Crate::new("tool", "0.2.0", "acme/toolbox");
+    assert_eq!(h.publish(&next, &alice).await.status(), 200);
+    // A setting under the old name still applies, while the new name has none of its own.
+    settings("\n[repositories.tools]\nallow_manual_publish = true\n");
+    reload().await;
+    let third = Crate::new("tool", "0.3.0", "acme/toolbox");
+    assert_eq!(h.publish(&third, &alice).await.status(), 200);
+    // The current name's own setting wins.
+    settings(
+        "\n[repositories.tools]\nallow_manual_publish = true\n[repositories.toolbox]\nallow_manual_publish = false\n",
+    );
+    reload().await;
+    let fourth = Crate::new("tool", "0.4.0", "acme/toolbox");
+    assert_eq!(h.publish(&fourth, &alice).await.status(), 403);
 }
 
 #[tokio::test]
@@ -739,6 +882,10 @@ async fn an_index_edited_elsewhere_is_picked_up_on_conflict() {
 #[tokio::test]
 async fn the_login_page_guides_a_developer_joining_the_team() {
     let h = Harness::start().await;
+    let root = h.client.get(h.url("/")).send().await.unwrap();
+    // The registry's address opens its page for developers.
+    assert_eq!(root.status(), 307);
+    assert_eq!(root.headers()["location"], "/login");
     let response = h.get("/login", None).await;
     assert_eq!(response.status(), 200);
     let page = response.text().await.unwrap();

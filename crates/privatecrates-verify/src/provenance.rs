@@ -71,7 +71,7 @@ pub fn check(jwt: &[u8], jwks: &JwkSet, expected: &Expected<'_>) -> Result<(), S
                 claims.job_workflow_ref
             )
         })?;
-    if !owner.publish_workflows.iter().any(|w| w == workflow) {
+    if !owner.allows_workflow(workflow) {
         return Err(format!(
             "its workflow {workflow} was not allowed to publish"
         ));

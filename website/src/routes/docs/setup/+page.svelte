@@ -84,8 +84,14 @@
 	</li>
 	<li>
 		<code>ci_read</code>: with <code>"organisation"</code>, any workflow in the organisation can read every
-		crate. With <code>"same-access"</code>, a workflow can read only the crates whose owning repository its
-		own repository could read.
+		crate. A stricter <code>"same-access"</code>, reading only the crates whose owning repository the
+		workflow’s own repository could read, is planned.
+	</li>
+	<li>
+		<code>allow_manual_publish</code>: whether crates may also be published from developers’ machines, first
+		versions included (you choose when you create the registry). It is the default for every repository; a
+		<code>[repositories.&lt;name&gt;]</code> table overrides it for one. See
+		<a href="/docs/publishing#laptop">Publishing from a developer’s machine</a>.
 	</li>
 </ul>
 

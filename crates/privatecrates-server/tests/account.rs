@@ -434,7 +434,16 @@ async fn settings_create_the_registry() {
             .is_none()
     );
 
-    let response = settings(&admin, "globex").await.unwrap();
+    // The admin chooses to allow publishing from developers' machines.
+    let response = h
+        .api_post("/api/orgs/globex/settings", &admin)
+        .body(
+            json!({ "slug": "globex", "accept_terms": TERMS_VERSION, "allow_manual_publish": true })
+                .to_string(),
+        )
+        .send()
+        .await
+        .unwrap();
     assert_eq!(response.status(), 200);
     let doc: Value = response.json().await.unwrap();
     assert_eq!(statuses(&doc), ["done", "done", "done", "done", "done"]);
@@ -442,7 +451,15 @@ async fn settings_create_the_registry() {
         .fake
         .file(globex.storage_repo, "privatecrates.toml")
         .unwrap();
-    assert!(file.ends_with("slug = \"globex\"\n"), "{file}");
+    assert!(file.contains("\nslug = \"globex\"\n"), "{file}");
+    assert!(file.contains("\nallow_manual_publish = true\n"), "{file}");
+    assert!(
+        file.contains("\n# [repositories.my-repository]\n"),
+        "{file}"
+    );
+    // The file parses, with the example left commented out.
+    let parsed: toml::Table = toml::from_str(&file).unwrap();
+    assert_eq!(parsed.len(), 2, "{file}");
     let commit = h.fake.commits(globex.storage_repo).pop().unwrap();
     assert_eq!(commit.path, "privatecrates.toml");
     assert_eq!(commit.by_installation, Some(globex.storage_installation));

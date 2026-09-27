@@ -315,6 +315,11 @@ fn apex_router(state: Arc<AppState>) -> Router {
 fn tenant_router(state: Arc<AppState>) -> Router {
     let publish_limit = state.config.max_crate_bytes + 10 * 1024 * 1024;
     Router::new()
+        // Someone who opens the registry's address in a browser gets the page for developers.
+        .route(
+            "/",
+            get(|| async { axum::response::Redirect::temporary("/login") }),
+        )
         .route("/login", get(routes::login_page))
         .route("/index/config.json", get(routes::config_json))
         .route("/index/{*path}", get(routes::index_file))

@@ -18,6 +18,9 @@ pub struct Published<'a> {
     pub owner: Option<&'a Owner>,
     /// Whether the version was the crate's first.
     pub first: bool,
+    /// Whether it could be published from a developer's machine at the time: `privatecrates.toml` allowed it for
+    /// the crate's repository, or (after its first version) its owners file did.
+    pub manual_allowed: bool,
 }
 
 /// What GitHub holds for a version, fetched by the caller.
@@ -218,11 +221,7 @@ pub fn check_version(
                 Err(reason) => Provenance::Invalid(reason),
             }
         }
-        (Some(published), None)
-            if !published.first && published.owner.is_some_and(|o| o.allow_manual_publish) =>
-        {
-            Provenance::Manual
-        }
+        (Some(published), None) if published.manual_allowed => Provenance::Manual,
         (Some(published), None) => Provenance::Missing {
             first: published.first,
         },

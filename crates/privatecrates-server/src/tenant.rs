@@ -5,7 +5,7 @@
 //! by sha forever, because a git blob sha names its content.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
 };
 
@@ -17,7 +17,8 @@ use tokio::sync::Mutex;
 
 use crate::github::{AppKind, Conditional, GitHub, GitHubError, Repo};
 pub use privatecrates_common::storage::{
-    OWNERS_DIR, Owner, SETTINGS_PATH, index_path, owner_name, owner_path,
+    OWNERS_DIR, Owner, RepositorySettings, SETTINGS_PATH, index_path, manual_publish_allowed,
+    owner_name, owner_path,
 };
 
 /// Subdomains of the base domain that are never tenants (docs/website-api.md).
@@ -40,6 +41,30 @@ pub struct Settings {
     pub name_clash: NameClash,
     #[serde(default)]
     pub ci_read: CiRead,
+    /// The default for every repository: may its crates also be published from a developer's machine, first
+    /// versions included (SPEC §6.4)?
+    #[serde(default)]
+    pub allow_manual_publish: bool,
+    /// Per-repository settings, by repository name (`tools`, or `acme/tools`), overriding the defaults above.
+    #[serde(default)]
+    pub repositories: BTreeMap<String, RepositorySettings>,
+}
+
+impl Settings {
+    /// Whether crates in a repository may be published from a developer's machine, by its names (`owner/name`):
+    /// its current name first, then the one recorded at its crates' first publish.
+    pub fn allows_manual_publish(&self, names: &[&str]) -> bool {
+        manual_publish_allowed(self.allow_manual_publish, &self.repositories, names)
+    }
+
+    /// Whether any repository may publish from a developer's machine: otherwise there is nothing to look up.
+    pub fn any_manual_publish(&self) -> bool {
+        self.allow_manual_publish
+            || self
+                .repositories
+                .values()
+                .any(|r| r.allow_manual_publish == Some(true))
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
@@ -373,6 +398,8 @@ async fn load(
             slug: String::new(),
             name_clash: NameClash::default(),
             ci_read: CiRead::default(),
+            allow_manual_publish: false,
+            repositories: BTreeMap::new(),
         },
         snapshot: RwLock::new(Snapshot::default()),
         write_lock: Mutex::new(()),
@@ -435,6 +462,8 @@ pub(crate) mod tests {
                 slug: slug.into(),
                 name_clash: NameClash::Refuse,
                 ci_read: CiRead::Organisation,
+                allow_manual_publish: false,
+                repositories: BTreeMap::new(),
             },
             snapshot: RwLock::new(Snapshot::default()),
             write_lock: Mutex::new(()),
@@ -446,6 +475,31 @@ pub(crate) mod tests {
         let s = parse_settings(b"slug = \"acme\"\n").unwrap();
         assert_eq!(s.name_clash, NameClash::Refuse);
         assert_eq!(s.ci_read, CiRead::Organisation);
+        assert!(!s.allow_manual_publish);
+        assert!(
+            parse_settings(b"slug = \"acme\"\nallow_manual_publish = true\n")
+                .unwrap()
+                .allow_manual_publish
+        );
+        let s = parse_settings(
+            b"slug = \"acme\"\n\n[repositories.tools]\nallow_manual_publish = true\n\n\
+              [repositories.\"acme/Core\"]\nallow_manual_publish = false\n",
+        )
+        .unwrap();
+        assert!(s.allows_manual_publish(&["acme/tools"]));
+        assert!(!s.allows_manual_publish(&["acme/core"]));
+        assert!(!s.allows_manual_publish(&["acme/other"]));
+        // The current name decides; an earlier one counts only when the current has no setting.
+        assert!(!s.allows_manual_publish(&["acme/core", "acme/tools"]));
+        assert!(s.allows_manual_publish(&["acme/renamed", "acme/tools"]));
+        assert!(s.any_manual_publish());
+        let s = parse_settings(
+            b"slug = \"acme\"\nallow_manual_publish = true\n[repositories.core]\nallow_manual_publish = false\n",
+        )
+        .unwrap();
+        assert!(s.allows_manual_publish(&["acme/tools"]));
+        assert!(!s.allows_manual_publish(&["acme/core"]));
+        assert!(parse_settings(b"slug = \"acme\"\n[repositories.core]\nunknown = 1\n").is_err());
         let s = parse_settings(b"slug = \"acme-2\"\nname_clash = \"warn\"\n").unwrap();
         assert_eq!(s.name_clash, NameClash::Warn);
         assert!(parse_settings(b"slug = \"Acme\"").is_err());

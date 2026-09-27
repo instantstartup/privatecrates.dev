@@ -77,6 +77,11 @@ enum Command {
         /// who has read the terms passes this; an agent must never pass it on their behalf.
         #[arg(long, value_name = "VERSION")]
         accept_terms: Option<String>,
+        /// With --slug: let developers also publish from their own machines, first versions included (no provenance).
+        /// The default for every repository, saved in privatecrates.toml. Without it, crates are published from
+        /// GitHub Actions only. The admin's choice: an agent asks them.
+        #[arg(long, requires = "slug")]
+        allow_manual_publish: bool,
         /// Start the no-card free trial (organisations over the free member limit). Needs --billing-email.
         #[arg(long)]
         start_trial: bool,
@@ -189,6 +194,7 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
             org,
             slug,
             accept_terms,
+            allow_manual_publish,
             start_trial,
             billing_email,
         } => {
@@ -198,6 +204,7 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
                     org,
                     slug: slug.as_deref(),
                     accept_terms: accept_terms.as_deref(),
+                    allow_manual_publish: *allow_manual_publish,
                     start_trial: *start_trial,
                     billing_email: billing_email.as_deref(),
                 },
