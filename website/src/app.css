@@ -1,0 +1,340 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/big-shoulders-stencil/wght.css';
+@import '@fontsource-variable/atkinson-hyperlegible-next/wght.css';
+
+/*
+ * Design tokens: "harbour at dawn" (light) and "night watch" (dark).
+ * Every colour on the site comes from these variables; illustrations use them too.
+ */
+:root {
+	/* One type scale for the whole site (7 steps). */
+	--text-sm: 0.875rem;
+	--text-base: 1.0625rem;
+	--text-lg: 1.25rem;
+	--text-xl: 1.6rem;
+	--text-2xl: 2.25rem;
+	--text-3xl: clamp(2.4rem, 6vw, 3.6rem);
+	--text-display: clamp(2.9rem, 9vw, 5.4rem);
+	color-scheme: light;
+	--fog: #edf1ef; /* page: sea fog, cool not cream */
+	--deck: #f9fbfa; /* raised surfaces */
+	--ink: #0f2830; /* deep harbour water, body text */
+	--ink-soft: #3a555e; /* secondary text (≥ 7:1 on --fog) */
+	--harbour: #125c6c; /* links, focus */
+	--signal: #f2b233; /* lighthouse lamp: primary actions */
+	--signal-ink: #0f2830;
+	--container: #b93a22; /* container red: crates, warnings */
+	--container-ink: #ffffff;
+	--dawn: #f4cdb8; /* dawn sky, hero only */
+	--dawn-2: #dfe8ec;
+	--water: #1d4d5c;
+	--water-2: #2c6a7a;
+	--rule: #c5d2cf;
+	--ok: #1f6b45;
+	--ok-bg: #dcefe3;
+	--warn-bg: #fbe9d6;
+	--danger: #a3301b;
+	--danger-bg: #f9e1dc;
+	--code-bg: #0f2830;
+	--code-ink: #e4eeec;
+	--code-comment: #9fb8bd;
+	--code-key: #f5c35a;
+	--code-string: #9fd9c1;
+	--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(15 40 48 / 0.35);
+}
+
+/* .night: a band that is always in the dark palette, whatever the theme. */
+:root[data-theme='dark'],
+.night {
+	color-scheme: dark;
+	--fog: #0a1c22;
+	--deck: #10272f;
+	--ink: #e4eeec;
+	--ink-soft: #a8bec1;
+	--harbour: #82cfdb;
+	--signal: #f5bf47;
+	--signal-ink: #0a1c22;
+	--container: #e0664e;
+	--container-ink: #0a1c22;
+	--dawn: #1b3844;
+	--dawn-2: #0d232b;
+	--water: #0f3441;
+	--water-2: #174a59;
+	--rule: #25444e;
+	--ok: #7fd4a4;
+	--ok-bg: #12352a;
+	--warn-bg: #3a2a14;
+	--danger: #f59a86;
+	--danger-bg: #3d1c16;
+	--code-bg: #061318;
+	--code-ink: #e4eeec;
+	--code-comment: #8fa9ae;
+	--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(0 0 0 / 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		color-scheme: dark;
+		--fog: #0a1c22;
+		--deck: #10272f;
+		--ink: #e4eeec;
+		--ink-soft: #a8bec1;
+		--harbour: #82cfdb;
+		--signal: #f5bf47;
+		--signal-ink: #0a1c22;
+		--container: #e0664e;
+		--container-ink: #0a1c22;
+		--dawn: #1b3844;
+		--dawn-2: #0d232b;
+		--water: #0f3441;
+		--water-2: #174a59;
+		--rule: #25444e;
+		--ok: #7fd4a4;
+		--ok-bg: #12352a;
+		--warn-bg: #3a2a14;
+		--danger: #f59a86;
+		--danger-bg: #3d1c16;
+		--code-bg: #061318;
+		--code-ink: #e4eeec;
+		--code-comment: #8fa9ae;
+		--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(0 0 0 / 0.6);
+	}
+}
+
+@theme {
+	--font-display: 'Big Shoulders Stencil Variable', 'Arial Narrow', sans-serif;
+	--font-sans: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
+	--font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
+	--color-fog: var(--fog);
+	--color-deck: var(--deck);
+	--color-ink: var(--ink);
+	--color-ink-soft: var(--ink-soft);
+	--color-harbour: var(--harbour);
+	--color-signal: var(--signal);
+	--color-container: var(--container);
+	--color-rule: var(--rule);
+	/* One width scale for stacked blocks. */
+	--container-page: 72rem;
+	--container-prose: 44rem;
+}
+
+@layer base {
+	html {
+		scrollbar-gutter: stable;
+		-webkit-text-size-adjust: 100%;
+	}
+	body {
+		background: var(--fog);
+		color: var(--ink);
+		font-family: var(--font-sans);
+		font-size: var(--text-base);
+		line-height: 1.6;
+		overflow-x: clip;
+		/* Keep the footer at the bottom of short pages. */
+		display: flex;
+		flex-direction: column;
+		min-height: 100vh;
+	}
+	main {
+		flex: 1;
+	}
+	h1,
+	h2,
+	h3 {
+		font-family: var(--font-display);
+		font-weight: 800;
+		line-height: 1.02;
+		letter-spacing: 0.005em;
+		text-wrap: balance;
+	}
+	h4 {
+		font-weight: 700;
+	}
+	/* Inline links are underlined, never colour alone; hover thickens the line and darkens the text. */
+	a {
+		color: var(--harbour);
+		text-decoration-line: underline;
+		text-underline-offset: 0.2em;
+		text-decoration-thickness: 1px;
+	}
+	a:hover {
+		color: var(--ink);
+		text-decoration-thickness: 3px;
+		text-decoration-color: var(--signal);
+	}
+	:focus-visible {
+		outline: 3px solid var(--harbour);
+		outline-offset: 3px;
+		border-radius: 2px;
+	}
+	code,
+	kbd,
+	pre {
+		font-family: var(--font-mono);
+		font-size: var(--text-sm);
+	}
+	:is(h1, h2, h3, h4) code {
+		font-size: 1em;
+	}
+	:not(pre) > code {
+		background: color-mix(in srgb, var(--ink) 8%, transparent);
+		padding: 0.08em 0.35em;
+		border-radius: 4px;
+		overflow-wrap: anywhere;
+	}
+	::selection {
+		background: var(--signal);
+		color: var(--signal-ink);
+	}
+}
+
+@layer components {
+	.page {
+		width: 100%;
+		max-width: var(--container-page);
+		margin-inline: auto;
+		padding-inline: 1rem;
+	}
+	@media (min-width: 40rem) {
+		.page {
+			padding-inline: 1.5rem;
+		}
+	}
+
+	/* Long-form text: docs, legal, FAQ answers. */
+	.prose {
+		max-width: var(--container-prose);
+	}
+	.prose > * + * {
+		margin-top: 1rem;
+	}
+	.prose h2 {
+		font-size: var(--text-2xl);
+		margin-top: 2.75rem;
+	}
+	.prose h3 {
+		font-size: var(--text-xl);
+		margin-top: 2rem;
+	}
+	.prose h2 + *,
+	.prose h3 + * {
+		margin-top: 0.6rem;
+	}
+	.prose ul {
+		list-style: disc;
+		padding-left: 1.25rem;
+	}
+	.prose ol {
+		list-style: decimal;
+		padding-left: 1.4rem;
+	}
+	.prose li + li {
+		margin-top: 0.35rem;
+	}
+	.prose table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--text-sm);
+	}
+	.prose th,
+	.prose td {
+		text-align: left;
+		vertical-align: top;
+		padding: 0.55rem 0.6rem;
+		border-bottom: 1px solid var(--rule);
+	}
+	.prose th {
+		font-weight: 700;
+	}
+	.table-scroll {
+		overflow-x: auto;
+	}
+
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		min-height: 2.75rem;
+		padding: 0.55rem 1.1rem;
+		border-radius: 6px;
+		border: 2px solid var(--ink);
+		font-weight: 700;
+		line-height: 1.2;
+		text-decoration: none;
+		cursor: pointer;
+		transition:
+			transform 120ms ease,
+			box-shadow 120ms ease,
+			background-color 120ms ease;
+	}
+	.btn:hover {
+		text-decoration: none;
+	}
+	.btn-primary {
+		background: var(--signal);
+		color: var(--signal-ink);
+		box-shadow: 3px 3px 0 var(--ink);
+	}
+	.btn-primary:hover {
+		transform: translate(-1px, -1px);
+		box-shadow: 4px 4px 0 var(--ink);
+	}
+	.btn-primary:active {
+		transform: translate(2px, 2px);
+		box-shadow: 1px 1px 0 var(--ink);
+	}
+	.btn-quiet {
+		background: transparent;
+		color: var(--ink);
+	}
+	.btn-quiet:hover {
+		background: color-mix(in srgb, var(--ink) 7%, transparent);
+	}
+	.btn[disabled],
+	.btn[aria-disabled='true'] {
+		opacity: 0.6;
+		cursor: not-allowed;
+		transform: none;
+	}
+
+	.panel {
+		background: var(--deck);
+		border: 1px solid var(--rule);
+		border-radius: 10px;
+		box-shadow: var(--shadow);
+	}
+
+	.lede {
+		font-size: var(--text-lg);
+		color: var(--ink-soft);
+		max-width: 38rem;
+	}
+
+	.night {
+		background: var(--fog);
+		color: var(--ink);
+	}
+
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation: none !important;
+		transition: none !important;
+		scroll-behavior: auto !important;
+	}
+}

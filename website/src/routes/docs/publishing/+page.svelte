@@ -1,0 +1,111 @@
+<script lang="ts">
+	import Callout from '$lib/components/Callout.svelte';
+	import CodeBlock from '$lib/components/CodeBlock.svelte';
+	import Seo from '$lib/components/Seo.svelte';
+	import { ciPublish, ownersToml, publishRefused, publishTarget } from '$lib/snippets';
+
+	const yank = `cargo yank --registry acme --version 0.2.0 story_engine
+cargo yank --registry acme --version 0.2.0 --undo story_engine`;
+</script>
+
+<Seo
+	title="Publishing"
+	description="Trusted publishing from GitHub Actions with plain cargo publish: tokens bound to the exact crate bytes, owners files, first publishes, yanking and manual publishing."
+	path="/docs/publishing"
+/>
+
+<h1>Publishing</h1>
+<p class="lede">
+	Publishing is plain <code>cargo publish --registry acme</code>. What matters is where it runs: from GitHub
+	Actions, every version gets provenance you can verify.
+</p>
+
+<h2 id="trusted">Trusted publishing from GitHub Actions</h2>
+<p>Add a workflow that publishes when you push a version tag:</p>
+<CodeBlock caption=".github/workflows/publish.yml" code={ciPublish('acme')} />
+<p>What happens when it runs:</p>
+<ol>
+	<li>
+		Cargo packages the crate and asks the credential provider for a publish token, passing the crate’s name,
+		version and SHA-256 checksum.
+	</li>
+	<li>
+		The provider requests an Actions OIDC token whose audience binds it to exactly those:
+		<code>https://acme.privatecrates.dev/publish/story_engine/0.2.0/&lt;sha256&gt;</code>. It is used once and
+		never cached.
+	</li>
+	<li>
+		The registry accepts the upload only if the checksum of the bytes it received matches the audience, the
+		job ran in the crate’s owning repository, and its workflow (and environment, if required) is allowed by
+		the crate’s owners file.
+	</li>
+	<li>
+		The crate is stored as an immutable GitHub release in your storage repository, together with the OIDC
+		token as <code>story_engine-0.2.0.provenance.jwt</code>: a statement signed by GitHub, not by us, that
+		this workflow run published exactly these bytes.
+	</li>
+</ol>
+<p>
+	Because the token names one version and one checksum, it cannot be replayed to publish anything else.
+	Publishing a workspace works the same way: Cargo asks for one token per crate.
+</p>
+
+<h2 id="first-publish">A crate’s first publish</h2>
+<p>
+	A new crate is first published from CI too, so its first version always has provenance. Its
+	<code>Cargo.toml</code> must name a repository in your organisation, and the workflow must run in that repository:
+</p>
+<CodeBlock caption="Cargo.toml" code={publishTarget('acme')} />
+<p>
+	The registry then creates the crate’s owners file, with that repository as the owner and the publishing
+	workflow as the only one allowed.
+</p>
+
+<h2 id="owners">The owners file</h2>
+<p>
+	Each crate has <code>owners/&lt;name&gt;.toml</code> in the storage repository. Changing who may publish is an
+	administrator’s edit to this file, by pull request; there is deliberately no API for it.
+</p>
+<CodeBlock caption="owners/story_engine.toml" code={ownersToml} />
+<ul>
+	<li>
+		<code>repository_id</code> is authoritative, so renaming or transferring the repository inside the organisation
+		breaks nothing.
+	</li>
+	<li>
+		<code>publish_environment</code> requires the job to run in a GitHub environment, so its protection rules apply:
+		a required reviewer gives you a two-person rule, enforced by GitHub.
+	</li>
+</ul>
+
+<h2 id="laptop">Publishing from a developer’s machine</h2>
+<p>By default it is refused, with instructions:</p>
+<CodeBlock caption="cargo publish output" code={publishRefused} hashComments={false} />
+<p>
+	A crate can opt in with <code>allow_manual_publish = true</code> in its owners file. Then anyone with push access
+	to the owning repository can publish from their machine. Those versions have no provenance, and the verifier and
+	search label them as manual publishes.
+</p>
+
+<h2 id="yank">Yanking</h2>
+<p>
+	Anyone with push access to the owning repository can yank or unyank a version from their machine, without
+	provenance: yanking has to be quick, changes no bytes and can be undone.
+</p>
+<CodeBlock caption="shell" code={yank} />
+
+<Callout title="Versions are permanent">
+	<p>
+		Every version is kept forever: Cargo needs yanked versions to stay downloadable for existing lockfiles,
+		and immutable releases make the history tamper-proof. A version number can never be reused, so fix a bad
+		release by publishing a new version.
+	</p>
+</Callout>
+
+<h2 id="clashes">Names that exist on crates.io</h2>
+<p>
+	A private crate whose name also exists on crates.io is a dependency-confusion risk. Publishing such a name
+	is refused unless <code>name_clash = "warn"</code> is set in <code>privatecrates.toml</code>. Someone could
+	also claim your crate’s name on crates.io later, so the registry checks daily and the verifier reports
+	clashes. For names that matter, reserve them on crates.io with a placeholder crate.
+</p>
