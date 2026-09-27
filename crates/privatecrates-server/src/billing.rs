@@ -25,7 +25,13 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::Sha256;
 
-use crate::{AppState, config::Config, config::StripeConfig, error::ApiError, github::now_secs};
+use crate::{
+    AppState,
+    config::{Config, StripeConfig},
+    error::ApiError,
+    github::now_secs,
+    metrics::{Metrics, SendRecorded},
+};
 
 /// Reads keep working this long after a subscription's last paid period ends.
 pub const READ_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
@@ -86,6 +92,9 @@ enum Customer {
     Id(String),
     Expanded {
         id: String,
+        /// Where Stripe sends reminders and invoices.
+        #[serde(default)]
+        email: Option<String>,
         #[serde(default)]
         invoice_settings: InvoiceSettings,
         #[serde(default)]
@@ -135,6 +144,12 @@ impl Subscription {
                 Customer::Expanded { invoice_settings, default_source, .. }
                     if invoice_settings.default_payment_method.is_some() || default_source.is_some()
             )
+    }
+
+    /// Whether the customer has no email for Stripe's reminders and invoices, as a trial started automatically
+    /// does not. Unknown, and so `false`, when the customer was not expanded.
+    pub fn billing_email_missing(&self) -> bool {
+        matches!(&self.customer, Customer::Expanded { email, .. } if email.as_deref().is_none_or(str::is_empty))
     }
 
     /// When the trial ends, while the subscription is in one.
@@ -269,6 +284,7 @@ fn signature_is_valid(secret: &[u8], header: &str, body: &[u8], now: u64) -> boo
 struct Stripe {
     http: reqwest::Client,
     config: StripeConfig,
+    metrics: Metrics,
 }
 
 impl Stripe {
@@ -298,7 +314,7 @@ impl Stripe {
         } else {
             request.form(form)
         };
-        let response = request.send().await?;
+        let response = request.send_recorded(&self.metrics).await?;
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
@@ -342,6 +358,26 @@ struct Created {
     id: String,
 }
 
+/// A basic check that a billing email is an address Stripe can send to: `local@domain.tld`, with no spaces or
+/// characters that would make it several addresses. Stripe and the mail system do the rest.
+pub fn email_is_valid(email: &str) -> bool {
+    let Some((local, domain)) = email.split_once('@') else {
+        return false;
+    };
+    let labels: Vec<&str> = domain.split('.').collect();
+    email.len() <= 254
+        && !local.is_empty()
+        && local.len() <= 64
+        && !email
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || "<>,;:\"()[]\\".contains(c))
+        && !domain.contains('@')
+        && labels.len() >= 2
+        && labels
+            .iter()
+            .all(|l| !l.is_empty() && !l.starts_with('-') && !l.ends_with('-'))
+}
+
 /// "3-month" for 90 days, otherwise "45-day".
 pub fn trial_length(days: u32) -> String {
     if days.is_multiple_of(30) {
@@ -369,6 +405,7 @@ impl Billing {
                     .timeout(Duration::from_secs(30))
                     .build()?,
                 config: stripe.clone(),
+                metrics: Metrics::default(),
             }),
             None => {
                 tracing::warn!("Stripe is not configured, so every tenant is treated as active");
@@ -386,6 +423,11 @@ impl Billing {
 
     pub fn enabled(&self) -> bool {
         self.stripe.is_some()
+    }
+
+    /// The outcomes and latencies of our recent calls to Stripe, when it is configured.
+    pub fn metrics(&self) -> Option<&Metrics> {
+        self.stripe.as_ref().map(|s| &s.metrics)
     }
 
     pub fn free_member_limit(&self) -> u64 {
@@ -479,12 +521,14 @@ impl Billing {
     }
 
     /// Starts the organisation's no-card trial: a Stripe customer and a trialing subscription that cancels itself
-    /// if no card was added by its end. Each organisation gets one trial.
+    /// if no card was added by its end. Each organisation gets one trial. The billing email, set on the customer,
+    /// receives Stripe's reminder before the trial ends; a trial started automatically has none.
     pub async fn start_trial(
         &self,
         org_id: u64,
         org_login: &str,
         members: Option<u64>,
+        billing_email: Option<&str>,
     ) -> Result<(), ApiError> {
         let stripe = self.stripe()?;
         let _starting = self.starting_trial.lock().await;
@@ -504,15 +548,17 @@ impl Billing {
         // for 24 hours, and after that the subscription is known.
         let key = format!("privatecrates-trial-{org_id}");
         let org_id = org_id.to_string();
+        let mut customer = vec![
+            ("name", org_login),
+            ("metadata[github_org_id]", &org_id),
+            ("metadata[github_org_login]", org_login),
+        ];
+        customer.extend(billing_email.map(|email| ("email", email)));
         let customer: Created = stripe
             .call(
                 Method::POST,
                 "/v1/customers",
-                &[
-                    ("name", org_login),
-                    ("metadata[github_org_id]", &org_id),
-                    ("metadata[github_org_login]", org_login),
-                ],
+                &customer,
                 Some(&format!("{key}-customer")),
             )
             .await?;
@@ -586,6 +632,39 @@ impl Billing {
             .call(Method::POST, "/v1/checkout/sessions", &form, None)
             .await?;
         Ok(session.url)
+    }
+
+    /// Sets the email of the organisation's Stripe customer, where Stripe sends the reminder before a trial ends and
+    /// invoices.
+    pub async fn set_billing_email(
+        &self,
+        org_id: u64,
+        org_login: &str,
+        email: &str,
+    ) -> Result<(), ApiError> {
+        let stripe = self.stripe()?;
+        let subscription = self
+            .subscription(org_id)
+            .ok_or_else(|| ApiError::NoSubscription {
+                org: org_login.to_owned(),
+            })?;
+        let customer = subscription.customer_id();
+        // Customer IDs come from Stripe, but keep them from reshaping the URL all the same.
+        let customer: String = customer
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        stripe
+            .call::<Created>(
+                Method::POST,
+                &format!("/v1/customers/{customer}"),
+                &[("email", email)],
+                None,
+            )
+            .await?;
+        // Fetched again, so the session shows the email at once.
+        self.record(stripe.subscription(&subscription.id).await?);
+        Ok(())
     }
 
     /// A customer portal session, where an admin adds a card, manages payment details or cancels.
@@ -829,6 +908,34 @@ mod tests {
         let mut free = trial(soon, no_card);
         free.plan = Plan::Free;
         assert_eq!(free.trial_ending(now), None);
+    }
+
+    #[test]
+    fn billing_emails() {
+        for valid in [
+            "billing@example.com",
+            "a.b+c@mail.example.co.uk",
+            "x@xn--bcher-kva.example",
+        ] {
+            assert!(email_is_valid(valid), "{valid}");
+        }
+        for invalid in [
+            "",
+            "billing",
+            "@example.com",
+            "billing@",
+            "billing@localhost",
+            "billing@example..com",
+            "billing@-example.com",
+            "a@b@example.com",
+            "billing @example.com",
+            "a@example.com,b@example.com",
+            "Billing <billing@example.com>",
+            "billing@example.com\n",
+        ] {
+            assert!(!email_is_valid(invalid), "{invalid:?}");
+        }
+        assert!(!email_is_valid(&format!("{}@example.com", "a".repeat(65))));
     }
 
     #[test]

@@ -32,6 +32,10 @@ fn website() -> tempfile::TempDir {
     write("404.html", "<!doctype html><title>Not found</title>");
     write("_app/immutable/start.js", "export {}");
     write("robots.txt", "User-agent: *");
+    write(
+        ".well-known/security.txt",
+        "Contact: mailto:security@privatecrates.dev\n",
+    );
     dir
 }
 
@@ -112,6 +116,16 @@ async fn serves_the_prerendered_pages() {
         assert!(body.contains("<title>Not found</title>"), "{path}: {body}");
         assert_eq!(headers["cache-control"], "no-cache");
     }
+}
+
+#[tokio::test]
+async fn serves_security_txt_from_the_build() {
+    let (h, _dir) = start().await;
+    let (status, headers, body) = page(&h, "/.well-known/security.txt").await;
+    assert_eq!(status, 200);
+    assert_eq!(body, "Contact: mailto:security@privatecrates.dev\n");
+    assert_eq!(headers["content-type"], "text/plain; charset=utf-8");
+    assert_eq!(headers["cache-control"], "public, max-age=3600");
 }
 
 #[tokio::test]

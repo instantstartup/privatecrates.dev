@@ -6,7 +6,7 @@ It is built for people and for coding agents: every command takes `--json` and e
 ```sh
 cargo privatecrates login                                   # GitHub device flow; prints a code and a link
 cargo privatecrates logout
-cargo privatecrates setup <org> [--slug <name>] [--start-trial] [--json]
+cargo privatecrates setup <org> [--slug <name>] [--start-trial --billing-email <email>] [--json]
 cargo privatecrates init --registry <name> [--workflow-name publish.yml] [--force]
 cargo privatecrates doctor [--registry <name> …] [--json]
 ```
@@ -16,8 +16,9 @@ cargo privatecrates doctor [--registry <name> …] [--json]
   or a file readable only by you).
 - **`setup <org>`**: prints the organisation's onboarding checklist, each step's status and, where GitHub needs a
   person (installing an App), the link. For the storage repository it prints the `gh` commands to run with your own
-  login. `--slug` saves the registry name and `--start-trial` starts the no-card trial. `--json` prints the account
-  API's onboarding document, with `commands` and `needs_person` added to each step.
+  login. `--slug` saves the registry name and `--start-trial` starts the no-card trial, with `--billing-email` the
+  address that gets the reminder before it ends. `--json` prints the account API's onboarding document, with
+  `commands` and `needs_person` added to each step.
 - **`init --registry <name>`**, in a crate repository or workspace: adds the registry to `.cargo/config.toml`
   (keeping its formatting and comments), sets `package.repository` from the `origin` remote where it is missing
   (in `[workspace.package]`, with `repository.workspace = true` in members, for a workspace), and writes

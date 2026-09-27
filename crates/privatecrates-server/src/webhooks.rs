@@ -182,6 +182,7 @@ async fn handle(state: &AppState, event: &str, body: &[u8]) -> Result<(), ApiErr
             }
             let settings = tenant.file_sha(SETTINGS_PATH);
             tenant.refresh(&state.gh, &state.blobs).await?;
+            state.compliance.invalidate(tenant.storage_repo_id).await;
             // A changed slug or other setting takes effect only through discovery.
             if tenant.file_sha(SETTINGS_PATH) != settings {
                 state.discover().await?;

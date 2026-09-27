@@ -23,7 +23,8 @@ use tokio::task::JoinSet;
 
 use crate::{
     AppState,
-    billing::{OrgPlan, Plan, Subscription, trial_length},
+    billing::{self, OrgPlan, Plan, Subscription, trial_length},
+    compliance,
     error::ApiError,
     github::{AppKind, Conditional, FileWrite, GitHubError, Membership, Organization, Repo},
     session::{self, Session, clear_session_cookie},
@@ -39,9 +40,11 @@ pub fn routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/orgs/{org}/onboarding", get(onboarding))
         .route("/api/orgs/{org}/settings", post(settings))
         .route("/api/orgs/{org}/trial", post(trial))
+        .route("/api/orgs/{org}/billing-email", post(set_billing_email))
         .route("/api/orgs/{org}/checkout", post(checkout))
         .route("/api/orgs/{org}/portal", post(portal))
         .route("/api/errors", get(errors))
+        .merge(compliance::routes())
         .layer(middleware::from_fn(no_store))
         .layer(middleware::from_fn_with_state(state, session::same_origin))
 }
@@ -55,7 +58,7 @@ async fn no_store(request: Request, next: Next) -> Response {
     response
 }
 
-fn rfc3339(secs: Option<u64>) -> Option<String> {
+pub(crate) fn rfc3339(secs: Option<u64>) -> Option<String> {
     let secs = i64::try_from(secs?).ok()?;
     OffsetDateTime::from_unix_timestamp(secs)
         .ok()?
@@ -96,6 +99,7 @@ fn org_json(
         "plan": plan.plan,
         "trial_ends_at": rfc3339(subscription.and_then(Subscription::trial_ends_at)),
         "has_payment_method": subscription.is_some_and(Subscription::has_payment_method),
+        "billing_email_missing": subscription.is_some_and(Subscription::billing_email_missing),
         "current_period_end": rfc3339(subscription.and_then(Subscription::current_period_end)),
         "trial_available": plan.trial_available,
         "tenant": tenant_json(state, org.id, plan),
@@ -163,7 +167,11 @@ async fn session_info(
 }
 
 /// The signed-in user's active membership of `org`.
-async fn member(state: &AppState, session: &Session, org: &str) -> Result<Membership, ApiError> {
+pub(crate) async fn member(
+    state: &AppState,
+    session: &Session,
+    org: &str,
+) -> Result<Membership, ApiError> {
     let not_found = || ApiError::OrgNotFound {
         org: org.to_owned(),
     };
@@ -599,19 +607,61 @@ async fn checkout(
     Ok(Json(json!({ "url": url })))
 }
 
-/// Starts the organisation's no-card trial.
+#[derive(Deserialize)]
+struct BillingEmailRequest {
+    billing_email: Option<String>,
+}
+
+/// The `{"billing_email": …}` of a request body, checked. It is kept by Stripe, and never logged.
+fn billing_email(body: &[u8]) -> Result<String, ApiError> {
+    serde_json::from_slice::<BillingEmailRequest>(body)
+        .ok()
+        .and_then(|r| r.billing_email)
+        .map(|e| e.trim().to_owned())
+        .filter(|e| billing::email_is_valid(e))
+        .ok_or(ApiError::BillingEmailInvalid)
+}
+
+/// Starts the organisation's no-card trial. The billing email is required, so that Stripe's reminder before the
+/// trial ends reaches someone.
 async fn trial(
     State(state): State<Arc<AppState>>,
     session: Session,
     Path(org): Path<String>,
+    body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
     let org = &membership.organization;
+    let email = billing_email(&body)?;
     state
         .billing
-        .start_trial(org.id, &org.login, state.members(org.id, &org.login).await)
+        .start_trial(
+            org.id,
+            &org.login,
+            state.members(org.id, &org.login).await,
+            Some(&email),
+        )
         .await?;
     tracing::info!(org = %org.login, by = %membership.user.login, "trial requested");
+    Ok(Json(onboarding_doc(&state, &membership).await?))
+}
+
+/// Sets the billing email of an organisation that has a subscription, such as a trial started automatically when it
+/// grew past the free limit, which has none.
+async fn set_billing_email(
+    State(state): State<Arc<AppState>>,
+    session: Session,
+    Path(org): Path<String>,
+    body: Bytes,
+) -> Result<Json<Value>, ApiError> {
+    let membership = admin(&state, &session, &org).await?;
+    let org = &membership.organization;
+    let email = billing_email(&body)?;
+    state
+        .billing
+        .set_billing_email(org.id, &org.login, &email)
+        .await?;
+    tracing::info!(org = %org.login, by = %membership.user.login, "billing email set");
     Ok(Json(onboarding_doc(&state, &membership).await?))
 }
 

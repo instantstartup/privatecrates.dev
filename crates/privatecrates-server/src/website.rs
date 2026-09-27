@@ -144,6 +144,17 @@ pub async fn serve(State(state): State<Arc<AppState>>, mut request: Request) -> 
     prefer_html_file(&files.dir, &mut request).await;
     let immutable = request.uri().path().starts_with("/_app/immutable/");
     let Ok(mut response) = files.serve.clone().oneshot(request).await;
+    // The build is UTF-8, but `ServeDir` names no charset, so a browser could guess another for a text file such as
+    // `/.well-known/security.txt`.
+    if let Some(text) = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .filter(|v| v.starts_with("text/") && !v.contains("charset"))
+        .and_then(|v| HeaderValue::from_str(&format!("{v}; charset=utf-8")).ok())
+    {
+        response.headers_mut().insert(header::CONTENT_TYPE, text);
+    }
     let html = response
         .headers()
         .get(header::CONTENT_TYPE)

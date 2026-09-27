@@ -141,6 +141,21 @@ impl Tenant {
             .collect()
     }
 
+    /// The paths of the storage repository's files that start with `prefix`, sorted.
+    pub fn paths(&self, prefix: &str) -> Vec<String> {
+        let mut paths: Vec<String> = self
+            .snapshot
+            .read()
+            .expect("snapshot lock")
+            .files
+            .keys()
+            .filter(|p| p.starts_with(prefix))
+            .cloned()
+            .collect();
+        paths.sort();
+        paths
+    }
+
     /// The blob sha of a file in the storage repository, if it exists.
     pub fn file_sha(&self, path: &str) -> Option<String> {
         self.snapshot

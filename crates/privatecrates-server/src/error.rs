@@ -351,6 +351,14 @@ pub enum ApiError {
     #[http_status(409)]
     TrialAvailable { org: String },
 
+    #[error(
+        "starting the trial needs a valid billing email (`billing_email`), such as billing@example.com, so that the \
+         reminder before the trial ends reaches someone"
+    )]
+    #[diagnostic(code(billing::email_invalid))]
+    #[http_status(400)]
+    BillingEmailInvalid,
+
     #[error("{org} has no subscription yet; start one first")]
     #[diagnostic(code(billing::no_subscription))]
     #[http_status(409)]
@@ -446,6 +454,18 @@ pub enum ApiError {
     #[diagnostic(code(account::storage_not_ready))]
     #[http_status(409)]
     StorageNotReady { org: String },
+
+    // --- The compliance dashboard ---
+    #[error(
+        "{org} has no registry yet, so there is nothing to report; set one up at {account_url}"
+    )]
+    #[diagnostic(code(compliance::not_set_up))]
+    #[http_status(404)]
+    ComplianceNotSetUp {
+        org: String,
+        #[extension]
+        account_url: String,
+    },
 
     // --- GitHub and internal ---
     #[error("GitHub's rate limit was reached; please try again in a few minutes")]

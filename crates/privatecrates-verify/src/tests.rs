@@ -485,6 +485,24 @@ fn release_problems_are_reported() {
 }
 
 #[test]
+fn without_a_digest_the_crate_is_checked_from_its_bytes() {
+    let (repo, mut mem) = published();
+    let crate_id = {
+        let asset = &mut mem.releases.get_mut("story_engine-0.1.0").unwrap().assets[0];
+        asset.digest = None;
+        asset.id
+    };
+    let e = errors(&run(&repo, &mem, &State::default()));
+    assert!(e.is_empty(), "{e:?}");
+    mem.assets.insert(crate_id, b"tampered".to_vec());
+    let e = errors(&run(&repo, &mem, &State::default()));
+    assert_eq!(
+        e,
+        ["story_engine 0.1.0: the .crate file does not match the index checksum"]
+    );
+}
+
+#[test]
 fn rewritten_history_is_reported() {
     let (repo, mem) = published();
     let state = State {

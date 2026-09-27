@@ -3,6 +3,7 @@
 use std::time::Duration;
 
 use jsonwebtoken::jwk::JwkSet;
+use privatecrates_common::storage::{crate_asset_name, provenance_asset_name};
 use serde::Deserialize;
 
 #[derive(Debug, thiserror::Error)]
@@ -34,6 +35,20 @@ pub struct Release {
     pub immutable: bool,
     #[serde(default)]
     pub assets: Vec<Asset>,
+}
+
+impl Release {
+    /// A version's `.crate` file.
+    pub fn crate_asset(&self, name: &str, version: &str) -> Option<&Asset> {
+        let asset_name = crate_asset_name(name, version);
+        self.assets.iter().find(|a| a.name == asset_name)
+    }
+
+    /// A version's provenance: the Actions OIDC token it was published with.
+    pub fn provenance_asset(&self, name: &str, version: &str) -> Option<&Asset> {
+        let asset_name = provenance_asset_name(name, version);
+        self.assets.iter().find(|a| a.name == asset_name)
+    }
 }
 
 pub trait Remote {

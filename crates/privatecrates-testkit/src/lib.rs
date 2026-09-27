@@ -45,6 +45,9 @@ pub const READER_CLIENT_ID: &str = "Iv1.fakereader";
 /// The reader App's client secret, for the web sign-in flow.
 pub const READER_CLIENT_SECRET: &str = "fake-reader-client-secret";
 pub const STORAGE_APP_ID: u64 = 2;
+/// The bot accounts the Apps' commits are attributed to.
+pub const READER_APP_LOGIN: &str = "privatecrates-reader[bot]";
+pub const STORAGE_APP_LOGIN: &str = "privatecrates-storage[bot]";
 
 #[derive(Clone, Debug)]
 pub struct Org {
@@ -67,12 +70,19 @@ struct Repo {
     commits: Vec<Commit>,
 }
 
-/// A commit made through the Contents API, for assertions.
+/// A commit, each changing one file: made through the Contents API, or directly as test setup.
 #[derive(Clone, Debug)]
 pub struct Commit {
+    pub sha: String,
     pub path: String,
     pub message: String,
     pub by_installation: Option<u64>,
+    /// The GitHub account the author is linked to: an App's bot for its installation's commits.
+    pub author: Option<String>,
+    /// Whether GitHub verified the signature, as it does for commits made through the API.
+    pub verified: bool,
+    /// Unix seconds.
+    pub at: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -265,17 +275,37 @@ impl FakeGitHub {
         self.world().crates_io.insert(name.to_ascii_lowercase());
     }
 
+    /// Writes a file as test setup: a commit whose author is linked to no GitHub account.
     pub fn write_file(&self, repo: u64, path: &str, content: &str) {
+        self.commit_file(repo, path, content, "test setup", None);
+    }
+
+    /// Writes a file as a person pushing a commit would, with `author` the GitHub account the commit links to.
+    pub fn commit_file(
+        &self,
+        repo: u64,
+        path: &str,
+        content: &str,
+        message: &str,
+        author: Option<&str>,
+    ) {
         let mut w = self.world();
         let sha = blob_sha(content);
         w.blobs.insert(sha.clone(), content.into());
-        let repo = w.repos.get_mut(&repo).expect("known repo");
-        repo.files.insert(path.into(), sha);
-        repo.commits.push(Commit {
-            path: path.into(),
-            message: "test setup".into(),
-            by_installation: None,
-        });
+        w.repos
+            .get_mut(&repo)
+            .expect("known repo")
+            .files
+            .insert(path.into(), sha);
+        record_commit(
+            &mut w,
+            repo,
+            path,
+            message,
+            None,
+            author.map(str::to_owned),
+            false,
+        );
     }
 
     pub fn file(&self, repo: u64, path: &str) -> Option<String> {
@@ -354,6 +384,34 @@ impl FakeGitHub {
                 assets: vec![asset_id],
             },
         );
+    }
+
+    /// Replaces a published asset's content, as tampering on GitHub's side would: its digest changes with it.
+    pub fn replace_asset(&self, repo: u64, tag: &str, name: &str, content: &[u8]) {
+        let mut w = self.world();
+        let id = find_asset(&w, repo, tag, name).expect("known asset");
+        w.assets.get_mut(&id).expect("asset").content = Bytes::copy_from_slice(content);
+    }
+
+    /// Removes an asset from a published release.
+    pub fn remove_asset(&self, repo: u64, tag: &str, name: &str) {
+        let mut w = self.world();
+        let id = find_asset(&w, repo, tag, name).expect("known asset");
+        w.assets.remove(&id);
+        for release in w.releases.values_mut() {
+            release.assets.retain(|a| *a != id);
+        }
+    }
+
+    /// Makes a published release mutable, as it would be had immutable releases been off.
+    pub fn make_release_mutable(&self, repo: u64, tag: &str) {
+        let mut w = self.world();
+        let release = w
+            .releases
+            .values_mut()
+            .find(|r| r.repo == repo && r.tag == tag && !r.draft)
+            .expect("known release");
+        release.immutable = false;
     }
 
     /// The API calls made so far, as `METHOD path`.
@@ -461,6 +519,63 @@ pub fn forge_oidc(issuer: &str, audience: &str, claims: &Value) -> String {
         &EncodingKey::from_rsa_pem(APP_PRIVATE_KEY.as_bytes()).expect("test key"),
     )
     .expect("sign forged token")
+}
+
+fn find_asset(w: &World, repo: u64, tag: &str, name: &str) -> Option<u64> {
+    let release = w
+        .releases
+        .values()
+        .find(|r| r.repo == repo && r.tag == tag && !r.draft)?;
+    release
+        .assets
+        .iter()
+        .copied()
+        .find(|a| w.assets[a].name == name)
+}
+
+/// Records a commit of one file. Commits are a second apart, so their order shows in their dates.
+fn record_commit(
+    w: &mut World,
+    repo: u64,
+    path: &str,
+    message: &str,
+    by_installation: Option<u64>,
+    author: Option<String>,
+    verified: bool,
+) {
+    let n = w.id();
+    let commits = &mut w.repos.get_mut(&repo).expect("known repo").commits;
+    let at = commits.last().map_or(now(), |c| c.at + 1);
+    commits.push(Commit {
+        sha: hex::encode(Sha256::digest(format!("{repo} {n} {path} {message}")))[..40].to_owned(),
+        path: path.into(),
+        message: message.into(),
+        by_installation,
+        author,
+        verified,
+        at,
+    });
+}
+
+/// Unix seconds as GitHub writes dates: `2026-09-27T14:20:01Z`.
+fn rfc3339(secs: u64) -> String {
+    // Howard Hinnant's days-to-civil algorithm.
+    let days = (secs / 86_400) as i64 + 719_468;
+    let era = days.div_euclid(146_097);
+    let doe = days.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    let time = secs % 86_400;
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        time / 3600,
+        time % 3600 / 60,
+        time % 60
+    )
 }
 
 fn now() -> u64 {
@@ -884,6 +999,7 @@ fn router(fake: FakeGitHub) -> Router {
         .route("/repos/{owner}/{repo}/git/trees/{branch}", get(tree))
         .route("/repos/{owner}/{repo}/git/blobs/{sha}", get(blob))
         .route("/repos/{owner}/{repo}/contents/{*path}", put(put_contents))
+        .route("/repos/{owner}/{repo}/commits", get(list_commits))
         .route(
             "/repos/{owner}/{repo}/releases",
             get(list_releases).post(create_release),
@@ -1150,14 +1266,77 @@ async fn put_contents(
     let content = String::from_utf8(content).expect("text files in tests");
     let sha = blob_sha(&content);
     w.blobs.insert(sha.clone(), content);
-    let repo = w.repos.get_mut(&repo).expect("repo");
-    repo.files.insert(path.clone(), sha.clone());
-    repo.commits.push(Commit {
-        path,
-        message: body.message,
-        by_installation: Some(installation),
-    });
+    w.repos
+        .get_mut(&repo)
+        .expect("repo")
+        .files
+        .insert(path.clone(), sha.clone());
+    let bot = match installation_app(&w, installation) {
+        Some((READER_APP_ID, _)) => READER_APP_LOGIN,
+        _ => STORAGE_APP_LOGIN,
+    };
+    record_commit(
+        &mut w,
+        repo,
+        &path,
+        &body.message,
+        Some(installation),
+        Some(bot.into()),
+        true,
+    );
     (StatusCode::OK, Json(json!({ "content": { "sha": sha } }))).into_response()
+}
+
+#[derive(Deserialize)]
+struct CommitsQuery {
+    path: Option<String>,
+    page: Option<usize>,
+    per_page: Option<usize>,
+}
+
+/// A branch's commits, newest first; with `path`, those that changed that file or a file under that directory.
+async fn list_commits(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Path((owner, name)): Path<(String, String)>,
+    Query(query): Query<CommitsQuery>,
+) -> Response {
+    let w = fake.world();
+    let (repo, _) = match storage_access(&w, &headers, &owner, &name) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let commits = &w.repos[&repo].commits;
+    if commits.is_empty() {
+        return error(StatusCode::CONFLICT, "Git Repository is empty.");
+    }
+    let touches = |c: &Commit| match &query.path {
+        None => true,
+        Some(path) => c.path == *path || c.path.starts_with(&format!("{path}/")),
+    };
+    let all: Vec<Value> = commits
+        .iter()
+        .rev()
+        .filter(|c| touches(c))
+        .map(|c| {
+            let date = rfc3339(c.at);
+            json!({
+                "sha": c.sha,
+                "commit": {
+                    "message": c.message,
+                    "author": { "name": c.author.as_deref().unwrap_or("A Developer"), "date": date },
+                    "committer": { "name": "GitHub", "date": date },
+                    "verification": { "verified": c.verified },
+                },
+                "author": c.author.as_ref().map(|login| json!({ "login": login, "id": 1 })),
+            })
+        })
+        .collect();
+    let page = Page {
+        page: query.page,
+        per_page: query.per_page,
+    };
+    Json(paginate(&all, &page)).into_response()
 }
 
 async fn list_releases(

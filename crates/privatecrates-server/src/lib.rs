@@ -3,17 +3,20 @@
 pub mod account;
 pub mod auth;
 pub mod billing;
+pub mod compliance;
 pub mod config;
 pub mod crate_file;
 pub mod crates_io;
 pub mod error;
 pub mod github;
 pub mod members;
+pub mod metrics;
 pub mod oidc;
 pub mod publish;
 pub mod routes;
 pub mod search;
 pub mod session;
+pub mod status;
 pub mod tenant;
 pub mod webhooks;
 pub mod website;
@@ -89,6 +92,9 @@ pub struct AppState {
     pub billing: Billing,
     pub members: members::Members,
     pub website: Website,
+    pub compliance: compliance::Compliance,
+    /// When the server started, in Unix seconds.
+    pub started_at: u64,
 }
 
 impl AppState {
@@ -115,6 +121,8 @@ impl AppState {
             billing: Billing::new(&config)?,
             members: members::Members::default(),
             website: Website::new(config.website_dir.as_deref()),
+            compliance: compliance::Compliance::default(),
+            started_at: github::now_secs(),
             config,
         })
     }
@@ -154,7 +162,7 @@ impl AppState {
         tracing::info!(org = %tenant.org_login, members = ?plan.members, "over the free member limit; starting the trial");
         if let Err(e) = self
             .billing
-            .start_trial(tenant.org_id, &tenant.org_login, plan.members)
+            .start_trial(tenant.org_id, &tenant.org_login, plan.members, None)
             .await
         {
             tracing::warn!(org = %tenant.org_login, error = %e, "starting the trial automatically failed");
@@ -251,6 +259,7 @@ fn apex_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/auth", get(routes::apex_auth_info))
         .merge(account::routes(state.clone()))
         .merge(billing::routes())
+        .merge(status::routes())
         .merge(webhooks::routes())
         .fallback(website::serve)
         .layer(middleware::from_fn_with_state(

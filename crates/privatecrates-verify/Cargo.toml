@@ -1,6 +1,6 @@
 [package]
 name = "privatecrates-verify"
-version = "0.2.0"
+version = "0.2.1"
 description = "Verifies everything PrivateCrates wrote to a storage repository: append-only index, immutable releases and GitHub-signed provenance."
 license = "MIT OR Apache-2.0"
 readme = "README.md"

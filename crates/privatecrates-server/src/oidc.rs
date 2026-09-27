@@ -137,6 +137,25 @@ impl Oidc {
         if let Some(found) = fresh {
             return Ok(found);
         }
+        Ok(self.fetch().await?.find(kid).cloned())
+    }
+
+    /// GitHub's signing keys, for checking provenance long after its tokens expired.
+    pub async fn key_set(&self) -> Result<JwkSet, OidcError> {
+        let cached = self
+            .keys
+            .read()
+            .expect("keys lock")
+            .as_ref()
+            .filter(|(_, fetched)| fetched.elapsed() < KEYS_TTL)
+            .map(|(set, _)| set.clone());
+        match cached {
+            Some(set) => Ok(set),
+            None => self.fetch().await,
+        }
+    }
+
+    async fn fetch(&self) -> Result<JwkSet, OidcError> {
         let set: JwkSet = self
             .http
             .get(self.jwks_url.clone())
@@ -147,9 +166,8 @@ impl Oidc {
             .json()
             .await
             .map_err(|e| OidcError::keys(e.to_string()))?;
-        let found = set.find(kid).cloned();
-        *self.keys.write().expect("keys lock") = Some((set, Instant::now()));
-        Ok(found)
+        *self.keys.write().expect("keys lock") = Some((set.clone(), Instant::now()));
+        Ok(set)
     }
 }
 

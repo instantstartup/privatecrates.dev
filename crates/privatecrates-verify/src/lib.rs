@@ -1,8 +1,11 @@
 //! Verifies everything PrivateCrates wrote to a storage repository (SPEC §10.3), so that customers need not trust
 //! the service: "don't trust us, verify us".
 //!
-//! History comes from a local clone; releases, commit signatures and provenance come from GitHub.
+//! History comes from a local clone; releases, commit signatures and provenance come from GitHub. The checks of each
+//! version are in [`check`], free of I/O, so that the PrivateCrates server runs the same ones for its compliance
+//! dashboard.
 
+pub mod check;
 pub mod git;
 pub mod provenance;
 pub mod remote;
@@ -11,15 +14,15 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use privatecrates_common::{
     index::IndexFile,
-    sha256_hex,
-    storage::{
-        INDEX_DIR, OWNERS_DIR, Owner, SETTINGS_PATH, crate_asset_name, owner_name,
-        provenance_asset_name, release_tag,
-    },
+    storage::{INDEX_DIR, OWNERS_DIR, Owner, SETTINGS_PATH, owner_name, release_tag},
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{git::Git, remote::Remote};
+use crate::{
+    check::{Evidence, Published, check_version},
+    git::Git,
+    remote::Remote,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -374,102 +377,35 @@ impl Verifier<'_> {
         cksum: &str,
         appended: Option<&Appended>,
     ) -> Result<(), VerifyError> {
-        let subject = format!("{name} {version}");
-        let Some(release) = self.remote.release(&release_tag(name, version))? else {
-            self.report(Severity::Error, subject, "its release is missing");
-            return Ok(());
-        };
-        if release.draft || !release.immutable {
-            self.report(
-                Severity::Error,
-                subject.clone(),
-                "its release is not immutable, so its files could have been changed",
-            );
-        }
-        let crate_asset = release
-            .assets
-            .iter()
-            .find(|a| a.name == crate_asset_name(name, version));
-        match crate_asset.and_then(|a| a.digest.as_deref()) {
-            Some(digest) if digest == format!("sha256:{cksum}") => {}
-            Some(_) => self.report(
-                Severity::Error,
-                subject.clone(),
-                "the .crate file does not match the index checksum",
-            ),
-            None => self.report(
-                Severity::Error,
-                subject.clone(),
-                "the .crate file or its digest is missing",
-            ),
-        }
-        let Some(appended) = appended else {
-            self.report(
-                Severity::Error,
-                subject,
-                "the version is not in the replayed history",
-            );
-            return Ok(());
-        };
-        let provenance = release
-            .assets
-            .iter()
-            .find(|a| a.name == provenance_asset_name(name, version));
-        match provenance {
-            Some(asset) => {
-                let jwt = self.remote.asset(asset.id)?;
-                let jwks = self.remote.jwks()?;
-                let expected = provenance::Expected {
-                    issuer: &self.options.oidc_issuer,
-                    base_url: &self.options.base_url,
-                    name,
-                    version,
-                    cksum,
-                    owner: appended.owner.as_ref(),
-                };
-                if let Err(e) = provenance::check(&jwt, &jwks, &expected) {
-                    self.report(
-                        Severity::Error,
-                        subject,
-                        format!("its provenance is invalid: {e}"),
-                    );
-                }
-            }
-            None if appended.first => self.report(
-                Severity::Error,
-                subject,
-                "the first version of a crate must have provenance, and this one has none",
-            ),
-            None if appended
-                .owner
-                .as_ref()
-                .is_some_and(|o| o.allow_manual_publish) =>
+        let release = self.remote.release(&release_tag(name, version))?;
+        let published = appended.map(|a| Published {
+            owner: a.owner.as_ref(),
+            first: a.first,
+        });
+        let mut provenance = None;
+        let mut crate_bytes = None;
+        if let Some(release) = &release {
+            if published.is_some()
+                && let Some(asset) = release.provenance_asset(name, version)
             {
-                self.report(
-                    Severity::Warning,
-                    subject,
-                    "published manually, without provenance; check that its publisher meant to",
-                )
+                provenance = Some((self.remote.asset(asset.id)?, self.remote.jwks()?));
             }
-            None => self.report(
-                Severity::Error,
-                subject,
-                "it has no provenance, and its crate did not allow manual publishing",
-            ),
-        }
-        // The checksum itself is recomputed from the downloaded bytes only when GitHub reports no digest.
-        if crate_asset.is_some_and(|a| a.digest.is_none())
-            && let Some(asset) = crate_asset
-        {
-            let bytes = self.remote.asset(asset.id)?;
-            if sha256_hex(&bytes) != cksum {
-                self.report(
-                    Severity::Error,
-                    format!("{name} {version}"),
-                    "the .crate file does not match the index checksum",
-                );
+            if let Some(asset) = release
+                .crate_asset(name, version)
+                .filter(|a| a.digest.is_none())
+            {
+                crate_bytes = Some(self.remote.asset(asset.id)?);
             }
         }
+        let evidence = Evidence {
+            release: release.as_ref(),
+            provenance: provenance
+                .as_ref()
+                .map(|(jwt, jwks)| (jwt.as_slice(), jwks)),
+            crate_bytes: crate_bytes.as_deref(),
+        };
+        let check = check_version(name, version, cksum, published, &evidence, self.options);
+        self.findings.extend(check.findings(name, version));
         Ok(())
     }
 }
