@@ -98,7 +98,10 @@ async fn session_info(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let signed_out = Json(json!({ "user": null, "orgs": [] }));
+    // GitHub App user tokens only see organisations that have installed the App, so a new organisation starts by
+    // installing it; `install_url` is how the website offers that.
+    let install_url = install_url(&state.config, &state.config.reader_app_slug);
+    let signed_out = Json(json!({ "user": null, "orgs": [], "install_url": install_url }));
     let Some(session) = Session::from_headers(&state, &headers) else {
         return Ok(signed_out.into_response());
     };
@@ -140,6 +143,7 @@ async fn session_info(
     Ok(Json(json!({
         "user": { "login": user.login, "avatar_url": user.avatar_url, "name": user.name },
         "orgs": orgs.into_iter().map(|(_, org)| org).collect::<Vec<_>>(),
+        "install_url": install_url,
     }))
     .into_response())
 }
@@ -249,12 +253,18 @@ async fn has_settings(state: &AppState, token: &str, repo: &Repo) -> Result<bool
     Ok(tree.tree.iter().any(|e| e.path == SETTINGS_PATH))
 }
 
+/// Where an organisation installs one of our Apps.
+fn install_url(config: &crate::config::Config, app: &str) -> String {
+    let github = config.github_web.as_str().trim_end_matches('/');
+    format!("{github}/apps/{app}/installations/new")
+}
+
 /// The organisation's set-up checklist.
 async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Value, ApiError> {
     let org = &membership.organization;
     let config = &state.config;
     let github = config.github_web.as_str().trim_end_matches('/');
-    let install = |app: &str| format!("{github}/apps/{app}/installations/new");
+    let install = |app: &str| install_url(config, app);
     let mut tenant = state.tenants.by_org(org.id);
     let (reader, storage_repos, settings_file) = match &tenant {
         Some(_) => (true, Some(1), true),

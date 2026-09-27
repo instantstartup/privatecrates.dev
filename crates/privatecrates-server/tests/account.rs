@@ -39,7 +39,11 @@ async fn sign_in_round_trip() {
     assert_eq!(response.status(), 200);
     assert_eq!(response.headers()["cache-control"], "no-store");
     let body: Value = response.json().await.unwrap();
-    assert_eq!(body, json!({ "user": null, "orgs": [] }));
+    let install_url = format!("{}/apps/privatecrates-reader/installations/new", h.fake.url);
+    assert_eq!(
+        body,
+        json!({ "user": null, "orgs": [], "install_url": install_url })
+    );
 
     let (_, session) = admin(&h).await;
     let body: Value = h
@@ -49,6 +53,7 @@ async fn sign_in_round_trip() {
         .await
         .unwrap();
     assert_eq!(body["user"]["login"], "alice");
+    assert_eq!(body["install_url"], install_url);
     let orgs = body["orgs"].as_array().unwrap();
     assert_eq!(orgs.len(), 1);
     assert_eq!(orgs[0]["login"], "acme");

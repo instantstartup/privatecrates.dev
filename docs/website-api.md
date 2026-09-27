@@ -53,9 +53,12 @@ Clears the cookie. `204`.
     { "id": 100, "login": "acme", "avatar_url": "https://…", "role": "admin",
       "tenant": { "slug": "acme", "registry_url": "https://acme.privatecrates.dev", "status": "trialing",
                   "trial_ends_at": "2026-10-11T00:00:00Z", "current_period_end": null } }
-  ]
+  ],
+  "install_url": "https://github.com/apps/privatecrates-reader/installations/new"
 }
 ```
+`install_url` (always present) installs the reader App on a new organisation: a GitHub App user token only sees
+organisations that have installed the App, so a new organisation appears in `orgs` only after that.
 `user` is `null` when signed out (then `orgs` is `[]`). `orgs` lists organisations the user belongs to (from the user
 token); `tenant` is `null` when the org is not set up. `role` is `admin` or `member`.
 
