@@ -69,8 +69,8 @@
 		<h2>5. Retention</h2>
 		<p>
 			Service logs are deleted after 30 days. Terms acceptances are kept for as long as the organisation uses
-			PrivateCrates, then for <mark>TODO: 6 years, subject to legal review</mark>, as evidence of the
-			agreement. Nothing else about you is stored by us: caches live in memory and expire within minutes.
+			PrivateCrates, then for 6 years, as evidence of the agreement. Nothing else about you is stored by us:
+			caches live in memory and expire within minutes.
 			<mark>TODO: retention period for billing records held by Stripe.</mark>
 		</p>
 

@@ -196,8 +196,8 @@
 					<strong>Logs</strong> are deleted by the hosting provider after 30 days.
 				</li>
 				<li>
-					<strong>Terms acceptances</strong> are kept for as long as the customer uses the service, then for
-					<Todo>6 years, subject to legal review</Todo>, as evidence of the agreement.
+					<strong>Terms acceptances</strong> are kept for as long as the customer uses the service, then for 6 years,
+					as evidence of the agreement.
 				</li>
 				<li>
 					<strong>Billing records</strong> at Stripe are kept as the law requires <Todo

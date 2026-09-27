@@ -46,7 +46,7 @@ contents stay in the customer's organisation.
   version by itself: the person (or their agent, having shown them the terms) passes it.
 - **Agents:** `llms.txt`, `/docs/agents` and the set-up prompt tell the agent to show the admin the terms link, ask them
   to accept, and only then pass `--accept-terms`. An agent must never accept on the admin's behalf.
-- **Retention:** for as long as the organisation uses PrivateCrates, then 6 years (to confirm in legal review).
+- **Retention:** for as long as the organisation uses PrivateCrates, then 6 years.
 
 ## 3. Website
 

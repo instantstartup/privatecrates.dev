@@ -25,7 +25,7 @@ impl Credential for Provider {
         let base =
             audience::base_url_from_index(registry.index_url).ok_or(Error::UrlNotSupported)?;
         match action {
-            Action::Get(operation) => get(&base, operation),
+            Action::Get(operation) => get(&base, registry.name, operation),
             Action::Login(_) => {
                 let store = Store::open().map_err(auth)?;
                 device::sign_in(&http()?, &base, &store).map_err(auth)?;
@@ -42,7 +42,11 @@ impl Credential for Provider {
     }
 }
 
-fn get(base: &str, operation: &Operation<'_>) -> Result<CredentialResponse, Error> {
+fn get(
+    base: &str,
+    registry: Option<&str>,
+    operation: &Operation<'_>,
+) -> Result<CredentialResponse, Error> {
     if let Some(job) = actions::Job::from_env() {
         return job.get(base, operation);
     }
@@ -61,7 +65,23 @@ fn get(base: &str, operation: &Operation<'_>) -> Result<CredentialResponse, Erro
         .into());
     }
     let store = Store::open().map_err(auth)?;
-    let token = device::token(&http()?, base, &store).map_err(auth)?;
+    let http = http()?;
+    let token = match device::stored(&http, base, &store).map_err(auth)? {
+        Some(token) => token,
+        None if device::interactive() => device::sign_in(&http, base, &store).map_err(auth)?,
+        // Fail at once rather than wait for an approval nobody can see.
+        None => {
+            let login = match registry {
+                Some(name) => format!("cargo login --registry {name}"),
+                None => "cargo login".to_owned(),
+            };
+            return Err(format!(
+                "not signed in to {base}. Run `{login}` in a terminal, then try again: this Cargo run has no terminal \
+                 to show the GitHub sign-in in (editors run Cargo in the background)"
+            )
+            .into());
+        }
+    };
     Ok(CredentialResponse::Get {
         token: Secret::from(token.access_token),
         cache: expires(token.expires_at),

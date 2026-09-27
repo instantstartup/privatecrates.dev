@@ -14,9 +14,17 @@ const PROVIDER: &str = env!("CARGO_BIN_EXE_cargo-credential-privatecrates");
 
 /// Where cargo runs: a simulated GitHub Actions job, or a developer's machine.
 enum Env<'a> {
-    Actions { fake: &'a FakeGitHub },
+    Actions {
+        fake: &'a FakeGitHub,
+    },
     ActionsWithoutIdToken,
-    Developer { config: &'a Path },
+    Developer {
+        config: &'a Path,
+    },
+    /// A developer's machine where Cargo runs with no terminal, as inside an editor.
+    Editor {
+        config: &'a Path,
+    },
 }
 
 async fn cargo(home: &Path, dir: &Path, env: Env<'_>, args: &[&str]) -> Output {
@@ -44,9 +52,17 @@ async fn cargo(home: &Path, dir: &Path, env: Env<'_>, args: &[&str]) -> Output {
             command.env("GITHUB_ACTIONS", "true").env("CI", "true");
         }
         Env::Developer { config } => {
+            // The test's pipes are not a terminal; a person at one would see the sign-in prompt.
             command
                 .env("PRIVATECRATES_CREDENTIAL_STORE", "file")
-                .env("PRIVATECRATES_CONFIG_DIR", config);
+                .env("PRIVATECRATES_CONFIG_DIR", config)
+                .env("PRIVATECRATES_INTERACTIVE", "1");
+        }
+        Env::Editor { config } => {
+            command
+                .env("PRIVATECRATES_CREDENTIAL_STORE", "file")
+                .env("PRIVATECRATES_CONFIG_DIR", config)
+                .env_remove("PRIVATECRATES_INTERACTIVE");
         }
     }
     command.output().await.unwrap()
@@ -427,4 +443,45 @@ async fn a_domain_wide_sign_in_serves_every_registry() {
             .any(|c| c == "POST /login/device/code"),
         "no second sign-in"
     );
+}
+
+#[tokio::test]
+async fn without_a_terminal_it_asks_for_cargo_login_instead_of_waiting() {
+    let h = Harness::start().await;
+    let token = h.fake.add_user("alice", "ghu_", &[]);
+    h.fake.set_device_flow_user(&token);
+    let home = tempfile::tempdir().unwrap();
+    let config = tempfile::tempdir().unwrap();
+    let consumer = tempfile::tempdir().unwrap();
+    project(
+        &h,
+        consumer.path(),
+        &package(
+            "website",
+            "0.1.0",
+            "acme/website",
+            "story_engine = { version = \"0.1\", registry = \"acme\" }\n",
+        ),
+    );
+    let started = std::time::Instant::now();
+    let output = cargo(
+        home.path(),
+        consumer.path(),
+        Env::Editor {
+            config: config.path(),
+        },
+        &["generate-lockfile"],
+    )
+    .await;
+    assert!(!output.status.success());
+    let message = stderr(&output);
+    assert!(message.contains("cargo login --registry acme"), "{message}");
+    assert!(
+        !h.fake
+            .calls()
+            .iter()
+            .any(|c| c == "POST /login/device/code"),
+        "no sign-in was started"
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(30));
 }

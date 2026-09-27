@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
-	import Todo from '$lib/components/Todo.svelte';
 	import { GA_TARGET, TERMS_PATH } from '$lib/site';
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
@@ -115,8 +114,8 @@
 			</p>
 			<p>
 				It is kept in a Postgres database in the same Railway project and region as the service (US East),
-				with Railway’s backups, for as long as the organisation uses PrivateCrates and then for
-				<Todo>6 years, subject to legal review</Todo>, as evidence of the agreement.
+				with Railway’s backups, for as long as the organisation uses PrivateCrates and then for 6 years, as
+				evidence of the agreement.
 			</p>
 			<h3>Passes through, not kept</h3>
 			<ul>

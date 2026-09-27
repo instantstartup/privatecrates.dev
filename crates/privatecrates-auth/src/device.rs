@@ -23,15 +23,34 @@ struct AuthInfo {
 /// token comes first; failing that, the one `cargo privatecrates login` stored for the whole domain (the same
 /// reader App token serves every registry under it), so a developer signs in once.
 pub fn token(http: &Client, base: &str, store: &Store) -> Result<Stored, Error> {
+    match stored(http, base, store)? {
+        Some(stored) => Ok(stored),
+        None => sign_in(http, base, store),
+    }
+}
+
+/// A usable stored token for the registry, refreshed if need be, without signing in: the registry's own, or the
+/// domain-wide one from `cargo privatecrates login`. `None` when the user must sign in.
+pub fn stored(http: &Client, base: &str, store: &Store) -> Result<Option<Stored>, Error> {
     if let Some(stored) = current(http, base, store)? {
-        return Ok(stored);
+        return Ok(Some(stored));
     }
-    if let Some(apex) = apex_of(base)
-        && let Some(stored) = current(http, &apex, store)?
-    {
-        return Ok(stored);
+    match apex_of(base) {
+        Some(apex) => current(http, &apex, store),
+        None => Ok(None),
     }
-    sign_in(http, base, store)
+}
+
+/// Whether a person can see and answer a sign-in prompt: a terminal on stdin or stderr. Editors run Cargo in the
+/// background with neither (rust-analyzer's `cargo metadata`, for example), where a prompt would wait unseen.
+/// `PRIVATECRATES_INTERACTIVE=1` or `0` overrides the guess.
+pub fn interactive() -> bool {
+    use std::io::IsTerminal;
+    match std::env::var("PRIVATECRATES_INTERACTIVE").as_deref() {
+        Ok("1") => true,
+        Ok("0") => false,
+        _ => std::io::stdin().is_terminal() || std::io::stderr().is_terminal(),
+    }
 }
 
 /// The domain a registry is served under: `https://acme.privatecrates.dev` → `https://privatecrates.dev`.
