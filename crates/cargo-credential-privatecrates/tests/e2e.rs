@@ -374,3 +374,57 @@ async fn a_developer_signs_in_once() {
     let stored = std::fs::read_to_string(&credentials).unwrap();
     assert!(!stored.contains("ghu_"), "{stored}");
 }
+
+#[tokio::test]
+async fn a_domain_wide_sign_in_serves_every_registry() {
+    let h = Harness::start().await;
+    let repo = h.repo("story-engine");
+    h.publish_from_ci(
+        "acme/story-engine",
+        repo,
+        &common::Crate::new("story_engine", "0.1.0", "acme/story-engine"),
+    )
+    .await;
+    let token = h.fake.add_user("alice", "ghu_", &[(repo, false)]);
+    let home = tempfile::tempdir().unwrap();
+    let config = tempfile::tempdir().unwrap();
+    let consumer = tempfile::tempdir().unwrap();
+    project(
+        &h,
+        consumer.path(),
+        &package(
+            "website",
+            "0.1.0",
+            "acme/website",
+            "story_engine = { version = \"0.1\", registry = \"acme\" }\n",
+        ),
+    );
+    // What `cargo privatecrates login` stores: a token for the whole domain, not for one registry.
+    let stored = serde_json::json!({
+        h.apex(""): {
+            "access_token": token,
+            "expires_at": 4_000_000_000_i64,
+            "refresh_token": null,
+            "refresh_expires_at": null,
+        }
+    });
+    std::fs::write(config.path().join("credentials.json"), stored.to_string()).unwrap();
+
+    let output = cargo(
+        home.path(),
+        consumer.path(),
+        Env::Developer {
+            config: config.path(),
+        },
+        &["generate-lockfile"],
+    )
+    .await;
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        !h.fake
+            .calls()
+            .iter()
+            .any(|c| c == "POST /login/device/code"),
+        "no second sign-in"
+    );
+}

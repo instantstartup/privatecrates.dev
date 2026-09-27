@@ -8,8 +8,7 @@
   id-token: write`;
 
 	const dockerJob = `      - uses: actions/checkout@v5
-      - uses: cargo-bins/cargo-binstall@<commit sha>   # pin to a commit
-      - run: cargo binstall --no-confirm cargo-credential-privatecrates
+      - run: cargo install cargo-credential-privatecrates --locked
       # Fetch private and public dependencies here, where the OIDC token is available.
       - run: mkdir -p .cargo && cargo vendor --locked vendor >> .cargo/config.toml
       # The build context now holds every dependency; the image build needs no registry access.
@@ -35,14 +34,15 @@ RUN cargo build --release --locked --offline`;
 
 <h2 id="workflow">The workflow</h2>
 <p>
-	Add <code>id-token: write</code> to the job’s permissions and install the credential provider. The prebuilt
-	binary takes seconds with <code>cargo binstall</code>; <code>cargo install --locked</code> works too but compiles
-	for about a minute unless cached.
+	Add <code>id-token: write</code> to the job’s permissions and install the credential provider from crates.io
+	with <code>cargo install --locked</code>. It compiles in about a minute; cache <code>~/.cargo/bin</code> to skip
+	that on later runs.
 </p>
 <CodeBlock caption=".github/workflows/build.yml" code={ciBuild} />
 <p>
-	The same <code>.cargo/config.toml</code> your developers use is all Cargo needs. <code>cargo-binstall</code> is
-	not preinstalled on GitHub’s runners; pin its action to a commit SHA, as you would any third-party action.
+	The same <code>.cargo/config.toml</code> your developers use is all Cargo needs. The workflow uses no
+	third-party actions beyond <code>actions/checkout</code>: the job that holds your publish token runs only
+	code from crates.io and GitHub.
 </p>
 
 <h2 id="how">What happens</h2>

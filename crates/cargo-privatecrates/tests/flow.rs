@@ -407,9 +407,14 @@ async fn init_configures_a_workspace() {
         "{root}"
     );
     let core = std::fs::read_to_string(dir.join("crates/story_core/Cargo.toml")).unwrap();
-    assert!(core.ends_with("repository.workspace = true\n"), "{core}");
+    // Members inherit the repository, and may only publish to the registry.
+    assert!(
+        core.ends_with("repository.workspace = true\npublish = [\"acme\"]\n"),
+        "{core}"
+    );
     let engine = std::fs::read_to_string(dir.join("crates/story_engine/Cargo.toml")).unwrap();
     assert!(!engine.contains("workspace = true"), "{engine}");
+    assert!(engine.contains("publish = [\"acme\"]"), "{engine}");
     let workflow = std::fs::read_to_string(dir.join(".github/workflows/publish.yml")).unwrap();
     assert!(
         workflow.contains("cargo publish --workspace --registry acme"),

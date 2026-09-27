@@ -140,14 +140,19 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Result<Report, Error> {
     };
     let mut changes = vec![configured];
     let repository = project::github_remote(&project.root);
-    match &repository {
-        Some(repository) => changes.extend(set_repositories(&project, repository)?),
-        None => warnings.push(
+    if repository.is_none() {
+        warnings.push(
             "the `origin` remote is not a GitHub repository, so `package.repository` was not set; set it to the \
              crate's repository in your organisation"
                 .into(),
-        ),
+        );
     }
+    changes.extend(edit_packages(
+        &project,
+        repository.as_deref(),
+        options.slug,
+        &mut warnings,
+    )?);
 
     let git_root = project::git_root(&project.root).unwrap_or_else(|| project.root.clone());
     let working_directory = project
@@ -288,12 +293,19 @@ pub fn is_privatecrates_provider(value: Option<&toml_edit::Value>) -> bool {
     })
 }
 
-/// Sets `package.repository` where it is missing: in `[workspace.package]` with `repository.workspace = true` in
-/// the members of a workspace, or directly in a single crate.
-fn set_repositories(project: &Project, repository: &str) -> Result<Vec<Change>, Error> {
+/// Edits each package's manifest:
+/// - sets `package.repository` where it is missing (when the remote is known): in `[workspace.package]` with
+///   `repository.workspace = true` in the members of a workspace, or directly in a single crate;
+/// - restricts `publish` to the registry where it is unset, so a crate can never go to crates.io by accident.
+fn edit_packages(
+    project: &Project,
+    repository: Option<&str>,
+    slug: &str,
+    warnings: &mut Vec<String>,
+) -> Result<Vec<Change>, Error> {
     let mut changes = Vec::new();
     let root_manifest = project.root.join("Cargo.toml");
-    if project.workspace {
+    if let (true, Some(repository)) = (project.workspace, repository) {
         changes.push(edit_toml(&root_manifest, |doc| {
             Ok(set_workspace_repository(doc, repository)
                 .then(|| format!("workspace.package.repository = \"{repository}\"")))
@@ -301,13 +313,32 @@ fn set_repositories(project: &Project, repository: &str) -> Result<Vec<Change>, 
     }
     for package in &project.packages {
         let change = edit_toml(&package.manifest_path, |doc| {
-            Ok(if project.workspace {
-                inherit_repository(doc)
-                    .then(|| format!("{}: repository.workspace = true", package.name))
-            } else {
-                set_package_repository(doc, repository)
-                    .then(|| format!("{}: repository = \"{repository}\"", package.name))
-            })
+            let repository_change = repository.and_then(|repository| {
+                if project.workspace {
+                    inherit_repository(doc)
+                        .then(|| format!("{}: repository.workspace = true", package.name))
+                } else {
+                    set_package_repository(doc, repository)
+                        .then(|| format!("{}: repository = \"{repository}\"", package.name))
+                }
+            });
+            let publish_change = match restrict_publish(doc, slug) {
+                Publish::Restricted => Some(format!("{}: publish = [\"{slug}\"]", package.name)),
+                Publish::Elsewhere => {
+                    warnings.push(format!(
+                        "{}: its `publish` setting does not include \"{slug}\"; add it to publish this crate to the \
+                         registry",
+                        package.name
+                    ));
+                    None
+                }
+                Publish::Unchanged => None,
+            };
+            let details: Vec<String> = [repository_change, publish_change]
+                .into_iter()
+                .flatten()
+                .collect();
+            Ok((!details.is_empty()).then(|| details.join("; ")))
         })?;
         // The root package of a workspace shares the root manifest: report the file once.
         match changes.iter_mut().find(|c| c.path == change.path) {
@@ -324,6 +355,43 @@ fn set_repositories(project: &Project, repository: &str) -> Result<Vec<Change>, 
         }
     }
     Ok(changes)
+}
+
+/// What [`restrict_publish`] did.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Publish {
+    /// `publish = ["<slug>"]` was added.
+    Restricted,
+    /// Already allows the registry, is `false`, or is inherited from the workspace: left alone.
+    Unchanged,
+    /// Set, but without the registry: left alone, and worth a warning.
+    Elsewhere,
+}
+
+/// Sets `publish = ["<slug>"]` where `publish` is unset.
+pub fn restrict_publish(doc: &mut DocumentMut, slug: &str) -> Publish {
+    let Some(package) = package(doc) else {
+        return Publish::Unchanged;
+    };
+    match package.get("publish") {
+        None => {
+            let mut registries = toml_edit::Array::new();
+            registries.push(slug);
+            package.insert("publish", value(registries));
+            Publish::Restricted
+        }
+        Some(item) => match item.as_value() {
+            Some(toml_edit::Value::Boolean(b)) if !*b.value() => Publish::Unchanged,
+            Some(toml_edit::Value::Array(list))
+                if list.iter().any(|v| v.as_str() == Some(slug)) =>
+            {
+                Publish::Unchanged
+            }
+            // `publish.workspace = true`: the workspace decides.
+            None => Publish::Unchanged,
+            _ => Publish::Elsewhere,
+        },
+    }
 }
 
 /// The `[package]` table, if there is one.
@@ -397,8 +465,7 @@ jobs:
     runs-on: ubuntu-latest
 {defaults}    steps:
       - uses: actions/checkout@v5
-      - uses: cargo-bins/cargo-binstall@main   # pin to a commit
-      - run: cargo binstall --no-confirm {PROVIDER}
+      - run: cargo install {PROVIDER} --locked
       - run: {publish}
 "
     )
@@ -599,6 +666,22 @@ mod tests {
     }
 
     #[test]
+    fn restricts_publish_to_the_registry() {
+        let mut unset = doc("[package]\nname = \"x\"\nversion = \"0.1.0\"\n");
+        assert_eq!(restrict_publish(&mut unset, "acme"), Publish::Restricted);
+        assert!(unset.to_string().ends_with("publish = [\"acme\"]\n"));
+        assert_eq!(restrict_publish(&mut unset, "acme"), Publish::Unchanged);
+        let mut private = doc("[package]\nname = \"x\"\npublish = false\n");
+        assert_eq!(restrict_publish(&mut private, "acme"), Publish::Unchanged);
+        let mut public = doc("[package]\nname = \"x\"\npublish = true\n");
+        assert_eq!(restrict_publish(&mut public, "acme"), Publish::Elsewhere);
+        let mut other = doc("[package]\nname = \"x\"\npublish = [\"crates-io\"]\n");
+        assert_eq!(restrict_publish(&mut other, "acme"), Publish::Elsewhere);
+        let mut inherited = doc("[package]\nname = \"x\"\npublish.workspace = true\n");
+        assert_eq!(restrict_publish(&mut inherited, "acme"), Publish::Unchanged);
+    }
+
+    #[test]
     fn replaces_a_workflow_only_with_force() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(".github/workflows/publish.yml");
@@ -607,8 +690,8 @@ mod tests {
         assert_eq!(write(false).unwrap(), Action::Created);
         assert_eq!(write(false).unwrap(), Action::Unchanged);
 
-        // Edited, e.g. to pin the action: still publishes to the registry, so it is kept.
-        let pinned = content.replace("@main", "@0123abcd");
+        // Edited, e.g. to pin the runner: still publishes to the registry, so it is kept.
+        let pinned = content.replace("ubuntu-latest", "ubuntu-24.04");
         std::fs::write(&path, &pinned).unwrap();
         assert_eq!(write(false).unwrap(), Action::Kept);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), pinned);
@@ -639,8 +722,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: cargo-bins/cargo-binstall@main   # pin to a commit
-      - run: cargo binstall --no-confirm cargo-credential-privatecrates
+      - run: cargo install cargo-credential-privatecrates --locked
       - run: cargo publish --registry acme
 "
         );

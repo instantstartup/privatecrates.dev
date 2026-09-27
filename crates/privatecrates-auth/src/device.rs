@@ -19,12 +19,26 @@ struct AuthInfo {
     github_url: String,
 }
 
-/// A usable access token for the registry: from the store, refreshed, or from a new sign-in.
+/// A usable access token for the registry: from the store, refreshed, or from a new sign-in. A registry's own
+/// token comes first; failing that, the one `cargo privatecrates login` stored for the whole domain (the same
+/// reader App token serves every registry under it), so a developer signs in once.
 pub fn token(http: &Client, base: &str, store: &Store) -> Result<Stored, Error> {
-    match current(http, base, store)? {
-        Some(stored) => Ok(stored),
-        None => sign_in(http, base, store),
+    if let Some(stored) = current(http, base, store)? {
+        return Ok(stored);
     }
+    if let Some(apex) = apex_of(base)
+        && let Some(stored) = current(http, &apex, store)?
+    {
+        return Ok(stored);
+    }
+    sign_in(http, base, store)
+}
+
+/// The domain a registry is served under: `https://acme.privatecrates.dev` → `https://privatecrates.dev`.
+pub fn apex_of(registry: &str) -> Option<String> {
+    let (scheme, rest) = registry.split_once("://")?;
+    let (label, apex) = rest.trim_end_matches('/').split_once('.')?;
+    (!label.is_empty() && !apex.is_empty()).then(|| format!("{scheme}://{apex}"))
 }
 
 /// A usable access token from the store, refreshed with GitHub if it has expired, without signing in. `None` when
@@ -171,4 +185,27 @@ fn auth_info(http: &Client, base: &str) -> Result<AuthInfo, Error> {
         .and_then(|r| r.error_for_status())
         .and_then(|r| r.json())
         .map_err(|e| format!("could not reach {base}: {e}").into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apex_of_a_registry() {
+        assert_eq!(
+            apex_of("https://acme.privatecrates.dev").as_deref(),
+            Some("https://privatecrates.dev")
+        );
+        assert_eq!(
+            apex_of("https://acme.dev.privatecrates.dev/").as_deref(),
+            Some("https://dev.privatecrates.dev")
+        );
+        assert_eq!(
+            apex_of("http://acme.localhost:8080").as_deref(),
+            Some("http://localhost:8080")
+        );
+        assert_eq!(apex_of("https://localhost"), None);
+        assert_eq!(apex_of("not a url"), None);
+    }
 }

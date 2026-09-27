@@ -1,9 +1,6 @@
 // Code examples shared by the landing page, the docs and the account page, so they never drift apart.
 // Derived from SPEC.md §3, §5 and the privatecrates-verify documentation.
 
-/** The pinned cargo-binstall action. Customers pin it to a commit of their choice. */
-const BINSTALL = 'cargo-bins/cargo-binstall@<commit sha>   # pin to a commit';
-
 export function cargoConfig(name: string, registryUrl: string): string {
 	return `[registries.${name}]
 index = "sparse+${registryUrl.replace(/\/$/, '')}/index/"
@@ -49,8 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: ${BINSTALL}
-      - run: cargo binstall --no-confirm cargo-credential-privatecrates
+      - run: cargo install cargo-credential-privatecrates --locked
       - run: cargo build --locked`;
 
 export function ciPublish(name: string): string {
@@ -66,8 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: ${BINSTALL}
-      - run: cargo binstall --no-confirm cargo-credential-privatecrates
+      - run: cargo install cargo-credential-privatecrates --locked
       - run: cargo publish --registry ${name}`;
 }
 
@@ -85,8 +80,7 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/cache@v4
         with: { path: .privatecrates-verify.json, key: verify-\${{ github.run_id }}, restore-keys: verify- }
-      - uses: ${BINSTALL}
-      - run: cargo binstall --no-confirm privatecrates-verify
+      - run: cargo install privatecrates-verify --locked
       - run: privatecrates-verify --registry ${registryUrl}
         env: { GITHUB_TOKEN: "\${{ github.token }}" }`;
 }
@@ -274,7 +268,7 @@ Steps:
 ${numbered([
 	`Install the CLI if it is missing: ${INSTALL_CLI}`,
 	`List ${org}'s repositories that contain Rust crates (gh repo list ${org} --limit 500, then look for Cargo.toml). Show me the list and ask which crates to publish before changing anything.`,
-	`In each chosen repository, on a new branch: run ${cli(`init --registry ${slug}`, apex)}, check that every crate to publish has publish = ["${slug}"] in its Cargo.toml, commit, and open a pull request with gh pr create. Do not merge it: I review and merge.`,
+	`In each chosen repository, on a new branch: run ${cli(`init --registry ${slug}`, apex)}, which also sets publish = ["${slug}"] on each crate; set publish = false on any crate that should not be published, commit, and open a pull request with gh pr create. Do not merge it: I review and merge.`,
 	`Once a pull request is merged, publish a first version from CI by pushing a tag that matches the crate's version, e.g. git tag v0.1.0 && git push origin v0.1.0. The publish workflow runs in GitHub Actions; follow it with gh run watch.`,
 	`Run ${cli('doctor', apex)} in each repository, and fix or report anything it flags.`
 ])}

@@ -194,8 +194,9 @@
 <p>
 	Checks that the credential provider is installed and configured, the registry answers,
 	<code>package.repository</code> matches the git remote, and the publish workflow has
-	<code>id-token: write</code>. Once a version is published, it checks that its release is immutable and has
-	provenance.
+	<code>id-token: write</code>, and that <code>publish</code> is restricted to the registry. Once a version is
+	published, it checks that it is in the registry’s index. Immutable releases and provenance are checked by
+	<a href="/docs/verify">the verifier</a>, which runs on the storage repository.
 </p>
 <CodeBlock caption="shell" code={doctorCommands()} />
 
