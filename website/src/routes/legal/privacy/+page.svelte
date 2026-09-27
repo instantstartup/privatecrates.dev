@@ -52,6 +52,11 @@
 				preview, so nothing is sent to Stripe.
 			</li>
 			<li>
+				<strong>Request logs:</strong> our hosting provider records each request’s IP address, time, path and browser
+				or Cargo version; our own logs record GitHub logins, organisation names, request paths and error codes,
+				never tokens.
+			</li>
+			<li>
 				<strong>Crates:</strong> crate files pass through the service while being published and are stored in your
 				organisation’s own repository.
 			</li>

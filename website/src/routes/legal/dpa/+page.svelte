@@ -4,7 +4,6 @@
 	import Seo from '$lib/components/Seo.svelte';
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
-	import Todo from '$lib/components/Todo.svelte';
 	import { CONTACT_EMAIL, SECURITY_EMAIL, subprocessors } from '$lib/trust';
 
 	const toc: TocItem[] = [
@@ -48,7 +47,9 @@
 				</li>
 				<li>
 					<strong>The processor:</strong>
-					<Todo>legal entity name, company number and registered address</Todo>, trading as PrivateCrates.
+					PrivateCrates: during the preview, the operator named in the
+					<a href="/legal/terms">preview terms</a>; from general availability, the company that runs
+					PrivateCrates, whose name, number and registered address will be given here.
 				</li>
 			</ul>
 			<p>
@@ -87,9 +88,8 @@
 								GitHub logins, names and avatars (shown at sign-in, not stored); organisation membership and
 								roles; the GitHub login of each publisher, written into the customer’s repository; the billing
 								email address, held by Stripe; the GitHub ID and login of the admin who accepted the terms, in
-								the processor’s record of the acceptance; GitHub tokens, in transit only. <Todo
-									>confirm whether client IP addresses appear in Railway’s logs</Todo
-								>
+								the processor’s record of the acceptance; GitHub tokens, in transit only; client IP addresses,
+								in the hosting provider’s HTTP request logs.
 							</td>
 						</tr>
 						<tr>
@@ -113,9 +113,9 @@
 					stores durably is the record of an admin accepting the terms.
 				</li>
 				<li>
-					Make available the information needed to show compliance, and allow audits <Todo
-						>audit terms: notice, frequency, cost, and reliance on third-party reports</Todo
-					>.
+					Make available the information needed to show compliance, and allow audits: on 30 days’ written
+					notice, at most once a year, at the customer’s cost, answered first with the documents on the trust
+					centre and the subprocessors’ own audit reports.
 				</li>
 			</ul>
 
@@ -148,9 +148,8 @@
 			</div>
 			<p>
 				GitHub stores the customer’s crates in the customer’s own organisation, under the customer’s own
-				agreement with GitHub. <Todo
-					>decide whether GitHub is listed as a subprocessor or as the customer’s own processor</Todo
-				>
+				agreement with GitHub, so for that storage GitHub is the customer’s own processor. GitHub is listed as
+				a subprocessor for what the service itself sends it: sign-in and permission checks.
 			</p>
 
 			<h2 id="security">5. Security measures</h2>
@@ -174,12 +173,11 @@
 			<h2 id="breach">6. Personal data breach</h2>
 			<p>
 				The processor will notify the customer without undue delay after becoming aware of a personal data
-				breach affecting the customer’s data, and in any case within <Todo
-					>notification deadline in hours</Todo
-				>. Notice goes to the customer’s billing email address and to <Todo
-					>any other contact the customer names</Todo
-				>. It will describe the breach, the data and people likely affected, the likely consequences, and the
-				measures taken or proposed. Service incidents are also posted on the status page.
+				breach affecting the customer’s data, and in any case within 72 hours. Notice goes to the customer’s
+				billing email address where there is one, and to any other contact the customer names by email to the
+				contact address below. It will describe the breach, the data and people likely affected, the likely
+				consequences, and the measures taken or proposed. Service incidents are also posted on the status
+				page.
 			</p>
 
 			<h2 id="deletion">7. Deletion and return</h2>
@@ -200,20 +198,24 @@
 					as evidence of the agreement.
 				</li>
 				<li>
-					<strong>Billing records</strong> at Stripe are kept as the law requires <Todo
-						>retention period for invoices and billing records</Todo
-					>.
+					<strong>Billing records</strong> at Stripe are kept for as long as tax law requires (6 years in the UK).
+					There are none during the preview.
 				</li>
 			</ul>
 
 			<h2 id="transfers">8. International transfers</h2>
 			<p>
-				The service runs in the United States, in Railway’s US East (Virginia) region.
-				<Todo>transfer mechanism, e.g. the EU Standard Contractual Clauses and the UK addendum</Todo>
+				The service runs in the United States, in Railway’s US East (Virginia) region. Before this agreement
+				comes into force, the EU Standard Contractual Clauses and the UK International Data Transfer Addendum
+				will be incorporated for transfers from the EU and the UK.
 			</p>
 
 			<h2 id="general">9. General</h2>
-			<p><Todo>liability, governing law, jurisdiction, and order of precedence with the terms</Todo></p>
+			<p>
+				Liability is as in the terms of service. Where this agreement and the terms conflict about personal
+				data, this agreement wins. Governing law and jurisdiction are those of the terms of service, which
+				will name them at general availability.
+			</p>
 			<p>
 				Questions about this agreement: <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>. Security
 				questions:
