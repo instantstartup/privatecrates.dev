@@ -170,17 +170,20 @@
 		<div>
 			{#if PREVIEW}
 				<h2 id="price">Free during the preview</h2>
-				<p class="amount">
-					Planned from general availability ({GA_TARGET}): free up to {FREE_MEMBER_LIMIT} members, then
-					<span class="figure">${PRICE_USD}</span> per GitHub organisation per month
-				</p>
+				<p class="planned">Planned pricing from general availability ({GA_TARGET})</p>
 			{:else}
 				<h2 id="price">Free for small teams, one price for the rest</h2>
-				<p class="amount">
-					Free up to {FREE_MEMBER_LIMIT} members, then <span class="figure">${PRICE_USD}</span> per GitHub organisation
-					per month
-				</p>
 			{/if}
+			<dl class="tiers">
+				<div class="tier">
+					<dt class="figure">Free</dt>
+					<dd>up to {FREE_MEMBER_LIMIT} members</dd>
+				</div>
+				<div class="tier">
+					<dt class="figure">${PRICE_USD}</dt>
+					<dd>per GitHub organisation per month, above {FREE_MEMBER_LIMIT} members</dd>
+				</div>
+			</dl>
 			<ul class="includes">
 				<li>Unlimited CI jobs, and unlimited users on the paid plan</li>
 				<li>
@@ -486,9 +489,24 @@
 		grid-column: 2 / 4;
 		grid-row: 1;
 	}
-	.amount {
-		font-size: var(--text-lg);
+	.planned {
 		color: var(--ink-soft);
+	}
+	/* The two plans side by side with equal weight; they stack on narrow screens. */
+	.tiers {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+		gap: 1rem 2rem;
+		margin-top: 1rem;
+	}
+	.tier {
+		display: grid;
+		align-content: start;
+		gap: 0.25rem;
+	}
+	.tier dd {
+		color: var(--ink-soft);
+		max-width: 22ch;
 	}
 	.figure {
 		font-family: var(--font-display);
@@ -496,7 +514,6 @@
 		font-size: var(--text-3xl);
 		line-height: 1;
 		color: var(--ink);
-		margin-right: 0.25rem;
 	}
 	.includes {
 		margin-top: 1rem;
