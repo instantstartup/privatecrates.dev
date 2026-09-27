@@ -1,10 +1,12 @@
 //! Configuration, from the environment only (SPEC §11).
 
-use std::{env, net::SocketAddr, time::Duration};
+use std::{env, net::SocketAddr, path::PathBuf, time::Duration};
 
 use apollo_errors::Error;
 use miette::Diagnostic;
 use url::Url;
+
+use crate::tenant::is_reserved;
 
 #[derive(Clone)]
 pub struct Config {
@@ -18,12 +20,23 @@ pub struct Config {
     pub github_web: Url,
     /// The reader App's OAuth client ID, which the credential provider uses for the device flow.
     pub reader_client_id: String,
+    /// The reader App's client secret, for the website's sign-in (GitHub's web flow).
+    pub reader_client_secret: String,
+    /// The Apps' names in their GitHub URLs (`https://github.com/apps/{slug}`), for installation links.
+    pub reader_app_slug: String,
+    pub storage_app_slug: String,
     pub reader_app: AppConfig,
     pub storage_app: AppConfig,
     /// Secret for signing read-only registry tokens (`pcr_…`).
     pub registry_token_secret: Vec<u8>,
     /// Secrets for verifying GitHub webhooks, one per App: each App has its own. Empty if webhooks are off.
     pub webhook_secrets: Vec<Vec<u8>>,
+    /// Secret for the website's session cookie and sign-in state; at least 32 bytes.
+    pub session_secret: Vec<u8>,
+    /// The website's static build, served on the apex host. Without it, the apex host serves only the account API.
+    pub website_dir: Option<PathBuf>,
+    /// Stripe billing. Without it, every tenant is treated as active.
+    pub stripe: Option<StripeConfig>,
     pub oidc_issuer: String,
     pub oidc_jwks_url: Url,
     pub crates_io_api: Url,
@@ -41,6 +54,26 @@ pub struct AppConfig {
     pub private_key_pem: Vec<u8>,
 }
 
+#[derive(Clone)]
+pub struct StripeConfig {
+    pub api: Url,
+    pub secret_key: String,
+    pub webhook_secret: Vec<u8>,
+    /// The monthly price every subscription is for.
+    pub price_id: String,
+}
+
+/// What a request's `Host` names.
+#[derive(Debug, PartialEq, Eq)]
+pub enum HostKind<'a> {
+    /// The website and account API.
+    Apex,
+    /// `www.` + the apex, redirected to the apex.
+    Www,
+    Tenant(&'a str),
+    Unknown,
+}
+
 #[derive(Debug, Error, Diagnostic)]
 pub enum ConfigError {
     #[error("{name} is not set")]
@@ -54,13 +87,15 @@ pub enum ConfigError {
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
         let port: u16 = parse_or("PORT", 8080)?;
-        let registry_token_secret = required("REGISTRY_TOKEN_SECRET")?.into_bytes();
-        if registry_token_secret.len() < 32 {
-            return Err(ConfigError::Invalid {
-                name: "REGISTRY_TOKEN_SECRET",
-                reason: "must be at least 32 bytes".into(),
-            });
-        }
+        let stripe = match optional("STRIPE_SECRET_KEY") {
+            Some(secret_key) => Some(StripeConfig {
+                api: url_or("STRIPE_API_URL", "https://api.stripe.com")?,
+                secret_key,
+                webhook_secret: required("STRIPE_WEBHOOK_SECRET")?.into_bytes(),
+                price_id: required("STRIPE_PRICE_ID")?,
+            }),
+            None => None,
+        };
         Ok(Self {
             bind: SocketAddr::from(([0, 0, 0, 0], port)),
             base_domain: required("BASE_DOMAIN")?,
@@ -68,6 +103,9 @@ impl Config {
             github_api: url_or("GITHUB_API_URL", "https://api.github.com")?,
             github_web: url_or("GITHUB_WEB_URL", "https://github.com")?,
             reader_client_id: required("READER_APP_CLIENT_ID")?,
+            reader_client_secret: required("READER_APP_CLIENT_SECRET")?,
+            reader_app_slug: required("READER_APP_SLUG")?,
+            storage_app_slug: required("STORAGE_APP_SLUG")?,
             reader_app: AppConfig {
                 id: parse_required("READER_APP_ID")?,
                 private_key_pem: required("READER_APP_PRIVATE_KEY")?.into_bytes(),
@@ -76,12 +114,15 @@ impl Config {
                 id: parse_required("STORAGE_APP_ID")?,
                 private_key_pem: required("STORAGE_APP_PRIVATE_KEY")?.into_bytes(),
             },
-            registry_token_secret,
+            registry_token_secret: secret("REGISTRY_TOKEN_SECRET")?,
             // Comma-separated, e.g. `WEBHOOK_SECRET=reader-secret,storage-secret`: a delivery signed with any of
             // them is accepted. The secrets themselves cannot contain commas.
             webhook_secrets: optional("WEBHOOK_SECRET")
                 .map(|v| secrets(&v))
                 .unwrap_or_default(),
+            session_secret: secret("SESSION_SECRET")?,
+            website_dir: optional("WEBSITE_DIR").map(PathBuf::from),
+            stripe,
             oidc_issuer: optional("OIDC_ISSUER")
                 .unwrap_or_else(|| "https://token.actions.githubusercontent.com".into()),
             oidc_jwks_url: url_or(
@@ -102,11 +143,46 @@ impl Config {
         format!("{}://{slug}.{}", self.public_scheme, self.base_domain)
     }
 
-    /// The tenant slug for a `Host` header, if it is a subdomain of the base domain.
+    /// The website's URL, e.g. `https://privatecrates.dev`: also the only `Origin` its API accepts.
+    pub fn apex_url(&self) -> String {
+        format!("{}://{}", self.public_scheme, self.base_domain)
+    }
+
+    /// Where an organisation admin manages the organisation's registry and subscription.
+    pub fn account_url(&self) -> String {
+        format!("{}/account", self.apex_url())
+    }
+
+    /// The tenant slug for a `Host` header, if it is a subdomain of the base domain. Reserved names are never
+    /// tenants.
     pub fn slug_for_host<'a>(&self, host: &'a str) -> Option<&'a str> {
         let slug = host.strip_suffix(&self.base_domain)?.strip_suffix('.')?;
-        (!slug.is_empty() && !slug.contains('.')).then_some(slug)
+        (!slug.is_empty() && !slug.contains('.') && !is_reserved(slug)).then_some(slug)
     }
+
+    /// Classifies a lowercase `Host` header.
+    pub fn host_kind<'a>(&self, host: &'a str) -> HostKind<'a> {
+        if host == self.base_domain {
+            HostKind::Apex
+        } else if host.strip_prefix("www.") == Some(&self.base_domain) {
+            HostKind::Www
+        } else {
+            self.slug_for_host(host)
+                .map_or(HostKind::Unknown, HostKind::Tenant)
+        }
+    }
+}
+
+fn secret(name: &'static str) -> Result<Vec<u8>, ConfigError> {
+    let value = required(name)?.into_bytes();
+    if value.len() < 32 {
+        return Err(ConfigError::Invalid {
+            name,
+            reason: "must be a string of at least 32 bytes, such as the output of `openssl rand -base64 48`"
+                .into(),
+        });
+    }
+    Ok(value)
 }
 
 fn optional(name: &'static str) -> Option<String> {
@@ -167,6 +243,9 @@ pub(crate) mod tests {
             github_api: "https://api.github.com".parse().unwrap(),
             github_web: "https://github.com".parse().unwrap(),
             reader_client_id: "Iv1.test".into(),
+            reader_client_secret: "secret".into(),
+            reader_app_slug: "privatecrates-reader".into(),
+            storage_app_slug: "privatecrates-storage".into(),
             reader_app: AppConfig {
                 id: 1,
                 private_key_pem: vec![],
@@ -177,6 +256,9 @@ pub(crate) mod tests {
             },
             registry_token_secret: vec![7; 32],
             webhook_secrets: Vec::new(),
+            session_secret: vec![8; 32],
+            website_dir: None,
+            stripe: None,
             oidc_issuer: "https://token.actions.githubusercontent.com".into(),
             oidc_jwks_url: "https://token.actions.githubusercontent.com/.well-known/jwks"
                 .parse()
@@ -198,6 +280,7 @@ pub(crate) mod tests {
         assert_eq!(c.slug_for_host("a.b.privatecrates.dev"), None);
         assert_eq!(c.slug_for_host("acmeprivatecrates.dev"), None);
         assert_eq!(c.slug_for_host("acme.example.com"), None);
+        assert_eq!(c.slug_for_host("www.privatecrates.dev"), None);
         let local = config("localhost:8080");
         assert_eq!(local.slug_for_host("acme.localhost:8080"), Some("acme"));
     }
@@ -210,5 +293,19 @@ pub(crate) mod tests {
             vec![b"reader".to_vec(), b"storage".to_vec()]
         );
         assert!(secrets(",").is_empty());
+    }
+
+    #[test]
+    fn host_kinds() {
+        let c = config("privatecrates.dev");
+        assert_eq!(c.host_kind("privatecrates.dev"), HostKind::Apex);
+        assert_eq!(c.host_kind("www.privatecrates.dev"), HostKind::Www);
+        assert_eq!(
+            c.host_kind("acme.privatecrates.dev"),
+            HostKind::Tenant("acme")
+        );
+        assert_eq!(c.host_kind("api.privatecrates.dev"), HostKind::Unknown);
+        assert_eq!(c.host_kind("example.com"), HostKind::Unknown);
+        assert_eq!(c.host_kind("wwwprivatecrates.dev"), HostKind::Unknown);
     }
 }

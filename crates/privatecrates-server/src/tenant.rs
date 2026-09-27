@@ -20,6 +20,27 @@ pub use privatecrates_common::storage::{
     OWNERS_DIR, Owner, SETTINGS_PATH, index_path, owner_name, owner_path,
 };
 
+/// Subdomains of the base domain that are never tenants (docs/website-api.md).
+pub const RESERVED_SLUGS: &[&str] = &[
+    "www", "dev", "api", "app", "docs", "status", "mail", "admin", "billing", "login", "static",
+    "assets",
+];
+
+pub fn is_reserved(slug: &str) -> bool {
+    RESERVED_SLUGS.contains(&slug)
+}
+
+/// Checks a slug's form: it becomes a hostname label.
+pub fn slug_is_valid(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug.len() <= 63
+        && slug
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && !slug.starts_with('-')
+        && !slug.ends_with('-')
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
@@ -255,6 +276,15 @@ impl Tenants {
             .cloned()
     }
 
+    pub fn by_org(&self, org_id: u64) -> Option<Arc<Tenant>> {
+        self.by_slug
+            .read()
+            .expect("tenants lock")
+            .values()
+            .find(|t| t.org_id == org_id)
+            .cloned()
+    }
+
     pub fn all(&self) -> Vec<Arc<Tenant>> {
         self.by_slug
             .read()
@@ -370,18 +400,13 @@ pub fn parse_settings(content: &[u8]) -> Result<Settings, TenantError> {
     };
     let text = std::str::from_utf8(content).map_err(|e| invalid(e.to_string()))?;
     let settings: Settings = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
-    let valid_slug = !settings.slug.is_empty()
-        && settings.slug.len() <= 63
-        && settings
-            .slug
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-        && !settings.slug.starts_with('-')
-        && !settings.slug.ends_with('-');
-    if !valid_slug {
+    if !slug_is_valid(&settings.slug) {
         return Err(invalid(
             "slug must be 1 to 63 lowercase letters, digits or hyphens".into(),
         ));
+    }
+    if is_reserved(&settings.slug) {
+        return Err(invalid(format!("the slug {} is reserved", settings.slug)));
     }
     Ok(settings)
 }
@@ -420,6 +445,7 @@ pub(crate) mod tests {
         assert!(parse_settings(b"slug = \"Acme\"").is_err());
         assert!(parse_settings(b"slug = \"a.b\"").is_err());
         assert!(parse_settings(b"slug = \"acme\"\nunknown = 1").is_err());
+        assert!(parse_settings(b"slug = \"www\"").is_err());
     }
 
     #[test]

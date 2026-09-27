@@ -1,16 +1,18 @@
 //! A running PrivateCrates server against a fake GitHub.
 #![allow(dead_code)] // Each test binary uses a different part of the harness.
 
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use privatecrates_common::{audience, sha256_hex};
 use privatecrates_server::{
     AppState,
-    config::{AppConfig, Config},
+    config::{AppConfig, Config, StripeConfig},
     router,
 };
-use privatecrates_testkit::{APP_PRIVATE_KEY, FakeGitHub, Org, READER_APP_ID, STORAGE_APP_ID};
+use privatecrates_testkit::{
+    APP_PRIVATE_KEY, FakeGitHub, Org, READER_APP_ID, STORAGE_APP_ID, stripe::FakeStripe,
+};
 use serde_json::{Value, json};
 
 /// Each App signs its webhooks with its own secret.
@@ -19,15 +21,32 @@ pub const STORAGE_WEBHOOK_SECRET: &[u8] = b"the storage App's webhook secret";
 
 pub struct Harness {
     pub fake: FakeGitHub,
+    pub stripe: Option<FakeStripe>,
     pub org: Org,
     pub state: Arc<AppState>,
     pub port: u16,
     pub client: reqwest::Client,
 }
 
+/// What a test needs beyond the registry.
+#[derive(Default)]
+pub struct Options {
+    /// Bill through a fake Stripe; otherwise every tenant is active.
+    pub stripe: bool,
+    pub website_dir: Option<PathBuf>,
+}
+
 impl Harness {
     pub async fn start() -> Self {
+        Self::start_with(Options::default()).await
+    }
+
+    pub async fn start_with(options: Options) -> Self {
         let fake = FakeGitHub::start().await;
+        let stripe = match options.stripe {
+            true => Some(FakeStripe::start().await),
+            false => None,
+        };
         let org = fake.add_org("acme", "acme");
         let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
@@ -40,6 +59,9 @@ impl Harness {
             github_api: fake.url.parse().unwrap(),
             github_web: fake.url.parse().unwrap(),
             reader_client_id: privatecrates_testkit::READER_CLIENT_ID.into(),
+            reader_client_secret: privatecrates_testkit::READER_CLIENT_SECRET.into(),
+            reader_app_slug: "privatecrates-reader".into(),
+            storage_app_slug: "privatecrates-storage".into(),
             reader_app: AppConfig {
                 id: READER_APP_ID,
                 private_key_pem: APP_PRIVATE_KEY.as_bytes().to_vec(),
@@ -53,6 +75,14 @@ impl Harness {
                 READER_WEBHOOK_SECRET.to_vec(),
                 STORAGE_WEBHOOK_SECRET.to_vec(),
             ],
+            session_secret: b"another test secret, long enough for a key".to_vec(),
+            website_dir: options.website_dir,
+            stripe: stripe.as_ref().map(|s| StripeConfig {
+                api: s.url.parse().unwrap(),
+                secret_key: privatecrates_testkit::stripe::SECRET_KEY.into(),
+                webhook_secret: privatecrates_testkit::stripe::WEBHOOK_SECRET.into(),
+                price_id: privatecrates_testkit::stripe::PRICE_ID.into(),
+            }),
             oidc_issuer: fake.oidc_issuer(),
             oidc_jwks_url: fake.oidc_jwks_url().parse().unwrap(),
             crates_io_api: fake.url.parse().unwrap(),
@@ -64,17 +94,23 @@ impl Harness {
         };
         let state = Arc::new(AppState::new(config).unwrap());
         state.discover().await.unwrap();
+        state.billing.load().await.unwrap();
         let app = router(state.clone());
         tokio::spawn(async move { axum::serve(listener, app).await });
+        let local = SocketAddr::from(([127, 0, 0, 1], port));
         let client = reqwest::Client::builder()
-            .resolve("localhost", SocketAddr::from(([127, 0, 0, 1], port)))
-            .resolve("acme.localhost", SocketAddr::from(([127, 0, 0, 1], port)))
-            .resolve("other.localhost", SocketAddr::from(([127, 0, 0, 1], port)))
+            .resolve("localhost", local)
+            .resolve("www.localhost", local)
+            .resolve("acme.localhost", local)
+            .resolve("other.localhost", local)
+            .resolve("api.localhost", local)
+            .resolve("globex.localhost", local)
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .unwrap();
         Self {
             fake,
+            stripe,
             org,
             state,
             port,
@@ -88,6 +124,62 @@ impl Harness {
 
     pub fn url(&self, path: &str) -> String {
         format!("{}{path}", self.base())
+    }
+
+    /// The website's URL, on the apex host.
+    pub fn apex(&self, path: &str) -> String {
+        format!("http://localhost:{}{path}", self.port)
+    }
+
+    /// Signs in on the website as the user holding `token`, as a browser would, and returns the session cookie
+    /// (`pc_session=…`).
+    pub async fn sign_in(&self, token: &str) -> String {
+        let response = self
+            .client
+            .get(self.apex("/auth/github/login?return_to=/account%3Forg%3Dacme"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 302);
+        let location =
+            reqwest::Url::parse(response.headers()["location"].to_str().unwrap()).unwrap();
+        let state = location
+            .query_pairs()
+            .find(|(k, _)| k == "state")
+            .unwrap()
+            .1
+            .into_owned();
+        let sign_in = cookie(&response, "pc_sign_in").unwrap();
+        let code = self.fake.web_flow_code(token);
+        let response = self
+            .client
+            .get(self.apex("/auth/github/callback"))
+            .query(&[("code", code.as_str()), ("state", state.as_str())])
+            .header("Cookie", sign_in)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 302, "{}", response.text().await.unwrap());
+        assert_eq!(response.headers()["location"], "/account?org=acme");
+        cookie(&response, "pc_session").unwrap()
+    }
+
+    /// A request to the account API, from the website: JSON, with the website's `Origin`.
+    pub fn api_post(&self, path: &str, session: &str) -> reqwest::RequestBuilder {
+        self.client
+            .post(self.apex(path))
+            .header("Cookie", session)
+            .header("Origin", self.apex(""))
+            .header("Content-Type", "application/json")
+    }
+
+    pub async fn api_get(&self, path: &str, session: &str) -> reqwest::Response {
+        self.client
+            .get(self.apex(path))
+            .header("Cookie", session)
+            .send()
+            .await
+            .unwrap()
     }
 
     pub async fn get(&self, path: &str, token: Option<&str>) -> reqwest::Response {
@@ -229,6 +321,26 @@ impl Crate {
         out.extend_from_slice(&krate);
         Bytes::from(out)
     }
+}
+
+/// The `name=value` part of a `Set-Cookie` header of the response.
+pub fn cookie(response: &reqwest::Response, name: &str) -> Option<String> {
+    response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .filter_map(|v| v.split(';').next())
+        .find(|v| v.starts_with(&format!("{name}=")))
+        .map(str::to_owned)
+}
+
+pub async fn error_code(response: reqwest::Response) -> String {
+    let body: Value = response.json().await.unwrap();
+    body["errors"][0]["code"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned()
 }
 
 pub async fn error_detail(response: reqwest::Response) -> String {

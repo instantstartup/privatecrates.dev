@@ -1,7 +1,7 @@
 //! Every error the registry returns, each with a stable code and HTTP status.
 //!
-//! Responses use Cargo's format, `{"errors":[{"detail":"…"}]}`, with the message as the detail: Cargo shows only
-//! that, so each message says what happened and what to do.
+//! Responses use Cargo's format, `{"errors":[{"detail":"…","code":"…"}]}`, with the message as the detail: Cargo
+//! shows only that, so each message says what happened and what to do. The website uses the code.
 
 use apollo_errors::Error;
 use axum::{
@@ -11,7 +11,7 @@ use axum::{
 };
 use miette::Diagnostic;
 
-use crate::{github::GitHubError, oidc::OidcError, tenant::TenantError};
+use crate::{billing::BillingError, github::GitHubError, oidc::OidcError, tenant::TenantError};
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum ApiError {
@@ -309,6 +309,116 @@ pub enum ApiError {
     #[diagnostic(code(webhook::payload_invalid))]
     #[http_status(400)]
     WebhookPayloadInvalid { reason: String },
+    // --- Billing ---
+    #[error(
+        "the PrivateCrates subscription for the {org} organisation is not active. An organisation admin can renew \
+         it at {account_url}"
+    )]
+    #[diagnostic(code(billing::subscription_inactive))]
+    #[http_status(402)]
+    SubscriptionInactive {
+        org: String,
+        #[extension]
+        account_url: String,
+    },
+
+    #[error("billing is not set up on this server")]
+    #[diagnostic(code(billing::not_configured))]
+    #[http_status(503)]
+    BillingNotConfigured,
+
+    #[error("{org} already has a subscription; manage it from the billing portal")]
+    #[diagnostic(code(billing::already_subscribed))]
+    #[http_status(409)]
+    AlreadySubscribed { org: String },
+
+    #[error("{org} has no subscription yet; start one first")]
+    #[diagnostic(code(billing::no_subscription))]
+    #[http_status(409)]
+    NoSubscription { org: String },
+
+    #[error("a request to Stripe failed; please try again")]
+    #[diagnostic(code(billing::stripe_failed))]
+    #[http_status(502)]
+    Stripe {
+        #[source]
+        source: BillingError,
+    },
+
+    #[error("the Stripe webhook is invalid: {reason}")]
+    #[diagnostic(code(billing::webhook_invalid))]
+    #[http_status(400)]
+    StripeWebhookInvalid { reason: String },
+
+    // --- The website's account API ---
+    #[error("sign in with GitHub first")]
+    #[diagnostic(code(account::sign_in_required))]
+    #[http_status(401)]
+    SignInRequired,
+
+    #[error("this request must come from the PrivateCrates website")]
+    #[diagnostic(code(account::cross_site_request))]
+    #[http_status(403)]
+    CrossSiteRequest,
+
+    #[error(
+        "this sign-in link has expired or was started in another browser; please sign in again"
+    )]
+    #[diagnostic(code(account::sign_in_state_invalid))]
+    #[http_status(400)]
+    SignInStateInvalid,
+
+    #[error("GitHub did not complete the sign-in; please try again")]
+    #[diagnostic(code(account::sign_in_failed))]
+    #[http_status(400)]
+    SignInFailed,
+
+    #[error("you are not a member of a GitHub organisation called {org}")]
+    #[diagnostic(code(account::org_not_found))]
+    #[http_status(404)]
+    OrgNotFound { org: String },
+
+    #[error("only admins of the {org} organisation can do this; ask one of them")]
+    #[diagnostic(code(account::admin_required))]
+    #[http_status(403)]
+    AdminRequired { org: String },
+
+    #[error(
+        "a registry name must be 1 to 63 lowercase letters, digits or hyphens, and cannot start or end with a \
+         hyphen"
+    )]
+    #[diagnostic(code(account::slug_invalid))]
+    #[http_status(400)]
+    SlugInvalid,
+
+    #[error("the registry name {slug} is reserved; choose another")]
+    #[diagnostic(code(account::slug_reserved))]
+    #[http_status(400)]
+    SlugReserved { slug: String },
+
+    #[error("the registry name {slug} is taken; choose another")]
+    #[diagnostic(code(account::slug_taken))]
+    #[http_status(409)]
+    SlugTaken { slug: String },
+
+    #[error(
+        "privatecrates.toml already exists in {repository}. Settings are changed with a pull request to that \
+         file, not here"
+    )]
+    #[diagnostic(code(account::settings_exist))]
+    #[http_status(409)]
+    SettingsExist {
+        #[extension]
+        repository: String,
+    },
+
+    #[error(
+        "the storage App must be installed on exactly one repository of {org}, the storage repository, before \
+         the registry can be set up"
+    )]
+    #[diagnostic(code(account::storage_not_ready))]
+    #[http_status(409)]
+    StorageNotReady { org: String },
 
     // --- GitHub and internal ---
     #[error("GitHub's rate limit was reached; please try again in a few minutes")]
@@ -366,6 +476,12 @@ impl From<TenantError> for ApiError {
     }
 }
 
+impl From<BillingError> for ApiError {
+    fn from(source: BillingError) -> Self {
+        Self::Stripe { source }
+    }
+}
+
 impl From<OidcError> for ApiError {
     fn from(e: OidcError) -> Self {
         match e {
@@ -378,11 +494,12 @@ impl From<OidcError> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status = self.http_status();
+        let code = self.code().map(|c| c.to_string());
         if status.is_server_error() {
-            let code = self.code().map(|c| c.to_string());
             tracing::error!(error = ?self, code = ?code, "request failed");
         }
-        let body = Json(serde_json::json!({ "errors": [{ "detail": self.to_string() }] }));
+        let body =
+            Json(serde_json::json!({ "errors": [{ "detail": self.to_string(), "code": code }] }));
         let mut response = (status, body).into_response();
         response.headers_mut().extend(self.http_headers());
         response
@@ -411,6 +528,7 @@ mod tests {
             body["errors"][0]["detail"],
             "this registry needs a token; see https://acme.privatecrates.dev/login"
         );
+        assert_eq!(body["errors"][0]["code"], "auth::token_required");
     }
 
     #[test]

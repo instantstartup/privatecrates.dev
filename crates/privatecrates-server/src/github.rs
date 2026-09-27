@@ -100,6 +100,8 @@ pub struct GitHub {
     http: reqwest::Client,
     no_redirect: reqwest::Client,
     api: Url,
+    /// `https://github.com`, where the web sign-in flow exchanges its codes.
+    web: Url,
     reader: App,
     storage: App,
     installation_tokens: moka::future::Cache<(AppKind, u64), String>,
@@ -145,20 +147,42 @@ pub struct Repo {
 pub struct User {
     pub id: u64,
     pub login: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct Organization {
+    pub id: u64,
+    pub login: String,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
+}
+
+/// The signed-in user's membership of an organisation.
+#[derive(Debug, Clone, Deserialize)]
 pub struct Membership {
-    /// `admin` for an organisation owner, otherwise `member`.
-    pub role: String,
-    /// `active`, or `pending` for an invitation not yet accepted.
+    /// `active` or `pending` (invited).
     pub state: String,
+    /// `admin` or `member`.
+    pub role: String,
+    pub organization: Organization,
+    pub user: Account,
 }
 
 impl Membership {
-    pub fn is_active_admin(&self) -> bool {
-        self.role == "admin" && self.state == "active"
+    pub fn is_admin(&self) -> bool {
+        self.state == "active" && self.role == "admin"
     }
+}
+
+/// A user access token from the web sign-in flow.
+pub struct UserToken {
+    pub access_token: String,
+    /// Seconds until it expires; GitHub App user tokens last 8 hours.
+    pub expires_in: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -225,6 +249,7 @@ impl GitHub {
             http,
             no_redirect,
             api: config.github_api.clone(),
+            web: config.github_web.clone(),
             reader: App::new(&config.reader_app)?,
             storage: App::new(&config.storage_app)?,
             installation_tokens: moka::future::Cache::builder()
@@ -303,6 +328,26 @@ impl GitHub {
         Ok(response.token)
     }
 
+    /// An App's installation on an organisation, if it is installed there.
+    pub async fn org_installation(
+        &self,
+        kind: AppKind,
+        org: &str,
+    ) -> Result<Option<Installation>, GitHubError> {
+        let jwt = self.app(kind).jwt()?;
+        match json(
+            self.request(Method::GET, &format!("/orgs/{org}/installation"), &jwt)
+                .send()
+                .await?,
+        )
+        .await
+        {
+            Ok(installation) => Ok(Some(installation)),
+            Err(GitHubError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// The repositories an installation token has access to.
     pub async fn installation_repositories(&self, token: &str) -> Result<Vec<Repo>, GitHubError> {
         #[derive(Deserialize)]
@@ -332,6 +377,70 @@ impl GitHub {
 
     pub async fn user(&self, token: &str) -> Result<User, GitHubError> {
         json(self.request(Method::GET, "/user", token).send().await?).await
+    }
+
+    /// The organisations the user belongs to.
+    pub async fn user_orgs(&self, token: &str) -> Result<Vec<Organization>, GitHubError> {
+        let mut all = Vec::new();
+        for page in 1.. {
+            let batch: Vec<Organization> = json(
+                self.request(Method::GET, "/user/orgs", token)
+                    .query(&[("per_page", PER_PAGE), ("page", page)])
+                    .send()
+                    .await?,
+            )
+            .await?;
+            let done = batch.len() < PER_PAGE;
+            all.extend(batch);
+            if done {
+                break;
+            }
+        }
+        Ok(all)
+    }
+
+    /// Exchanges a web sign-in flow's code for a user access token.
+    pub async fn exchange_code(
+        &self,
+        client_id: &str,
+        client_secret: &str,
+        code: &str,
+        redirect_uri: &str,
+    ) -> Result<UserToken, GitHubError> {
+        #[derive(Deserialize)]
+        struct Response {
+            access_token: Option<String>,
+            expires_in: Option<u64>,
+            error: Option<String>,
+        }
+        let url = self
+            .web
+            .join("login/oauth/access_token")
+            .expect("a valid URL path");
+        let response: Response = json(
+            self.http
+                .post(url)
+                .header(header::ACCEPT, "application/json")
+                .form(&[
+                    ("client_id", client_id),
+                    ("client_secret", client_secret),
+                    ("code", code),
+                    ("redirect_uri", redirect_uri),
+                ])
+                .send()
+                .await?,
+        )
+        .await?;
+        match response.access_token {
+            Some(access_token) => Ok(UserToken {
+                access_token,
+                expires_in: response.expires_in,
+            }),
+            // GitHub answers 200 with an error code, such as `bad_verification_code`.
+            None => Err(GitHubError::Unexpected {
+                reason: response.error.unwrap_or_else(|| "no access token".into()),
+            }),
+        }
     }
 
     /// The repositories in an installation that the user behind a GitHub App user token can access, with their

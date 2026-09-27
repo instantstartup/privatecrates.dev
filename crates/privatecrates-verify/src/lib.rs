@@ -352,14 +352,16 @@ impl Verifier<'_> {
             );
             return;
         }
-        let creating_owner = owner_name(path).is_some() && !existed && exists;
-        if !creating_owner {
+        // The App creates an owners file at a crate's first publish, and `privatecrates.toml` when an organisation
+        // is set up; it never changes or deletes either.
+        let creating = !existed && exists && (owner_name(path).is_some() || path == SETTINGS_PATH);
+        if !creating {
             self.report(
                 Severity::Error,
                 path,
                 format!(
                     "the storage App changed {path} in commit {commit}; it may only create owners files at a crate's \
-                     first publish"
+                     first publish and privatecrates.toml at sign-up"
                 ),
             );
         }

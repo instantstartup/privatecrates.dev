@@ -196,7 +196,7 @@ async fn a_deleted_owning_repository_leaves_the_crate_to_organisation_owners() {
     let owner = h
         .fake
         .add_user("olivia", "ghu_", &[(h.repo("other"), true)]);
-    h.fake.set_org_admin(&owner, true);
+    h.fake.add_member(&owner, &h.org, "admin");
     let member = h
         .fake
         .add_user("mallory", "ghu_", &[(h.repo("another"), true)]);

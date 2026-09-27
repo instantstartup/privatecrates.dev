@@ -387,7 +387,7 @@ impl Resolver<'_> {
             return cached.map_err(Into::into);
         }
         let value = match self.gh.org_membership(token, &self.tenant.org_login).await {
-            Ok(membership) => Ok(membership.is_some_and(|m| m.is_active_admin())),
+            Ok(membership) => Ok(membership.is_some_and(|m| m.is_admin())),
             Err(e) => Err(denial(e)?),
         };
         self.cache.org_admins.insert(key, value.clone()).await;
