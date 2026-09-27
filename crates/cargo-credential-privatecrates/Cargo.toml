@@ -1,9 +1,15 @@
 [package]
 name = "cargo-credential-privatecrates"
 version = "0.1.0"
+description = "Cargo credential provider for PrivateCrates private registries: GitHub device flow on developer machines, Actions OIDC in CI."
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["cargo", "credential-provider", "registry", "github", "oidc"]
+categories = ["development-tools::cargo-plugins", "authentication", "command-line-utilities"]
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 cargo-credential = "0.4.10"
@@ -17,6 +23,14 @@ url = "2.5.8"
 
 [lints]
 workspace = true
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }"
+bin-dir = "{ name }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
 
 [dev-dependencies]
 axum = "0.8.9"

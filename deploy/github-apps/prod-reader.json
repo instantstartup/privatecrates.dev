@@ -1,0 +1,28 @@
+{
+  "name": "PrivateCrates Reader",
+  "url": "https://privatecrates.dev",
+  "description": "Reads repository metadata and organisation membership so that PrivateCrates can apply your GitHub permissions to your private Cargo registry. Used for sign-in (web flow and device flow).",
+  "hook_attributes": {
+    "url": "https://privatecrates.dev/webhooks/github",
+    "active": true
+  },
+  "redirect_url": "https://privatecrates.dev/",
+  "callback_urls": [
+    "https://privatecrates.dev/auth/github/callback"
+  ],
+  "setup_url": "https://privatecrates.dev/account",
+  "setup_on_update": false,
+  "request_oauth_on_install": false,
+  "public": true,
+  "default_permissions": {
+    "metadata": "read",
+    "members": "read"
+  },
+  "default_events": [
+    "member",
+    "membership",
+    "organization",
+    "repository",
+    "team"
+  ]
+}

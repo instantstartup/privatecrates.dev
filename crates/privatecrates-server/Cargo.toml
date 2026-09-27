@@ -1,9 +1,13 @@
 [package]
 name = "privatecrates-server"
 version = "0.1.0"
+description = "The PrivateCrates hosted private Cargo registry server (source-available, Business Source License 1.1)."
+license = "BUSL-1.1"
+publish = false
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 apollo-errors = "0.8.0"

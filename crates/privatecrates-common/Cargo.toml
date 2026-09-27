@@ -1,9 +1,15 @@
 [package]
 name = "privatecrates-common"
 version = "0.1.0"
+description = "Types and rules shared by the PrivateCrates credential provider, verifier and server."
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["cargo", "registry", "github", "privatecrates"]
+categories = ["development-tools"]
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 hex = "0.4.3"

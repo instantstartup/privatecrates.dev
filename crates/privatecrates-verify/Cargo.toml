@@ -1,9 +1,15 @@
 [package]
 name = "privatecrates-verify"
 version = "0.1.0"
+description = "Verifies everything PrivateCrates wrote to a storage repository: append-only index, immutable releases and GitHub-signed provenance."
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["cargo", "registry", "provenance", "supply-chain", "verification"]
+categories = ["development-tools", "command-line-utilities", "cryptography"]
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 clap = { version = "4.6.7", features = ["derive", "env"] }
@@ -17,6 +23,14 @@ toml = "1.1.6"
 
 [lints]
 workspace = true
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }"
+bin-dir = "{ name }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
 
 [dev-dependencies]
 privatecrates-testkit = { path = "../privatecrates-testkit" }
