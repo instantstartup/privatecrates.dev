@@ -36,8 +36,9 @@
 		what each person can access.
 	</li>
 	<li>
-		<strong>Create the storage repository</strong>: a private repository, conventionally
-		<code>crates-store</code>, with <strong>immutable releases</strong> enabled in Settings → General → Releases.
+		<strong>Choose the storage repository</strong>: a new private repository, conventionally
+		<code>crates-store</code>, or an existing empty one. It holds your registry and nothing else: the index,
+		and every crate file as a release. Enable <strong>immutable releases</strong> in Settings → General → Releases.
 		Immutability means that once a version is published, nobody (including us) can change its bytes.
 	</li>
 	<li>

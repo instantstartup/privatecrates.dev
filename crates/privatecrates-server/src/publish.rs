@@ -287,16 +287,23 @@ async fn authorize(
 }
 
 /// `owner/repo`, lowercased, from a GitHub repository URL.
+/// A crate in a monorepo may link to its directory (`https://github.com/acme/mono/tree/main/crates/foo`); anything
+/// after `/tree/` or `/blob/` is ignored.
 fn github_repository(url: &str) -> Option<String> {
     let rest = url
         .trim()
         .strip_prefix("https://github.com/")
         .or_else(|| url.trim().strip_prefix("http://github.com/"))?;
     let rest = rest.trim_end_matches('/');
-    let rest = rest.strip_suffix(".git").unwrap_or(rest);
     let mut parts = rest.split('/');
     let (owner, repo) = (parts.next()?, parts.next()?);
-    (parts.next().is_none() && !owner.is_empty() && !repo.is_empty())
+    let repo = repo.strip_suffix(".git").unwrap_or(repo);
+    let tail_ok = match parts.next() {
+        None => true,
+        Some("tree" | "blob") => parts.next().is_some_and(|git_ref| !git_ref.is_empty()),
+        Some(_) => false,
+    };
+    (tail_ok && !owner.is_empty() && !repo.is_empty())
         .then(|| format!("{owner}/{repo}").to_ascii_lowercase())
 }
 
@@ -668,8 +675,18 @@ mod tests {
             Some("acme/story-engine")
         );
         assert_eq!(github_repository("https://github.com/acme"), None);
+        // Monorepo crates link to their directory.
         assert_eq!(
-            github_repository("https://github.com/acme/a/tree/main"),
+            github_repository("https://github.com/Acme/Mono/tree/main/crates/foo").as_deref(),
+            Some("acme/mono")
+        );
+        assert_eq!(
+            github_repository("https://github.com/acme/mono/blob/main/README.md").as_deref(),
+            Some("acme/mono")
+        );
+        assert_eq!(github_repository("https://github.com/acme/mono/tree"), None);
+        assert_eq!(
+            github_repository("https://github.com/acme/mono/issues"),
             None
         );
         assert_eq!(github_repository("https://gitlab.com/acme/a"), None);

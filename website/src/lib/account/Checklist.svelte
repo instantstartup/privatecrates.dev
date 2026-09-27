@@ -28,9 +28,9 @@
 			action: 'Install the reader App on GitHub'
 		},
 		storage_repo: {
-			title: 'Create the storage repository',
-			body: 'A private repository that will hold your index and every crate file. Enable immutable releases in Settings → General → Releases, so published versions can never change.',
-			action: 'Create a repository on GitHub'
+			title: 'Choose a storage repository',
+			body: 'A private repository that holds your registry: the index, and every crate file as an immutable release. Create a new one, or use an existing empty one; it must hold nothing but PrivateCrates’ data. Enable immutable releases in Settings → General → Releases, so published versions can never change. You pick it in the next step, when you install the storage App.',
+			action: 'Create a new repository on GitHub'
 		},
 		storage_app: {
 			title: 'Install the storage App on that repository',

@@ -47,7 +47,10 @@ cargo yank --registry acme --version 0.2.0 --undo story_engine`;
 </ol>
 <p>
 	Because the token names one version and one checksum, it cannot be replayed to publish anything else.
-	Publishing a workspace works the same way: Cargo asks for one token per crate.
+	Publishing a workspace works the same way: Cargo asks for one token per crate. Many crates can live in one
+	repository: each crate’s <code>package.repository</code> names that repository (a link to the crate’s
+	directory, such as <code>https://github.com/acme/mono/tree/main/crates/foo</code>, also works), and each
+	gets its own owners file.
 </p>
 
 <h2 id="first-publish">A crate’s first publish</h2>

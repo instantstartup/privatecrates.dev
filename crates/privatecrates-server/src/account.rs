@@ -325,8 +325,9 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
             "storage_repo",
             storage_ready,
             format!(
-                "Create a private repository, e.g. {}/crates-store, and enable immutable releases in Settings → \
-                 General → Releases.",
+                "Create a private repository, e.g. {}/crates-store, or use an existing empty one: it must hold nothing \
+                 but PrivateCrates' index and releases. Enable immutable releases in Settings → General → Releases. \
+                 You choose it when you install the storage App.",
                 org.login
             ),
         )
