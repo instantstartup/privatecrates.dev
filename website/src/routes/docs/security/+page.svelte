@@ -35,7 +35,9 @@
 <ul>
 	<li><strong>What we see:</strong> callers’ tokens, and crate bytes in transit while they are published.</li>
 	<li>
-		<strong>What we store durably:</strong> nothing. Caches only, keyed by hashes of tokens, never tokens.
+		<strong>What we store durably:</strong> no registry data and no code. Caches only, keyed by hashes of
+		tokens, never tokens. The one durable record is each organisation’s acceptance of the
+		<a href="/legal/terms">terms</a>: who accepted, for which organisation, when.
 	</li>
 	<li>
 		<strong>What we can do:</strong> write to each organisation’s storage repository, through the storage App.

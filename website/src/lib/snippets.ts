@@ -1,6 +1,8 @@
 // Code examples shared by the landing page, the docs and the account page, so they never drift apart.
 // Derived from SPEC.md §3, §5 and the privatecrates-verify documentation.
 
+import { PREVIEW, SITE_URL, TERMS_PATH, TERMS_VERSION } from './site';
+
 export function cargoConfig(name: string, registryUrl: string): string {
 	return `[registries.${name}]
 index = "sparse+${registryUrl.replace(/\/$/, '')}/index/"
@@ -120,9 +122,14 @@ export function cli(args: string, apex = PROD_APEX): string {
 	return `cargo privatecrates ${args}${apex === PROD_APEX ? '' : ` --domain ${apex}`}`;
 }
 
+/** The current terms, for pages that are built before any session exists. */
+export const CURRENT_TERMS = { version: TERMS_VERSION, url: `${SITE_URL}${TERMS_PATH}` };
+
+// The trial flags stay in the CLI for later; during the preview the server refuses them (billing::preview).
 export const cliUsage = `cargo privatecrates login
 cargo privatecrates logout
-cargo privatecrates setup <org> [--slug <name>] [--start-trial --billing-email <address>] [--json]
+cargo privatecrates setup <org> [--slug <name> --accept-terms <version>]${PREVIEW ? '' : ' [--start-trial --billing-email <address>]'} [--json]
+cargo privatecrates terms <org> --accept <version>
 cargo privatecrates init --registry <name> [--domain <domain> | --url <url>]
 cargo privatecrates doctor [--json]`;
 
@@ -139,14 +146,26 @@ ${cli('login', apex)}
 ${cli('logout', apex)}`;
 }
 
-export function setupCommands(org: string, slug: string, apex = PROD_APEX): string {
-	return `# The checklist: each step's status, with a link where a person must act
-${cli(`setup ${org}`, apex)}
-# Choose the registry name (once both Apps are installed)
-${cli(`setup ${org} --slug ${slug}`, apex)}
+export function setupCommands(
+	org: string,
+	slug: string,
+	apex = PROD_APEX,
+	terms = CURRENT_TERMS,
+	preview = PREVIEW
+): string {
+	const trial = preview
+		? ''
+		: `
 # Organisations over the free limit: start the no-card trial. Stripe sends the
 # trial-ending reminder and invoices to the billing email.
-${cli(`setup ${org} --start-trial --billing-email billing@example.com`, apex)}
+${cli(`setup ${org} --start-trial --billing-email billing@example.com`, apex)}`;
+	return `# The checklist: each step's status, with a link where a person must act
+${cli(`setup ${org}`, apex)}
+# Choose the registry name (once both Apps are installed), after an admin has read
+# and accepted the terms at ${terms.url} on behalf of ${org}
+${cli(`setup ${org} --slug ${slug} --accept-terms ${terms.version}`, apex)}
+# An existing registry whose admin has not accepted the current terms yet
+${cli(`terms ${org} --accept ${terms.version}`, apex)}${trial}
 # The same checklist as JSON, for agents and scripts
 ${cli(`setup ${org} --json`, apex)}`;
 }
@@ -182,6 +201,10 @@ export interface SetupPromptInput {
 	steps: PromptStep[];
 	/** What the plan step needs, when it is not done: the no-card trial, or a subscription with a card. */
 	plan: 'trial' | 'subscribe' | null;
+	/** The terms the admin must accept before the registry is created (session.terms). */
+	terms?: { version: string; url: string };
+	/** The preview (session.preview): billing is off, so the prompt has no trial or billing step. */
+	preview?: boolean;
 }
 
 const doneNames: Record<string, string> = {
@@ -211,7 +234,15 @@ function agentRules(org: string, check: string): string {
 }
 
 /** The prompt that finishes setting up a registry, from wherever the checklist is. */
-export function setupPrompt({ org, slug, apex, steps, plan }: SetupPromptInput): string {
+export function setupPrompt({
+	org,
+	slug,
+	apex,
+	steps,
+	plan,
+	terms = CURRENT_TERMS,
+	preview = false
+}: SetupPromptInput): string {
 	const step = (id: string) => steps.find((s) => s.id === id || (id === 'plan' && s.id === 'subscription'));
 	const todo = (id: string) => {
 		const s = step(id);
@@ -238,12 +269,15 @@ export function setupPrompt({ org, slug, apex, steps, plan }: SetupPromptInput):
 		items.push(
 			`Stop and ask me to install the PrivateCrates storage App on ${makeRepo ? `${org}/${STORAGE_REPO}` : 'the storage repository'} only ("Only select repositories"): ${link('storage_app')}`
 		);
-	if (todo('settings')) items.push(`Choose the registry name: ${cli(`setup ${org} --slug ${slug}`, apex)}`);
-	if (todo('plan') && plan === 'trial')
+	if (todo('settings'))
+		items.push(
+			`Show me the terms, ${terms.url}, and ask me to read them and accept them on behalf of ${org}. Wait until I say I accept. Never accept them for me, and do not go on if I decline. Only then choose the registry name: ${cli(`setup ${org} --slug ${slug} --accept-terms ${terms.version}`, apex)}`
+		);
+	if (!preview && todo('plan') && plan === 'trial')
 		items.push(
 			`Start the free trial, no card needed. First ask me for the billing email address: Stripe sends the trial-ending reminder and invoices there. Do not guess it or take it from git config. Then run ${cli(`setup ${org} --start-trial --billing-email <address>`, apex)}`
 		);
-	if (todo('plan') && plan === 'subscribe')
+	if (!preview && todo('plan') && plan === 'subscribe')
 		items.push(`Stop and ask me to subscribe at ${account}: it needs a card, so only I can do it.`);
 	items.push(
 		`Confirm: ${cli(`setup ${org} --json`, apex)} must report every step as done. Then tell me the registry URL.`
@@ -258,7 +292,7 @@ Registry name: ${slug}, served at https://${slug}.${apex}${done.length ? `\nAlre
 Steps:
 ${numbered(items)}
 
-${agentRules(org, cli(`setup ${org} --json`, apex))}`;
+${agentRules(org, cli(`setup ${org} --json`, apex))}${todo('settings') ? '\n- Never accept the PrivateCrates terms on my behalf, and never pass --accept-terms until I have said I accept.' : ''}`;
 }
 
 /** The prompt that configures an organisation's crate repositories once the registry is live. */

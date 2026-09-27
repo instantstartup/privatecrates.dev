@@ -2,7 +2,7 @@
 	import Callout from '$lib/components/Callout.svelte';
 	import CodeBlock from '$lib/components/CodeBlock.svelte';
 	import Seo from '$lib/components/Seo.svelte';
-	import { FREE_MEMBER_LIMIT, TRIAL_MONTHS } from '$lib/site';
+	import { FREE_MEMBER_LIMIT, PREVIEW, TERMS_PATH, TERMS_VERSION, TRIAL_MONTHS } from '$lib/site';
 	import {
 		cli,
 		cliUsage,
@@ -46,15 +46,24 @@
 			how: 'The agent gives you the link, pre-selected for your organisation; you choose that one repository.'
 		},
 		{
-			step: 'Choose the registry name',
-			who: 'agent',
-			how: 'cargo privatecrates setup --slug. The service saves privatecrates.toml in the storage repository.'
+			step: 'Accept the preview terms',
+			who: 'you',
+			how: 'The agent gives you the link to the terms and waits. You read them and tell it you accept, on behalf of your organisation. It never accepts for you.'
 		},
 		{
-			step: `Start the trial (over ${FREE_MEMBER_LIMIT} members)`,
+			step: 'Choose the registry name',
 			who: 'agent',
-			how: `cargo privatecrates setup --start-trial --billing-email: ${TRIAL_MONTHS} months, no card. The agent asks you for the billing email first.`
+			how: `cargo privatecrates setup --slug --accept-terms ${TERMS_VERSION}, only after you have accepted. The service saves privatecrates.toml in the storage repository.`
 		},
+		...(PREVIEW
+			? []
+			: [
+					{
+						step: `Start the trial (over ${FREE_MEMBER_LIMIT} members)`,
+						who: 'agent' as Who,
+						how: `cargo privatecrates setup --start-trial --billing-email: ${TRIAL_MONTHS} months, no card. The agent asks you for the billing email first.`
+					}
+				]),
 		{
 			step: 'Configure each crate repository',
 			who: 'agent',
@@ -86,9 +95,10 @@
 				action_url: 'https://github.com/apps/privatecrates-storage/installations/new'
 			},
 			{ id: 'settings', status: 'blocked' },
-			{ id: 'plan', status: 'todo' }
+			{ id: 'plan', status: PREVIEW ? 'done' : 'todo' }
 		],
-		plan: 'trial'
+		plan: PREVIEW ? null : 'trial',
+		preview: PREVIEW
 	});
 	const examplePublish = publishPrompt({ org, slug: org, apex: PROD_APEX });
 </script>
@@ -110,8 +120,8 @@
 <p>
 	You need to be an admin of the GitHub organisation, with the GitHub CLI signed in (<code
 		>gh auth status</code
-	>). Three moments need you in the browser: approving the agent’s sign-in, and installing each of the two
-	GitHub Apps.
+	>). Four moments need you: approving the agent’s sign-in, installing each of the two GitHub Apps, and
+	accepting the <a href={TERMS_PATH}>preview terms</a> on behalf of your organisation.
 </p>
 <div class="table-scroll">
 	<table>
@@ -173,9 +183,12 @@
 <h3 id="cli-setup">setup</h3>
 <p>
 	Prints the organisation’s set-up checklist, each step’s status, and a link where a person must act.
-	<code>--slug</code> saves the registry name, <code>--start-trial --billing-email &lt;address&gt;</code>
-	starts the no-card trial (Stripe sends the trial-ending reminder and invoices to that address), and
-	<code>--json</code> prints the checklist for agents and scripts.
+	<code>--slug</code> saves the registry name, and needs <code>--accept-terms</code> with the version of the
+	terms an admin has read and accepted; without it, the command prints the terms’ link and the exact flag to
+	add, and stops. {#if !PREVIEW}<code>--start-trial --billing-email &lt;address&gt;</code> starts the no-card trial
+		(Stripe sends the trial-ending reminder and invoices to that address).{/if}
+	<code>--json</code> prints the checklist for agents and scripts. For a registry created before the terms,
+	<code>cargo privatecrates terms</code> records an admin’s acceptance.
 </p>
 <CodeBlock caption="shell" code={setupCommands(org, org)} />
 <p>The storage repository is created with your own GitHub login, not ours:</p>
@@ -219,6 +232,10 @@
 		under Settings → Applications → Authorized GitHub Apps.
 	</li>
 	<li>
+		<strong>You accept the terms, not the agent.</strong> Accepting binds your organisation, so only you can do
+		it, after reading them.
+	</li>
+	<li>
 		<strong>You review every change.</strong> The agent opens pull requests; you merge them. CI publishes with GitHub
 		Actions’ OIDC token, so no secret is added to any repository.
 	</li>
@@ -227,6 +244,10 @@
 	<p>
 		At each step that needs you, the agent gives you a link and waits. Open it, do what it says on GitHub,
 		then tell the agent you are done; it confirms the step before going on.
+	</p>
+	<p>
+		The terms are yours to accept. The agent shows you the link to the <a href={TERMS_PATH}>preview terms</a>
+		and passes <code>--accept-terms</code> only after you say you accept. It must never accept them for you.
 	</p>
 </Callout>
 

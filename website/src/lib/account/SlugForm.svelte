@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { api, ApiError, type Onboarding } from '$lib/api';
+	import { api, ApiError, type Onboarding, type Terms } from '$lib/api';
 	import ErrorNotice from './ErrorNotice.svelte';
+	import TermsCheckbox from './TermsCheckbox.svelte';
 	import { baseDomain } from './format';
 
 	interface Props {
@@ -10,12 +11,18 @@
 		onsaved: (doc: Onboarding) => void;
 		/** The name as typed, for the agent prompt beside the checklist. */
 		slug?: string;
+		/**
+		 * The current terms (session.terms): an admin accepts them on behalf of the organisation before the registry
+		 * is created. Absent from servers older than the terms, which then ask for nothing.
+		 */
+		terms?: Terms;
 	}
 
 	let {
 		org,
 		suggested = '',
 		onsaved,
+		terms,
 		// The suggestion only seeds the field.
 		slug = $bindable(untrack(() => suggested.toLowerCase()))
 	}: Props = $props();
@@ -36,6 +43,9 @@
 	];
 
 	let touched = $state(false);
+	let accepted = $state(false);
+	/** The server refuses without the terms, so the button waits for the box (and says why, below it). */
+	const waitingForTerms = $derived(!!terms && !accepted);
 	let saving = $state(false);
 	let error = $state<ApiError | null>(null);
 
@@ -54,11 +64,11 @@
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		touched = true;
-		if (problem) return;
+		if (problem || waitingForTerms) return;
 		saving = true;
 		error = null;
 		try {
-			onsaved(await api.saveSettings(org, slug.trim()));
+			onsaved(await api.saveSettings(org, slug.trim(), terms?.version));
 		} catch (e) {
 			error = e instanceof ApiError ? e : new ApiError(0, [{ detail: String(e) }]);
 		} finally {
@@ -93,13 +103,30 @@
 			<p class="problem" id="slug-problem-{org}">{problem}</p>
 		{/if}
 	</div>
+	{#if terms}
+		<TermsCheckbox
+			{org}
+			{terms}
+			bind:checked={accepted}
+			describedby={waitingForTerms ? `slug-wait-${org}` : undefined}
+		/>
+	{/if}
 	{#if error}
 		<ErrorNotice {error} title="The name was not saved" />
 	{/if}
-	<div>
-		<button class="btn btn-primary" type="submit" disabled={saving}>
+	<div class="submit">
+		<button
+			class="btn btn-primary"
+			type="submit"
+			disabled={saving || waitingForTerms}
+			aria-describedby={waitingForTerms ? `slug-wait-${org}` : undefined}
+		>
 			{saving ? 'Saving registry name…' : 'Save registry name'}
 		</button>
+		<!-- Kept in place (and only emptied), so ticking the box does not move the button. -->
+		<p class="wait" id="slug-wait-{org}" aria-live="polite">
+			{waitingForTerms ? 'Tick the box above to accept the terms, then save.' : ''}
+		</p>
 	</div>
 </form>
 
@@ -135,6 +162,16 @@
 	}
 	input[aria-invalid='true'] {
 		border-color: var(--danger);
+	}
+	.submit {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+	}
+	.wait {
+		font-size: var(--text-sm);
+		color: var(--ink-soft);
 	}
 	.problem {
 		color: var(--danger);

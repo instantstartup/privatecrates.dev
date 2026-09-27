@@ -1,6 +1,15 @@
 // /llms.txt (https://llmstxt.org): how a coding agent sets up PrivateCrates for an organisation. Prerendered to
 // build/llms.txt, so the server serves it as a static file. Every command comes from $lib/snippets.
-import { FREE_MEMBER_LIMIT, PRICE_USD, SITE_URL, TRIAL_MONTHS } from '$lib/site';
+import {
+	FREE_MEMBER_LIMIT,
+	GA_TARGET,
+	PREVIEW,
+	PRICE_USD,
+	SITE_URL,
+	TERMS_PATH,
+	TERMS_VERSION,
+	TRIAL_MONTHS
+} from '$lib/site';
 import {
 	cli,
 	cliUsage,
@@ -18,6 +27,19 @@ const indent = (text: string) => text.replace(/^/gm, '   ');
 
 const ORG = '<org>';
 const SLUG = '<name>';
+const TERMS_URL = `${SITE_URL}${TERMS_PATH}`;
+
+const pricing = PREVIEW
+	? `- **Preview:** PrivateCrates is in preview. It is free and billing is off: there is no trial, no card and nothing to pay, whatever the organisation's size. It is provided as is, at the user's own risk, under the preview terms (${TERMS_URL}, version \`${TERMS_VERSION}\`). Planned pricing from general availability (${GA_TARGET}): free up to ${FREE_MEMBER_LIMIT} members, then $${PRICE_USD} per organisation per month.`
+	: `- Free for organisations with up to ${FREE_MEMBER_LIMIT} members. Larger ones start a ${TRIAL_MONTHS}-month free trial with no card, then pay $${PRICE_USD} per organisation per month.`;
+
+const trialFlag = PREVIEW
+	? ''
+	: '; `--start-trial --billing-email <address>` starts the no-card trial (Stripe sends the trial-ending reminder and invoices to that address; ask the admin for it, never guess it)';
+
+const planStep = PREVIEW
+	? `Plan: nothing to do. Billing is off during the preview, so the \`plan\` step is \`done\` ("Free during the preview.").`
+	: `Plan. Organisations with up to ${FREE_MEMBER_LIMIT} members are free: nothing to do. Larger ones: ask the admin for a billing email address, then \`${cli(`setup ${ORG} --start-trial --billing-email <address>`)}\` (no card). If the checklist says the organisation has had its trial, **a person is needed:** the admin subscribes with a card at https://${PROD_APEX}/account.`;
 
 const body = `# PrivateCrates
 
@@ -26,7 +48,7 @@ const body = `# PrivateCrates
 - The index and every crate file live in a private storage repository the organisation owns (conventionally \`${STORAGE_REPO}\`); each version is an immutable GitHub release.
 - Two GitHub Apps with narrow permissions: the **reader App** (repository metadata and organisation membership, read-only) and the **storage App** (contents write on the storage repository only).
 - Developers use \`cargo-credential-privatecrates\`, a Cargo credential provider that signs in with GitHub. CI uses GitHub Actions' OIDC token: no secrets anywhere.
-- Free for organisations with up to ${FREE_MEMBER_LIMIT} members. Larger ones start a ${TRIAL_MONTHS}-month free trial with no card, then pay $${PRICE_USD} per organisation per month.
+${pricing}
 - Other environments: add \`--domain <domain>\` to every \`cargo privatecrates\` command. Production (${PROD_APEX}) needs no flag.
 
 ## The CLI
@@ -36,7 +58,8 @@ ${fence(installCli)}
 ${fence(cliUsage)}
 
 - \`login\` / \`logout\`: GitHub's device flow for the reader App. The token is stored in the operating system's keyring, shared with the credential provider.
-- \`setup <org>\`: prints the organisation's set-up checklist, each step's status (\`done\`, \`todo\` or \`blocked\`) and, where a person must act, the link. \`--slug\` saves the registry name; \`--start-trial --billing-email <address>\` starts the no-card trial (Stripe sends the trial-ending reminder and invoices to that address; ask the admin for it, never guess it); \`--json\` prints the checklist as JSON.
+- \`setup <org>\`: prints the organisation's set-up checklist, each step's status (\`done\`, \`todo\` or \`blocked\`) and, where a person must act, the link. \`--slug <name> --accept-terms <version>\` saves the registry name, once an admin has accepted the terms (without \`--accept-terms\` it prints the terms URL and the flag to add, and exits non-zero)${trialFlag}; \`--json\` prints the checklist as JSON.
+- \`terms <org> --accept <version>\`: records an admin's acceptance of the current terms for a registry created before them.
 - \`init --registry <name>\`: run in a crate repository or workspace. Adds the registry to \`.cargo/config.toml\`, sets \`package.repository\` from the git remote where missing, and writes \`.github/workflows/publish.yml\`. Idempotent; prints what it changed.
 - \`doctor\`: checks the credential provider, the registry, \`package.repository\`, the publish workflow's \`id-token: write\` permission, that \`publish\` is restricted to the registry and, once a version is published, that it is in the registry's index. Immutable releases and provenance are checked by \`privatecrates-verify\`, run on the storage repository.
 
@@ -52,9 +75,10 @@ Run the steps in order, skipping those \`${cli(`setup ${ORG} --json`)}\` reports
 ${indent(fence(storageRepoCommands(ORG)))}
    Or use an existing, empty private repository. It must hold nothing but the registry.
 6. Storage App. **A person is needed:** give the admin the \`storage_app\` step's link. It is pre-selected for the organisation; they choose "Only select repositories" and pick the storage repository alone. Wait.
-7. Registry name, once both Apps are installed: \`${cli(`setup ${ORG} --slug ${SLUG}`)}\`. The name becomes the hostname \`<name>.${PROD_APEX}\` and the registry name in Cargo; lowercase letters, digits and hyphens. The service saves it as \`privatecrates.toml\` in the storage repository.
-8. Plan. Organisations with up to ${FREE_MEMBER_LIMIT} members are free: nothing to do. Larger ones: ask the admin for a billing email address, then \`${cli(`setup ${ORG} --start-trial --billing-email <address>`)}\` (no card). If the checklist says the organisation has had its trial, **a person is needed:** the admin subscribes with a card at https://${PROD_APEX}/account.
-9. Confirm: \`${cli(`setup ${ORG} --json`)}\` reports every step as \`done\`. The registry is live at https://<name>.${PROD_APEX}.
+7. Terms. **A person is needed:** an admin must accept the terms on behalf of the organisation before the registry is created. Show the admin the link, ${TERMS_URL}, ask them to read the terms and to say whether they accept them for the organisation, and wait. **Never accept on the admin's behalf,** never pass \`--accept-terms\` before they have said they accept, and stop if they decline.
+8. Registry name, once both Apps are installed and the admin has accepted the terms: \`${cli(`setup ${ORG} --slug ${SLUG} --accept-terms ${TERMS_VERSION}`)}\`. The name becomes the hostname \`<name>.${PROD_APEX}\` and the registry name in Cargo; lowercase letters, digits and hyphens. The service saves it as \`privatecrates.toml\` in the storage repository.
+9. ${planStep}
+10. Confirm: \`${cli(`setup ${ORG} --json`)}\` reports every step as \`done\`. The registry is live at https://<name>.${PROD_APEX}.
 
 ## Configure crate repositories and publish
 
@@ -70,8 +94,8 @@ Developers who depend on the crates install the credential provider once (\`carg
 
 - Approving the sign-in that \`cargo privatecrates login\` starts.
 - Installing the reader App, and installing the storage App on the storage repository.
-- Subscribing with a card, only for an organisation that has already had its trial.
-- Merging the pull requests.
+- Accepting the terms on behalf of the organisation: the admin reads them and accepts; the agent never does.
+${PREVIEW ? '' : '- Subscribing with a card, only for an organisation that has already had its trial.\n'}- Merging the pull requests.
 
 At each of these, stop. Give the admin the exact link, say what to choose there, and wait until they say it is done; do not poll GitHub in a loop. Then re-run \`${cli(`setup ${ORG} --json`)}\` to confirm the step is \`done\` before going on.
 
@@ -86,6 +110,7 @@ At each of these, stop. Give the admin the exact link, say what to choose there,
 - The token from \`cargo privatecrates login\` is a reader App user token: it can read repository metadata and nothing else. It expires after 8 hours and is refreshed from the keyring.
 - CI needs no secrets: the publish and build workflows use \`permissions: id-token: write\`. Do not add registry tokens to repository secrets.
 - Publish from GitHub Actions by pushing a tag, never from the agent's machine, so every version has provenance.
+- Never accept the terms for the admin: accepting binds the organisation. Pass \`--accept-terms\` (or \`terms --accept\`) only with the version the admin has read and said they accept.
 
 ## Docs
 
@@ -99,7 +124,8 @@ At each of these, stop. Give the admin the exact link, say what to choose there,
 
 - [Verify the registry](${SITE_URL}/docs/verify): the open-source verifier for the storage repository
 - [Error reference](${SITE_URL}/docs/errors): every error code the registry returns
-- [Pricing](${SITE_URL}/pricing): free plan, trial and price
+- [Preview terms](${TERMS_URL}): the terms an admin accepts before a registry is created
+- [Pricing](${SITE_URL}/pricing): ${PREVIEW ? 'free during the preview; planned pricing from general availability' : 'free plan, trial and price'}
 `;
 
 export function GET(): Response {

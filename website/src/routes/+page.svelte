@@ -5,7 +5,7 @@
 	import Crate from '$lib/illustrations/Crate.svelte';
 	import Harbour from '$lib/illustrations/Harbour.svelte';
 	import Lighthouse from '$lib/illustrations/Lighthouse.svelte';
-	import { FREE_MEMBER_LIMIT, PRICE_USD, TRIAL_MONTHS } from '$lib/site';
+	import { FREE_MEMBER_LIMIT, GA_TARGET, PREVIEW, PRICE_USD, TERMS_PATH, TRIAL_MONTHS } from '$lib/site';
 	import { cargoConfig, ciBuild, ciPublish } from '$lib/snippets';
 </script>
 
@@ -27,8 +27,14 @@
 			<a class="btn btn-quiet" href="/docs/setup">How to set up a registry</a>
 		</div>
 		<p class="terms">
-			Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months free
-			with no card, then ${PRICE_USD} per organisation per month. SSO included.
+			{#if PREVIEW}
+				Free during the preview, and provided as is: <a href={TERMS_PATH}>read the preview terms</a>. From
+				general availability, free for organisations with up to {FREE_MEMBER_LIMIT} members, then ${PRICE_USD}
+				per organisation per month. SSO included.
+			{:else}
+				Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months free
+				with no card, then ${PRICE_USD} per organisation per month. SSO included.
+			{/if}
 		</p>
 	</div>
 	<div class="scene">
@@ -102,8 +108,8 @@
 					<h3>We hold nothing that matters</h3>
 					<p>
 						Your index and crate files live in a repository your organisation owns. Developers hold tokens
-						that can only read repository metadata; CI holds one-hour read tokens. We keep no database, and
-						every write we make is a verified commit you can audit.
+						that can only read repository metadata; CI holds one-hour read tokens. The only thing we store is
+						a record of who accepted our terms, and every write we make is a verified commit you can audit.
 					</p>
 				</div>
 				<div>
@@ -162,14 +168,26 @@
 			<Crate tone="harbour" class="c3" />
 		</div>
 		<div>
-			<h2 id="price">Free for small teams, one price for the rest</h2>
-			<p class="amount">
-				Free up to {FREE_MEMBER_LIMIT} members, then <span class="figure">${PRICE_USD}</span> per GitHub organisation
-				per month
-			</p>
+			{#if PREVIEW}
+				<h2 id="price">Free during the preview</h2>
+				<p class="amount">
+					Planned from general availability ({GA_TARGET}): free up to {FREE_MEMBER_LIMIT} members, then
+					<span class="figure">${PRICE_USD}</span> per GitHub organisation per month
+				</p>
+			{:else}
+				<h2 id="price">Free for small teams, one price for the rest</h2>
+				<p class="amount">
+					Free up to {FREE_MEMBER_LIMIT} members, then <span class="figure">${PRICE_USD}</span> per GitHub organisation
+					per month
+				</p>
+			{/if}
 			<ul class="includes">
 				<li>Unlimited CI jobs, and unlimited users on the paid plan</li>
-				<li>{TRIAL_MONTHS} months free for larger organisations, no card to start</li>
+				<li>
+					{TRIAL_MONTHS} months free for larger organisations, no card to start{PREVIEW
+						? ', once billing starts'
+						: ''}
+				</li>
 				<li>SAML SSO and SCIM through GitHub, included</li>
 				<li>Provenance on every version, and the verifier</li>
 				<li>Search across your crates and crates.io</li>
@@ -225,12 +243,22 @@
 				License 1.1, so your security team can read the code that handles your tokens.
 			</p>
 		</FaqItem>
-		<FaqItem question="What happens if we stop paying?">
-			<p>
-				Publishing stops when the subscription or free trial ends. Builds keep reading crates for 14 more
-				days, so nothing breaks overnight. Your crates and index stay in your repository either way.
-			</p>
-		</FaqItem>
+		{#if PREVIEW}
+			<FaqItem question="What if the preview ends?">
+				<p>
+					Nothing you store is lost: your crates and index are in your own repository. We give notice where we
+					can, and billing starts only after general availability, with at least 30 days’ notice. The
+					<a href={TERMS_PATH}>preview terms</a> have the details.
+				</p>
+			</FaqItem>
+		{:else}
+			<FaqItem question="What happens if we stop paying?">
+				<p>
+					Publishing stops when the subscription or free trial ends. Builds keep reading crates for 14 more
+					days, so nothing breaks overnight. Your crates and index stay in your repository either way.
+				</p>
+			</FaqItem>
+		{/if}
 	</div>
 </section>
 

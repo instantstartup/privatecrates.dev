@@ -9,7 +9,12 @@
 //   ?mock=down           the API cannot be reached
 //   ?mock=broken         the API answers 502 (HTML) to everything
 //   ?mock=reset          start over (admin)
-// Billing scenarios, each with the single organisation acme:
+// The preview (docs/preview.md) is on by default: every organisation is free, billing is off, and the registry name
+// needs the terms accepted. Add &preview=0 to any scenario for billing as it will be after general availability
+// (e.g. ?mock=trial&preview=0); &preview=1 turns the preview back on. Both are remembered with the scenario.
+//   ?mock=terms-pending         acme is live but no admin has accepted the terms: the banner, as an admin
+//   ?mock=terms-pending-member  the same, as a member (told an admin must accept)
+// Billing scenarios, each with the single organisation acme (add &preview=0: in the preview they are all free):
 //   ?mock=free           3 members: free, live
 //   ?mock=free-again     4 members, with a paid subscription still running (the "you can cancel" note)
 //   ?mock=over-limit     12 members, set up, before its trial: the plan step offers the trial
@@ -63,7 +68,9 @@ const BILLING = [
 	'compliance',
 	'compliance-problems',
 	'compliance-empty',
-	'auto-trial'
+	'auto-trial',
+	'terms-pending',
+	'terms-pending-member'
 ] as const;
 type Scenario = (typeof SIGNED_IN)[number] | (typeof BILLING)[number];
 
@@ -71,6 +78,7 @@ const GITHUB_STEPS = ['reader_app', 'storage_repo', 'storage_app'];
 const LIMIT = 5;
 const TRIAL_DAYS = 90;
 const PRICE_USD = 100;
+const TERMS_VERSION = 'preview-2026-09-27';
 
 /** A Stripe subscription; dates are offsets in days from now. */
 interface Sub {
@@ -97,12 +105,16 @@ interface OrgModel {
 	pendingCheckout: number | null;
 	/** Set on the Stripe customer when the trial starts. */
 	billingEmail?: string;
+	/** A terms file for the current version exists. Absent in state saved before the terms: accepted. */
+	termsAccepted?: boolean;
 }
 
 interface State {
 	scenario: Scenario;
 	orgs: OrgModel[];
 	appliedSearch?: string;
+	/** PREVIEW on the server: billing off, everyone free. Absent in state saved before the preview: on. */
+	preview?: boolean;
 }
 
 const KEY = 'pc-mock';
@@ -190,6 +202,10 @@ function orgsFor(scenario: Scenario): OrgModel[] {
 			return acme({ members: 12, billing: false });
 		case 'just-finished':
 			return acme({ members: 3, slug: null });
+		case 'terms-pending':
+			return acme({ members: 12, termsAccepted: false });
+		case 'terms-pending-member':
+			return acme({ members: 12, termsAccepted: false, role: 'member' });
 		case 'compliance':
 		case 'compliance-problems':
 		case 'compliance-empty':
@@ -256,6 +272,8 @@ function sync(): State {
 		const role = mock === 'member' ? 'member' : 'admin';
 		for (const o of state.orgs) if (o.login !== 'globex') o.role = role;
 	}
+	const preview = params.get('preview');
+	if (preview !== null) state.preview = preview !== '0' && preview !== 'false';
 	const target = state.orgs.find((o) => o.login === (params.get('org') ?? 'acme')) ?? state.orgs[0];
 	// Comma-separated, e.g. mock_done=storage_repo,storage_app
 	for (const done of (params.get('mock_done') ?? '').split(',').filter(Boolean)) {
@@ -277,8 +295,11 @@ const base = 'privatecrates.dev';
 const isActive = (sub: Sub | null) =>
 	!!sub && (sub.status === 'trialing' || sub.status === 'active' || sub.status === 'past_due');
 
+/** The preview is on unless a scenario turned it off with ?preview=0. */
+let previewOn = true;
+
 function planOf(o: OrgModel): Plan {
-	if (o.members <= LIMIT) return 'free';
+	if (previewOn || o.members <= LIMIT) return 'free';
 	switch (o.sub?.status) {
 		case 'trialing':
 			return 'trial';
@@ -292,7 +313,7 @@ function planOf(o: OrgModel): Plan {
 }
 
 function trialAvailable(o: OrgModel): boolean {
-	return o.billing && o.members > LIMIT && !o.trialUsed && !isActive(o.sub);
+	return !previewOn && o.billing && o.members > LIMIT && !o.trialUsed && !isActive(o.sub);
 }
 
 function tenantOf(o: OrgModel): Tenant | null {
@@ -300,7 +321,8 @@ function tenantOf(o: OrgModel): Tenant | null {
 	return {
 		slug: o.slug,
 		registry_url: `https://${o.slug}.${base}`,
-		status: o.sub?.status ?? null,
+		// No subscriptions are loaded during the preview.
+		status: previewOn ? null : (o.sub?.status ?? null),
 		trial_ends_at: iso(o.sub?.trialEnd ?? null),
 		current_period_end: iso(o.sub?.periodEnd ?? null)
 	};
@@ -317,17 +339,23 @@ function toOrg(o: OrgModel): Org {
 		plan: planOf(o),
 		trial_ends_at: iso(o.sub?.trialEnd ?? null),
 		has_payment_method: o.sub?.card ?? false,
-		billing_email_missing: !!o.sub && o.billingEmail === '',
+		billing_email_missing: !previewOn && !!o.sub && o.billingEmail === '',
+		terms_accepted: o.termsAccepted ?? true,
 		current_period_end: iso(o.sub?.periodEnd ?? null),
 		trial_available: trialAvailable(o),
 		tenant: tenantOf(o)
 	};
 }
 
+function termsOf() {
+	return { version: TERMS_VERSION, url: `${location.origin}/legal/terms` };
+}
+
 function session(state: State): Session {
-	if (state.scenario === 'signed-out') return { user: null, orgs: [] };
+	const preview = { preview: previewOn, terms: termsOf() };
+	if (state.scenario === 'signed-out') return { user: null, orgs: [], ...preview };
 	const user = { login: 'alice', avatar_url: 'https://avatars.example.invalid/alice', name: 'Alice Moreau' };
-	if (state.scenario === 'no-orgs') return { user, orgs: [], install_url: INSTALL_URL };
+	if (state.scenario === 'no-orgs') return { user, orgs: [], install_url: INSTALL_URL, ...preview };
 	// Pretend Stripe's webhook takes a moment: the subscription appears on the second session read after checkout.
 	for (const o of state.orgs) {
 		if (o.pendingCheckout === null) continue;
@@ -338,10 +366,11 @@ function session(state: State): Session {
 		}
 	}
 	save(state);
-	return { user, orgs: state.orgs.map(toOrg), install_url: INSTALL_URL };
+	return { user, orgs: state.orgs.map(toOrg), install_url: INSTALL_URL, ...preview };
 }
 
 function planStep(o: OrgModel, status: (done: boolean) => Step['status']): Step {
+	if (previewOn) return { id: 'plan', status: 'done', detail: 'Free during the preview.' };
 	const plan = planOf(o);
 	if (plan === 'free') return { id: 'plan', status: 'done' };
 	if (!o.billing)
@@ -448,6 +477,12 @@ const catalog: CatalogEntry[] = [
 		422
 	],
 	['registry::not_found', 'not found', 404],
+	[
+		'account::terms_not_accepted',
+		'an admin must accept the PrivateCrates terms ({version}) on behalf of the organisation: {url}',
+		400
+	],
+	['billing::preview', 'PrivateCrates is free during the preview', 409],
 	['github::rate_limited', 'GitHub’s rate limit was reached; please try again in a few minutes', 503]
 ].map(([code, message, http_status]) => ({ code, message, http_status }) as CatalogEntry);
 
@@ -594,6 +629,7 @@ function delay<T>(value: T, ms = 350): Promise<T> {
 
 export const mockFetch: typeof fetch = async (input, init) => {
 	const state = sync();
+	previewOn = state.preview ?? true;
 	const url = new URL(
 		typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
 		location.href
@@ -623,7 +659,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	if (path === '/api/session') return delay(json(session(state)));
 
 	const m = path.match(
-		/^\/api\/orgs\/([^/]+)\/(onboarding|settings|trial|checkout|portal|compliance|billing-email)$/
+		/^\/api\/orgs\/([^/]+)\/(onboarding|settings|terms|trial|checkout|portal|compliance|billing-email)$/
 	);
 	if (!m) return delay(error(404, 'not found', 'registry::not_found'));
 	if (state.scenario === 'signed-out' || state.scenario === 'no-orgs')
@@ -641,8 +677,27 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	if (o.role !== 'admin')
 		return delay(error(403, `Only admins of ${login} can do this.`, 'account::admin_required'));
 
+	const termsRefused = () =>
+		delay(
+			error(
+				400,
+				`An admin must accept the PrivateCrates terms (${TERMS_VERSION}) on behalf of ${login}: ${termsOf().url}`,
+				'account::terms_not_accepted'
+			)
+		);
+	if (action === 'terms') {
+		const body = JSON.parse(String(init?.body ?? '{}')) as { accept_terms?: string };
+		if (body.accept_terms !== TERMS_VERSION) return termsRefused();
+		if (!o.slug) return delay(error(404, `${login} has no registry yet.`, 'registry::not_found'));
+		o.termsAccepted = true;
+		save(state);
+		return delay(json(onboarding(o)), 600);
+	}
+	if (previewOn && ['trial', 'checkout', 'portal', 'billing-email'].includes(action))
+		return delay(error(409, 'PrivateCrates is free during the preview.', 'billing::preview'));
+
 	if (action === 'settings') {
-		const body = JSON.parse(String(init?.body ?? '{}')) as { slug?: string };
+		const body = JSON.parse(String(init?.body ?? '{}')) as { slug?: string; accept_terms?: string };
 		const slug = (body.slug ?? '').trim();
 		if (!o.done.includes('storage_app'))
 			return delay(
@@ -664,7 +719,9 @@ export const mockFetch: typeof fetch = async (input, init) => {
 			return delay(error(422, `${slug} is reserved. Choose another name.`, 'account::slug_reserved'));
 		if (TAKEN.includes(slug) && slug !== login)
 			return delay(error(409, `${slug} is taken. Choose another name.`, 'account::slug_taken'));
+		if (body.accept_terms !== TERMS_VERSION) return termsRefused();
 		o.slug = slug;
+		o.termsAccepted = true;
 		save(state);
 		return delay(json(onboarding(o)), 700);
 	}

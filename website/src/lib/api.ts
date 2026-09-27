@@ -34,7 +34,19 @@ export interface Org {
 	trial_available?: boolean;
 	/** A trial started by itself (the organisation grew past the free limit) and Stripe has no address to remind. */
 	billing_email_missing?: boolean;
+	/**
+	 * Whether the organisation has accepted the current terms (a `terms/{version}.toml` in its storage repository).
+	 * Absent from servers older than the preview terms: then nothing is asked.
+	 */
+	terms_accepted?: boolean;
 	tenant: Tenant | null;
+}
+
+/** The terms an admin accepts before a registry is created (docs/preview.md §2). */
+export interface Terms {
+	/** e.g. `preview-2026-09-27`: sent back as `accept_terms`. */
+	version: string;
+	url: string;
 }
 
 export interface User {
@@ -52,6 +64,10 @@ export interface Session {
 	orgs: Org[];
 	/** Installs the reader App on another organisation; GitHub then returns the user to /account. */
 	install_url?: string;
+	/** The preview: billing is off and every organisation is free. Absent (false) once billing is on. */
+	preview?: boolean;
+	/** The current terms; absent from servers older than the preview terms. */
+	terms?: Terms;
 }
 
 export type StepStatus = 'done' | 'todo' | 'blocked';
@@ -229,8 +245,19 @@ const org = (login: string) => `/api/orgs/${encodeURIComponent(login)}`;
 export const api = {
 	session: () => request<Session>('GET', '/api/session'),
 	onboarding: (login: string) => request<Onboarding>('GET', `${org(login)}/onboarding`),
-	saveSettings: (login: string, slug: string) =>
-		request<Onboarding>('POST', `${org(login)}/settings`, { slug }),
+	/**
+	 * Saves the registry name. `acceptTerms` is the current terms version, which an admin accepted on behalf of the
+	 * organisation; the server refuses without it (`account::terms_not_accepted`).
+	 */
+	saveSettings: (login: string, slug: string, acceptTerms?: string) =>
+		request<Onboarding>(
+			'POST',
+			`${org(login)}/settings`,
+			acceptTerms ? { slug, accept_terms: acceptTerms } : { slug }
+		),
+	/** Accepts the current terms for an existing registry (admin only); returns nothing the page needs. */
+	acceptTerms: (login: string, version: string) =>
+		request<unknown>('POST', `${org(login)}/terms`, { accept_terms: version }),
 	/**
 	 * Starts the no-card free trial; returns the onboarding document. Stripe sends the trial-ending reminder and
 	 * invoices to the billing email.

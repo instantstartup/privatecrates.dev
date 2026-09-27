@@ -20,7 +20,7 @@
 	import Callout from '$lib/components/Callout.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import Crane from '$lib/illustrations/Crane.svelte';
-	import { FREE_MEMBER_LIMIT, PRICE_USD, TRIAL_MONTHS } from '$lib/site';
+	import { FREE_MEMBER_LIMIT, PREVIEW, PRICE_USD, TERMS_PATH, TRIAL_MONTHS } from '$lib/site';
 
 	type View = { kind: 'loading' } | { kind: 'failed'; error: ApiError } | { kind: 'ready'; session: Session };
 
@@ -36,6 +36,9 @@
 	const selectedLogin = $derived(params.get('org') ?? (orgs.length === 1 ? orgs[0].login : null));
 	const selected = $derived(orgs.find((o) => o.login === selectedLogin) ?? null);
 	const installUrl = $derived(session?.install_url ?? null);
+	/** The preview: free for everyone, billing off (docs/preview.md §1). Billing controls return when it ends. */
+	const preview = $derived(session?.preview ?? false);
+	const terms = $derived(session?.terms);
 	// Onboarding documents that came back with every step done, by organisation. With billing not configured the
 	// session alone cannot tell that the registry works, so these count too.
 	let finished = $state<Record<string, Onboarding>>({});
@@ -174,7 +177,7 @@
 
 <Seo
 	title={pageTitle}
-	description="Sign in with GitHub to set up your organisation's private Cargo registry and manage its plan."
+	description="Sign in with GitHub to set up your organisation's private Cargo registry."
 	path="/account"
 	noindex
 />
@@ -203,16 +206,20 @@
 			<div>
 				<h1>Sign in with GitHub to set up your registry</h1>
 				<p class="lede">
-					We ask GitHub who you are and which organisations you belong to. Admins can set up a registry and
-					manage billing; members can see its status.
+					We ask GitHub who you are and which organisations you belong to. Admins can set up a registry;
+					members can see its status.
 				</p>
 				<div class="cta">
 					<a class="btn btn-primary" href={loginUrl('/account')} data-sveltekit-reload>Sign in with GitHub</a>
 				</div>
 				<p class="fine">
-					Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months free,
-					no card needed, then ${PRICE_USD} per organisation per month. The sign-in lasts 8 hours and is kept only
-					in an encrypted cookie.
+					{#if PREVIEW}
+						Free during the preview, and provided as is: read the <a href={TERMS_PATH}>preview terms</a>.
+					{:else}
+						Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months
+						free, no card needed, then ${PRICE_USD} per organisation per month.
+					{/if}
+					The sign-in lasts 8 hours and is kept only in an encrypted cookie.
 				</p>
 			</div>
 			<Crane class="signed-out-art" label="you" />
@@ -271,7 +278,7 @@
 		{:else}
 			<div class="layout">
 				<div class="orgs">
-					<OrgList {orgs} selected={selected?.login ?? null} {isLive} />
+					<OrgList {orgs} selected={selected?.login ?? null} {isLive} {preview} />
 					{#if installUrl}
 						<div class="add-org">
 							<a
@@ -337,6 +344,9 @@
 									org={selected}
 									tenant={selected.tenant}
 									{live}
+									{preview}
+									{terms}
+									onterms={() => void loadSession(false)}
 									planDetail={finished[selected.login]?.steps.find((s) => s.id === 'plan')?.detail}
 									onchange={() => {
 										trialStartedFor = selected.login;
@@ -357,6 +367,8 @@
 									org={selected}
 									admin={selected.role === 'admin'}
 									{refreshing}
+									{preview}
+									{terms}
 									onrefresh={() => loadOnboarding(selected.login)}
 									onchange={(doc) => {
 										onboarding = doc;

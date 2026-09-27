@@ -5,8 +5,11 @@
 	import Crate from '$lib/illustrations/Crate.svelte';
 	import {
 		FREE_MEMBER_LIMIT,
+		GA_TARGET,
+		PREVIEW,
 		PRICE_USD,
 		READ_GRACE_DAYS,
+		TERMS_PATH,
 		TRIAL_MONTHS,
 		TRIAL_REMINDER_DAYS
 	} from '$lib/site';
@@ -29,27 +32,51 @@
 		['Search', 'cargo search returns your private crates first, then crates.io results.'],
 		['Your data stays yours', 'Index and crates live in a repository your organisation owns.']
 	];
+
+	const description = PREVIEW
+		? `PrivateCrates is free during the preview. Planned pricing from general availability: free for GitHub organisations with up to ${FREE_MEMBER_LIMIT} members, $${PRICE_USD} per organisation per month for larger ones, with unlimited users and SSO included.`
+		: `PrivateCrates is free for GitHub organisations with up to ${FREE_MEMBER_LIMIT} members. Larger organisations pay $${PRICE_USD} per month, with unlimited users, SSO included and a ${TRIAL_MONTHS}-month free trial that needs no card.`;
 </script>
 
-<Seo
-	title="Pricing"
-	description="PrivateCrates is free for GitHub organisations with up to {FREE_MEMBER_LIMIT} members. Larger organisations pay ${PRICE_USD} per month, with unlimited users, SSO included and a 3-month free trial that needs no card."
-	path="/pricing"
-/>
+<Seo title="Pricing" {description} path="/pricing" />
 
 <div class="page">
 	<header class="intro">
-		<h1>Free for small teams, one price for the rest</h1>
-		<p class="lede">
-			No per-seat maths and no enterprise tier to unlock SSO. Both plans have every feature; the only
-			difference is how many people are in your GitHub organisation.
-		</p>
+		{#if PREVIEW}
+			<h1>Free during the preview</h1>
+			<p class="lede">
+				PrivateCrates takes no payments until general availability, planned for {GA_TARGET}. Below is what we
+				plan to charge then, so you can judge it now. Billing starts only after at least 30 days’ notice.
+			</p>
+		{:else}
+			<h1>Free for small teams, one price for the rest</h1>
+			<p class="lede">
+				No per-seat maths and no enterprise tier to unlock SSO. Both plans have every feature; the only
+				difference is how many people are in your GitHub organisation.
+			</p>
+		{/if}
 	</header>
 
-	<section class="plans" aria-label="Plans">
+	{#if PREVIEW}
+		<div class="planned-head">
+			<h2 id="planned">Planned pricing, from general availability</h2>
+			<p class="note">
+				Free during the preview, whatever your size. No per-seat maths and no enterprise tier to unlock SSO:
+				both plans will have every feature.
+			</p>
+		</div>
+	{/if}
+
+	<section
+		class={['plans', PREVIEW && 'planned']}
+		aria-label={PREVIEW ? undefined : 'Plans'}
+		aria-labelledby={PREVIEW ? 'planned' : undefined}
+	>
 		<article class="plan panel" aria-labelledby="plan-free">
 			<div class="plan-head">
-				<h2 id="plan-free">Free</h2>
+				<h2 id="plan-free">
+					Free{#if PREVIEW}<span class="stamp">Planned</span>{/if}
+				</h2>
 				<p class="price">
 					<span class="figure">$0</span>
 					<span class="per">for organisations with up to {FREE_MEMBER_LIMIT} members</span>
@@ -66,17 +93,27 @@
 
 		<article class="plan panel team" aria-labelledby="plan-team">
 			<div class="plan-head">
-				<h2 id="plan-team">Team</h2>
+				<h2 id="plan-team">
+					Team{#if PREVIEW}<span class="stamp">Planned</span>{/if}
+				</h2>
 				<p class="price">
 					<span class="figure">${PRICE_USD}</span>
 					<span class="per"
 						>per GitHub organisation per month, for more than {FREE_MEMBER_LIMIT} members. Unlimited users.</span
 					>
 				</p>
-				<a class="btn btn-primary" href="/account">Start {TRIAL_MONTHS}-month free trial</a>
-				<p class="small">
-					{TRIAL_MONTHS} months free, and no card to start. Add one any time before the trial ends.
-				</p>
+				{#if PREVIEW}
+					<a class="btn btn-primary" href="/account">Set up your registry</a>
+					<p class="small">
+						Free during the preview. From general availability, {TRIAL_MONTHS} months free with no card, then ${PRICE_USD}
+						per month.
+					</p>
+				{:else}
+					<a class="btn btn-primary" href="/account">Start {TRIAL_MONTHS}-month free trial</a>
+					<p class="small">
+						{TRIAL_MONTHS} months free, and no card to start. Add one any time before the trial ends.
+					</p>
+				{/if}
 			</div>
 			<CargoShip class="plan-ship" />
 		</article>
@@ -102,57 +139,99 @@
 	<section class="faq" aria-labelledby="pricing-faq">
 		<h2 id="pricing-faq">Billing questions</h2>
 		<div class="faq-list">
-			<FaqItem question="Who counts as a member?">
-				<p>
-					The active members of your GitHub organisation, as GitHub lists them. Outside collaborators and
-					pending invitations do not count, and neither do CI jobs. One organisation gets one registry at
-					<code>your-name.privatecrates.dev</code>; a second organisation has its own plan.
-				</p>
-			</FaqItem>
-			<FaqItem question="What happens when we grow past {FREE_MEMBER_LIMIT} members?">
-				<p>
-					Nothing breaks. The {TRIAL_MONTHS}-month free trial starts by itself, with no card, and the account
-					page shows how long is left. Organisations that already have more than {FREE_MEMBER_LIMIT}
-					members start the same trial with one click when they set up.
-				</p>
-				<p>
-					Each organisation gets one trial. An organisation that subscribes again later pays from the first
-					day.
-				</p>
-			</FaqItem>
-			<FaqItem question="What if the trial ends and we have not added a card?">
-				<p>
-					Publishing stops when the trial ends. Builds keep reading crates for {READ_GRACE_DAYS} more days, so nothing
-					breaks overnight, and adding a card or subscribing turns publishing back on. We remind you in the last
-					{TRIAL_REMINDER_DAYS} days: on the account page, and as a warning in
-					<code>cargo publish</code>.
-				</p>
-			</FaqItem>
-			<FaqItem question="Can we cancel?">
-				<p>
-					Yes, at any time, under Manage billing on the <a href="/account">account page</a>. Publishing stops
-					at the end of the paid month; reading keeps working for {READ_GRACE_DAYS} days after that, then stops
-					too.
-				</p>
-				<p>
-					If your organisation shrinks to {FREE_MEMBER_LIMIT} members or fewer, it is free again straight away.
-					The account page then suggests cancelling; we do not cancel for you, because member counts go up and down.
-				</p>
-				<p>Nothing is deleted: your index and every crate file are in your own repository, and stay there.</p>
-			</FaqItem>
-			<FaqItem question="What if a payment fails?">
-				<p>
-					Your registry keeps working while Stripe retries the payment, and the account page says so. An admin
-					can update the card under Manage billing.
-				</p>
-			</FaqItem>
-			<FaqItem question="Who manages billing?">
-				<p>
-					Admins of the GitHub organisation: they start the trial, add a card and cancel, from the
-					<a href="/account">account page</a>. Stripe handles cards and invoices. Members see the plan and the
-					registry’s status, but cannot change them.
-				</p>
-			</FaqItem>
+			{#if PREVIEW}
+				<FaqItem question="Do we pay anything during the preview?">
+					<p>
+						No. Billing is off: we take no payments and ask for no card, whatever the size of your
+						organisation. The preview is provided as is and at your own risk; the <a href={TERMS_PATH}
+							>preview terms</a
+						> say what that means.
+					</p>
+				</FaqItem>
+				<FaqItem question="When does billing start?">
+					<p>
+						Only after general availability, planned for {GA_TARGET}, and only after at least 30 days’ notice
+						to organisations already using PrivateCrates. Paying will need new terms, which an admin accepts.
+						No charge is ever taken without a card an admin has added.
+					</p>
+				</FaqItem>
+				<FaqItem question="What will organisations with more than {FREE_MEMBER_LIMIT} members pay?">
+					<p>
+						The plan is ${PRICE_USD} per organisation per month, with unlimited users, after a {TRIAL_MONTHS}-month
+						free trial that needs no card. Organisations with {FREE_MEMBER_LIMIT} members or fewer will stay free.
+						The notice before billing starts confirms the details.
+					</p>
+				</FaqItem>
+				<FaqItem question="Who counts as a member?">
+					<p>
+						The active members of your GitHub organisation, as GitHub lists them. Outside collaborators and
+						pending invitations do not count, and neither do CI jobs. One organisation gets one registry at
+						<code>your-name.privatecrates.dev</code>; a second organisation has its own plan.
+					</p>
+				</FaqItem>
+				<FaqItem question="Can we stop?">
+					<p>
+						Yes, at any time: uninstall the PrivateCrates GitHub Apps from your organisation. Nothing is
+						deleted: your index and every crate file are in your own repository, and stay there.
+					</p>
+				</FaqItem>
+			{:else}
+				<FaqItem question="Who counts as a member?">
+					<p>
+						The active members of your GitHub organisation, as GitHub lists them. Outside collaborators and
+						pending invitations do not count, and neither do CI jobs. One organisation gets one registry at
+						<code>your-name.privatecrates.dev</code>; a second organisation has its own plan.
+					</p>
+				</FaqItem>
+				<FaqItem question="What happens when we grow past {FREE_MEMBER_LIMIT} members?">
+					<p>
+						Nothing breaks. The {TRIAL_MONTHS}-month free trial starts by itself, with no card, and the
+						account page shows how long is left. Organisations that already have more than {FREE_MEMBER_LIMIT}
+						members start the same trial with one click when they set up.
+					</p>
+					<p>
+						Each organisation gets one trial. An organisation that subscribes again later pays from the first
+						day.
+					</p>
+				</FaqItem>
+				<FaqItem question="What if the trial ends and we have not added a card?">
+					<p>
+						Publishing stops when the trial ends. Builds keep reading crates for {READ_GRACE_DAYS} more days, so
+						nothing breaks overnight, and adding a card or subscribing turns publishing back on. We remind you in
+						the last
+						{TRIAL_REMINDER_DAYS} days: on the account page, and as a warning in
+						<code>cargo publish</code>.
+					</p>
+				</FaqItem>
+				<FaqItem question="Can we cancel?">
+					<p>
+						Yes, at any time, under Manage billing on the <a href="/account">account page</a>. Publishing
+						stops at the end of the paid month; reading keeps working for {READ_GRACE_DAYS} days after that, then
+						stops too.
+					</p>
+					<p>
+						If your organisation shrinks to {FREE_MEMBER_LIMIT} members or fewer, it is free again straight away.
+						The account page then suggests cancelling; we do not cancel for you, because member counts go up and
+						down.
+					</p>
+					<p>
+						Nothing is deleted: your index and every crate file are in your own repository, and stay there.
+					</p>
+				</FaqItem>
+				<FaqItem question="What if a payment fails?">
+					<p>
+						Your registry keeps working while Stripe retries the payment, and the account page says so. An
+						admin can update the card under Manage billing.
+					</p>
+				</FaqItem>
+				<FaqItem question="Who manages billing?">
+					<p>
+						Admins of the GitHub organisation: they start the trial, add a card and cancel, from the
+						<a href="/account">account page</a>. Stripe handles cards and invoices. Members see the plan and
+						the registry’s status, but cannot change them.
+					</p>
+				</FaqItem>
+			{/if}
 		</div>
 	</section>
 </div>
@@ -193,6 +272,25 @@
 	}
 	h2 {
 		font-size: var(--text-2xl);
+	}
+	.planned-head {
+		margin-bottom: 1.25rem;
+	}
+	.planned-head h2 {
+		margin-bottom: 0.4rem;
+	}
+	/* Planned, not charged: stamped on each plan, like the trust centre's manifest. */
+	.stamp {
+		display: inline-block;
+		margin-left: 0.75rem;
+		padding: 0.1rem 0.5rem 0.15rem;
+		border: 3px solid var(--harbour);
+		border-radius: 4px;
+		color: var(--harbour);
+		font-size: var(--text-lg);
+		line-height: 1;
+		vertical-align: middle;
+		transform: rotate(-3deg);
 	}
 	.price {
 		display: flex;

@@ -10,7 +10,7 @@
 		publishTarget,
 		settingsToml
 	} from '$lib/snippets';
-	import { FREE_MEMBER_LIMIT, TRIAL_MONTHS } from '$lib/site';
+	import { FREE_MEMBER_LIMIT, PREVIEW, TERMS_PATH, TRIAL_MONTHS } from '$lib/site';
 </script>
 
 <Seo
@@ -56,12 +56,18 @@
 	</li>
 	<li>
 		<strong>Choose your registry name.</strong> It becomes your hostname,
-		<code>your-name.privatecrates.dev</code>, and is saved as <code>privatecrates.toml</code> in the storage repository.
+		<code>your-name.privatecrates.dev</code>, and is saved as <code>privatecrates.toml</code> in the storage
+		repository. In the same step you accept the <a href={TERMS_PATH}>preview terms</a> on behalf of your organisation.
 	</li>
 	<li>
-		<strong>Choose a plan.</strong> Organisations with {FREE_MEMBER_LIMIT} or fewer members are free, with nothing
-		to choose. Larger ones start a {TRIAL_MONTHS}-month free trial with one click and no card; see
-		<a href="/pricing">pricing</a>.
+		{#if PREVIEW}
+			<strong>Plan.</strong> Nothing to choose: every organisation is free during the preview. See
+			<a href="/pricing">pricing</a> for what is planned from general availability.
+		{:else}
+			<strong>Choose a plan.</strong> Organisations with {FREE_MEMBER_LIMIT} or fewer members are free, with nothing
+			to choose. Larger ones start a {TRIAL_MONTHS}-month free trial with one click and no card; see
+			<a href="/pricing">pricing</a>.
+		{/if}
 	</li>
 </ol>
 
