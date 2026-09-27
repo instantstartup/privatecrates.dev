@@ -22,38 +22,31 @@ Decided 27 September 2026. There is no legal entity yet, so PrivateCrates runs a
   "https://{apex}/legal/terms" }`.
 - Publish warnings (trial reminders) are off.
 
-## 2. Accepting the terms (server, CLI, verifier)
+## 2. Accepting the terms (server, CLI)
 
-The acceptance is recorded **in the customer's own storage repository**, like everything else: auditable, and no
-database.
+The acceptance protects us, so **we keep the record ourselves**: a customer can delete their storage repository or
+revoke our Apps, and the evidence must survive that. It lives in a small **Postgres database** in the same Railway
+project and region (`DATABASE_URL`), with Railway's backups. This is the service's only durable data: registry
+contents stay in the customer's organisation.
 
+- **Table** `terms_acceptances`, append-only (the application never updates or deletes a row): organisation (id,
+  login), the GitHub user who accepted (id, login), terms version, time, `via` (`website` or `cli`), and the exact
+  statement accepted. One row per organisation and version; the first acceptance is kept.
 - **At registry creation:** `POST /api/orgs/{org}/settings` requires `{"slug": "…", "accept_terms":
-  "preview-2026-09-27"}`, the current version, or refuses with `400 account::terms_not_accepted`. The storage App first
-  creates `terms/preview-2026-09-27.toml`:
-
-  ```toml
-  version = "preview-2026-09-27"
-  accepted_by = "BrynCooke"          # GitHub login of the admin who accepted
-  accepted_by_id = 12345
-  accepted_at = "2026-09-27T17:00:00Z"
-  url = "https://privatecrates.dev/legal/terms"
-  ```
-
-  then `privatecrates.toml` as today. Commit message: "Accept PrivateCrates preview terms (preview-2026-09-27)" with
-  the login.
+  "preview-2026-09-27"}`, the current version, or refuses with `400 account::terms_not_accepted`. The acceptance is
+  recorded first; if that fails, nothing is created.
 - **For an existing registry** (created before the terms, or when the version changes): `POST
-  /api/orgs/{org}/terms` `{"accept_terms": "<current version>"}`, admin only, creates that version's file.
-- **Reading:** the tenant snapshot knows which `terms/*.toml` exist. The session's organisation object gains
-  `"terms_accepted": true | false` (the current version). A tenant without acceptance **keeps working** (nothing is
-  interrupted), but the account page asks an admin to accept.
-- **The verifier** treats `terms/` like `owners/`: the storage App may *create* a terms file; changing or deleting one
-  is reported. Add a test.
+  /api/orgs/{org}/terms` `{"accept_terms": "<current version>"}`, admin only.
+- **Reading:** the session's organisation object gains `"terms_accepted": true | false` (the current version). A
+  tenant without acceptance **keeps working** (nothing is interrupted), but the account page asks an admin to accept.
+- **Production** refuses to start without `DATABASE_URL`: a registry is never created without a recorded acceptance.
 - **The CLI:** `cargo privatecrates setup <org> --slug S --accept-terms <version>` and a new
   `cargo privatecrates terms <org> --accept <version>`. Without `--accept-terms`, `setup --slug` prints the terms URL
   and the exact flag to add, and exits non-zero. `--json` reports the version and URL. The CLI never supplies the
   version by itself: the person (or their agent, having shown them the terms) passes it.
 - **Agents:** `llms.txt`, `/docs/agents` and the set-up prompt tell the agent to show the admin the terms link, ask them
   to accept, and only then pass `--accept-terms`. An agent must never accept on the admin's behalf.
+- **Retention:** for as long as the organisation uses PrivateCrates, then 6 years (to confirm in legal review).
 
 ## 3. Website
 
