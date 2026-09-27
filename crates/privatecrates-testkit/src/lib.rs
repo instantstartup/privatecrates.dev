@@ -98,6 +98,8 @@ struct User {
     sso_blocked: bool,
     /// Whether this is a GitHub App user token (`ghu_`), which can list installation repositories.
     app_user: bool,
+    /// Whether the user is an owner of every organisation.
+    org_admin: bool,
 }
 
 #[derive(Default)]
@@ -112,6 +114,8 @@ struct World {
     releases: HashMap<u64, Release>,
     assets: HashMap<u64, Asset>,
     crates_io: HashSet<String>,
+    /// Whether crates.io answers with errors.
+    crates_io_down: bool,
     /// Claims the fake Actions runtime puts in the OIDC tokens it issues.
     actions_claims: Value,
     /// The user token the device flow hands out once approved.
@@ -224,6 +228,7 @@ impl FakeGitHub {
                 repos: repos.iter().copied().collect(),
                 sso_blocked: false,
                 app_user: prefix == "ghu_",
+                org_admin: false,
             },
         );
         token
@@ -613,6 +618,7 @@ fn router(fake: FakeGitHub) -> Router {
         .route("/app/installations/{id}/access_tokens", post(access_token))
         .route("/installation/repositories", get(installation_repositories))
         .route("/user", get(user))
+        .route("/user/memberships/orgs/{org}", get(org_membership))
         .route(
             "/user/installations/{id}/repositories",
             get(user_installation_repositories),
@@ -644,6 +650,7 @@ fn router(fake: FakeGitHub) -> Router {
         .route("/signed/{id}", get(signed_download))
         .route("/.well-known/jwks", get(jwks))
         .route("/actions/token", get(actions_token))
+        .route("/api/v1/crates", get(crates_io_search))
         .route("/api/v1/crates/{name}", get(crates_io_crate))
         .route("/login/device/code", post(device_code))
         .route("/login/oauth/access_token", post(oauth_access_token))
@@ -1134,7 +1141,11 @@ async fn actions_token(
 }
 
 async fn crates_io_crate(State(fake): State<FakeGitHub>, Path(name): Path<String>) -> Response {
-    if fake.world().crates_io.contains(&name.to_ascii_lowercase()) {
+    let w = fake.world();
+    if w.crates_io_down {
+        return error(StatusCode::SERVICE_UNAVAILABLE, "crates.io is down");
+    }
+    if w.crates_io.contains(&name.to_ascii_lowercase()) {
         Json(json!({ "crate": { "name": name } })).into_response()
     } else {
         error(StatusCode::NOT_FOUND, "Not Found")
@@ -1223,4 +1234,94 @@ async fn oauth_access_token(
         "token_type": "bearer",
     }))
     .into_response()
+}
+
+// --- Organisation roles and deleted repositories ---
+
+impl FakeGitHub {
+    /// The GitHub user ID behind a token.
+    pub fn user_id(&self, token: &str) -> u64 {
+        self.world().users.get(token).expect("known token").id
+    }
+
+    /// Makes the user holding `token` an owner (`admin`) of every organisation, or a plain member.
+    pub fn set_org_admin(&self, token: &str, admin: bool) {
+        self.world()
+            .users
+            .get_mut(token)
+            .expect("known token")
+            .org_admin = admin;
+    }
+
+    /// Deletes a repository, as its administrator could on GitHub.
+    pub fn delete_repo(&self, repo: u64) {
+        self.world().repos.remove(&repo);
+    }
+}
+
+async fn org_membership(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Path(org): Path<String>,
+) -> Response {
+    let w = fake.world();
+    let user = match principal(&w, &headers) {
+        Ok(Principal::User(u)) => u,
+        Ok(_) => return error(StatusCode::FORBIDDEN, "needs a user token"),
+        Err(e) => return e,
+    };
+    if !w.orgs.iter().any(|o| o.login == org) {
+        return error(StatusCode::NOT_FOUND, "Not Found");
+    }
+    let role = if user.org_admin { "admin" } else { "member" };
+    Json(json!({ "state": "active", "role": role, "organization": { "login": org } }))
+        .into_response()
+}
+
+// --- crates.io search ---
+
+impl FakeGitHub {
+    /// Makes every crates.io request fail, or work again.
+    pub fn set_crates_io_down(&self, down: bool) {
+        self.world().crates_io_down = down;
+    }
+}
+
+#[derive(Deserialize)]
+struct CratesIoSearchQuery {
+    #[serde(default)]
+    q: String,
+    per_page: Option<usize>,
+}
+
+/// crates.io's search, over the crates added with [`FakeGitHub::add_crates_io_crate`] whose names contain the
+/// query.
+async fn crates_io_search(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Query(query): Query<CratesIoSearchQuery>,
+) -> Response {
+    // crates.io refuses clients that do not identify themselves.
+    if !headers.contains_key(header::USER_AGENT) {
+        return error(StatusCode::FORBIDDEN, "a User-Agent is required");
+    }
+    let w = fake.world();
+    if w.crates_io_down {
+        return error(StatusCode::SERVICE_UNAVAILABLE, "crates.io is down");
+    }
+    let q = query.q.to_ascii_lowercase().replace('-', "_");
+    let mut names: Vec<&String> = w
+        .crates_io
+        .iter()
+        .filter(|n| n.replace('-', "_").contains(&q))
+        .collect();
+    names.sort();
+    let crates: Vec<Value> = names
+        .iter()
+        .take(query.per_page.unwrap_or(10))
+        .map(|n| {
+            json!({ "name": n, "max_version": "1.0.0", "description": format!("{n} from crates.io") })
+        })
+        .collect();
+    Json(json!({ "crates": crates, "meta": { "total": names.len() } })).into_response()
 }

@@ -13,6 +13,10 @@ use privatecrates_server::{
 use privatecrates_testkit::{APP_PRIVATE_KEY, FakeGitHub, Org, READER_APP_ID, STORAGE_APP_ID};
 use serde_json::{Value, json};
 
+/// Each App signs its webhooks with its own secret.
+pub const READER_WEBHOOK_SECRET: &[u8] = b"the reader App's webhook secret";
+pub const STORAGE_WEBHOOK_SECRET: &[u8] = b"the storage App's webhook secret";
+
 pub struct Harness {
     pub fake: FakeGitHub,
     pub org: Org,
@@ -45,7 +49,10 @@ impl Harness {
                 private_key_pem: APP_PRIVATE_KEY.as_bytes().to_vec(),
             },
             registry_token_secret: b"a test secret that is long enough to sign with".to_vec(),
-            webhook_secret: None,
+            webhook_secrets: vec![
+                READER_WEBHOOK_SECRET.to_vec(),
+                STORAGE_WEBHOOK_SECRET.to_vec(),
+            ],
             oidc_issuer: fake.oidc_issuer(),
             oidc_jwks_url: fake.oidc_jwks_url().parse().unwrap(),
             crates_io_api: fake.url.parse().unwrap(),
@@ -60,6 +67,7 @@ impl Harness {
         let app = router(state.clone());
         tokio::spawn(async move { axum::serve(listener, app).await });
         let client = reqwest::Client::builder()
+            .resolve("localhost", SocketAddr::from(([127, 0, 0, 1], port)))
             .resolve("acme.localhost", SocketAddr::from(([127, 0, 0, 1], port)))
             .resolve("other.localhost", SocketAddr::from(([127, 0, 0, 1], port)))
             .redirect(reqwest::redirect::Policy::none())
@@ -138,6 +146,8 @@ pub struct Crate {
     pub deps: Vec<Value>,
     /// Extra files in the archive, to vary the bytes.
     pub extra: String,
+    pub description: Option<String>,
+    pub keywords: Vec<String>,
 }
 
 impl Crate {
@@ -148,7 +158,15 @@ impl Crate {
             repository: Some(format!("https://github.com/{repository}")),
             deps: Vec::new(),
             extra: String::new(),
+            description: None,
+            keywords: Vec::new(),
         }
+    }
+
+    pub fn described(mut self, description: &str, keywords: &[&str]) -> Self {
+        self.description = Some(description.into());
+        self.keywords = keywords.iter().map(|k| (*k).into()).collect();
+        self
     }
 
     pub fn dep(mut self, name: &str, req: &str, registry: Option<&str>) -> Self {
@@ -165,10 +183,16 @@ impl Crate {
             flate2::Compression::default(),
         ));
         let prefix = format!("{}-{}", self.name, self.version);
-        let manifest = format!(
+        let mut manifest = format!(
             "[package]\nname = \"{}\"\nversion = \"{}\"\n",
             self.name, self.version
         );
+        if let Some(description) = &self.description {
+            manifest.push_str(&format!("description = {description:?}\n"));
+        }
+        if !self.keywords.is_empty() {
+            manifest.push_str(&format!("keywords = {:?}\n", self.keywords));
+        }
         for (path, content) in [
             (format!("{prefix}/Cargo.toml"), manifest),
             (format!("{prefix}/src/lib.rs"), self.extra.clone()),
@@ -192,8 +216,8 @@ impl Crate {
     pub fn body(&self) -> Bytes {
         let meta = serde_json::to_vec(&json!({
             "name": self.name, "vers": self.version, "deps": self.deps, "features": {},
-            "authors": [], "description": null, "documentation": null, "homepage": null, "readme": null,
-            "readme_file": null, "keywords": [], "categories": [], "license": "MIT", "license_file": null,
+            "authors": [], "description": self.description, "documentation": null, "homepage": null,
+            "readme": null, "readme_file": null, "keywords": self.keywords, "categories": [], "license": "MIT", "license_file": null,
             "repository": self.repository, "badges": {}, "links": null, "rust_version": null,
         }))
         .unwrap();

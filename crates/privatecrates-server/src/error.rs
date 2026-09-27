@@ -294,6 +294,22 @@ pub enum ApiError {
     #[http_status(409)]
     IndexContention,
 
+    // --- Webhooks ---
+    #[error("webhooks are not configured on this server: WEBHOOK_SECRET is not set")]
+    #[diagnostic(code(webhook::not_configured))]
+    #[http_status(503)]
+    WebhooksNotConfigured,
+
+    #[error("the webhook's X-Hub-Signature-256 is missing or does not match")]
+    #[diagnostic(code(webhook::signature_invalid))]
+    #[http_status(401)]
+    WebhookSignatureInvalid,
+
+    #[error("the webhook payload is invalid: {reason}")]
+    #[diagnostic(code(webhook::payload_invalid))]
+    #[http_status(400)]
+    WebhookPayloadInvalid { reason: String },
+
     // --- GitHub and internal ---
     #[error("GitHub's rate limit was reached; please try again in a few minutes")]
     #[diagnostic(code(github::rate_limited))]

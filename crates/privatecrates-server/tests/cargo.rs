@@ -21,7 +21,15 @@ impl<'a> Cargo<'a> {
 
     /// Runs cargo in `dir` with `token` as the registry token. Returns (success, stderr).
     async fn run(&self, dir: &Path, token: &str, args: &[&str]) -> (bool, String) {
-        let output = tokio::process::Command::new(env!("CARGO"))
+        let output = self.output(dir, token, args).await;
+        (
+            output.status.success(),
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        )
+    }
+
+    async fn output(&self, dir: &Path, token: &str, args: &[&str]) -> std::process::Output {
+        tokio::process::Command::new(env!("CARGO"))
             .args(args)
             .current_dir(dir)
             .env("CARGO_HOME", self.home.path())
@@ -30,11 +38,7 @@ impl<'a> Cargo<'a> {
             .env_remove("RUSTC_WRAPPER")
             .output()
             .await
-            .unwrap();
-        (
-            output.status.success(),
-            String::from_utf8_lossy(&output.stderr).into_owned(),
-        )
+            .unwrap()
     }
 
     /// A project directory whose `.cargo/config.toml` points at the registry.
@@ -184,4 +188,43 @@ async fn cargo_publish_of_a_ci_only_crate_explains_what_to_do() {
         "{stderr}"
     );
     assert!(stderr.contains("/login#publish"), "{stderr}");
+}
+
+#[tokio::test]
+async fn cargo_search_shows_private_crates_first() {
+    let h = Harness::start().await;
+    let repo = h.repo("story-engine");
+    h.publish_from_ci(
+        "acme/story-engine",
+        repo,
+        &Crate::new("story_engine", "0.1.0", "acme/story-engine").described("Tell tales", &[]),
+    )
+    .await;
+    h.fake.add_crates_io_crate("storybook");
+    let reader = h.fake.add_user("alice", "ghu_", &[(repo, false)]);
+    let cargo = Cargo::new(&h);
+    let dir = cargo.project(
+        "site",
+        "[package]\nname = \"site\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    let output = cargo
+        .output(
+            dir.path(),
+            &reader,
+            &["search", "--registry", "acme", "story"],
+        )
+        .await;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "search failed:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert!(
+        lines[0].starts_with("story_engine = \"0.1.0\"")
+            && lines[0].ends_with("# [acme] Tell tales"),
+        "{stdout}"
+    );
+    assert!(lines[1].starts_with("storybook = \"1.0.0\""), "{stdout}");
 }
