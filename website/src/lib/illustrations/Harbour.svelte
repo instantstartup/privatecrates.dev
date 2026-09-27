@@ -29,12 +29,19 @@
 		<path class="headland" d="M0 318V292Q60 270 120 284T250 280Q300 290 330 318Z" />
 		<path class="birds" d="M300 110q6-6 12 0q6-6 12 0M346 88q5-5 10 0q5-5 10 0" />
 
-		<!-- Lighthouse beam across the sky, drawn behind the tower -->
-		<Lighthouse x={560} y={130} width={184} height={230} />
-
 		<!-- Water -->
 		<rect class="water" y="318" width="720" height="122" />
 		<path class="glint" d="M356 336h88M372 352h56M384 368h32" />
+
+		<!-- The lighthouse on its island, drawn over the water so the island sits on the sea -->
+		<path
+			class="island"
+			d="M566 346C570 336 580 330 592 331L600 324C612 318 628 320 636 315C650 310 664 316 672 320C684 319 696 325 702 333C708 337 711 342 712 346Z"
+		/>
+		<path class="turf" d="M582 331C588 325 598 322 606 324C598 327 590 329 582 331Z" />
+		<path class="turf" d="M670 321C682 319 694 324 700 331C690 327 680 324 670 321Z" />
+		<path class="surf" d="M562 350h22M594 354h36M672 350h40M580 360q8-3 16 0q8 3 16 0" />
+		<Lighthouse x={560} y={137} width={160} height={200} />
 
 		<!-- Quay and crane -->
 		<rect class="quay" x="-4" y="306" width="238" height="26" rx="2" />
@@ -78,6 +85,22 @@
 	}
 	.water {
 		fill: var(--water);
+	}
+	.island {
+		fill: var(--rock);
+		stroke: var(--ink);
+		stroke-width: 2;
+		stroke-linejoin: round;
+	}
+	.turf {
+		fill: var(--turf);
+	}
+	.surf {
+		fill: none;
+		stroke: var(--foam);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		opacity: 0.85;
 	}
 	.glint {
 		stroke: var(--signal);

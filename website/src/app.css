@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/big-shoulders-stencil/wght.css';
+@import '@fontsource-variable/big-shoulders/opsz.css';
 @import '@fontsource-variable/atkinson-hyperlegible-next/wght.css';
 
 /*
@@ -29,6 +29,9 @@
 	--dawn-2: #dfe8ec;
 	--water: #1d4d5c;
 	--water-2: #2c6a7a;
+	--rock: #6d7a74; /* the lighthouse's island */
+	--turf: #5e8a57;
+	--foam: #f9fbfa;
 	--rule: #c5d2cf;
 	--ok: #1f6b45;
 	--ok-bg: #dcefe3;
@@ -60,6 +63,9 @@
 	--dawn-2: #0d232b;
 	--water: #0f3441;
 	--water-2: #174a59;
+	--rock: #3d5a61;
+	--turf: #3f6b4f;
+	--foam: #a8bec1;
 	--rule: #25444e;
 	--ok: #7fd4a4;
 	--ok-bg: #12352a;
@@ -88,6 +94,9 @@
 		--dawn-2: #0d232b;
 		--water: #0f3441;
 		--water-2: #174a59;
+		--rock: #3d5a61;
+		--turf: #3f6b4f;
+		--foam: #a8bec1;
 		--rule: #25444e;
 		--ok: #7fd4a4;
 		--ok-bg: #12352a;
@@ -102,7 +111,7 @@
 }
 
 @theme {
-	--font-display: 'Big Shoulders Stencil Variable', 'Arial Narrow', sans-serif;
+	--font-display: 'Big Shoulders Variable', 'Arial Narrow', sans-serif;
 	--font-sans: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
 	--font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
 	--color-fog: var(--fog);

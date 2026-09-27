@@ -14,7 +14,7 @@ importers:
       '@fontsource-variable/atkinson-hyperlegible-next':
         specifier: ^5.3.0
         version: 5.3.0
-      '@fontsource-variable/big-shoulders-stencil':
+      '@fontsource-variable/big-shoulders':
         specifier: ^5.3.0
         version: 5.3.0
       '@sveltejs/adapter-static':
@@ -116,8 +116,8 @@ packages:
   '@fontsource-variable/atkinson-hyperlegible-next@5.3.0':
     resolution: {integrity: sha512-UnLzNUy1RWoLDfydAatP4NaRm99X/WbQEph7q/PymJnCFIOOwKOx3pBmp5ys8trO0dM+CKGuJgeZP9fAR4mQpA==}
 
-  '@fontsource-variable/big-shoulders-stencil@5.3.0':
-    resolution: {integrity: sha512-M722iR7TPc+CDhj5kI0rsTo1IS+vh5AbTY+p2Ee507tgbqD/ElbuQzR32VRuYYqonG50VFoas5+rWSd84RHmKQ==}
+  '@fontsource-variable/big-shoulders@5.3.0':
+    resolution: {integrity: sha512-b6JtGj6cqvOO5RLuzqLOoiG1ojTHhM8hNDmqbwQXmWCcQumP0gzHXgYviAooZZWLtEvOoX/EHboa+6/Nx2n9ng==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -1247,7 +1247,7 @@ snapshots:
 
   '@fontsource-variable/atkinson-hyperlegible-next@5.3.0': {}
 
-  '@fontsource-variable/big-shoulders-stencil@5.3.0': {}
+  '@fontsource-variable/big-shoulders@5.3.0': {}
 
   '@humanfs/core@0.19.2':
     dependencies:

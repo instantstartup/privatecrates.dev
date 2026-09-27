@@ -62,7 +62,7 @@ function copyFonts(): void {
 	const out = join(root, 'public/fonts');
 	mkdirSync(out, { recursive: true });
 	const fonts = [
-		['@fontsource-variable/big-shoulders-stencil', 'big-shoulders-stencil-latin-wght-normal.woff2'],
+		['@fontsource-variable/big-shoulders', 'big-shoulders-latin-opsz-normal.woff2'],
 		['@fontsource-variable/atkinson-hyperlegible-next', 'atkinson-hyperlegible-next-latin-wght-normal.woff2'],
 	];
 	for (const [pkg, file] of fonts) {

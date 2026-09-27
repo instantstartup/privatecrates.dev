@@ -268,7 +268,7 @@ export function renderPage(input: PageInput): string {
 <meta name="description" content="Live status of ${e(env.apex)}: the PrivateCrates registry, downloads, publishing, sign-in, website and billing, and the GitHub and Stripe services they rely on.">
 <meta name="color-scheme" content="light dark">
 ${production ? '' : '<meta name="robots" content="noindex">\n'}<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="preload" href="/fonts/big-shoulders-stencil-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/big-shoulders-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/status.css">
 <link rel="alternate" type="application/atom+xml" title="${e(title)}: incidents" href="${p}/feed.xml">

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import stencilLatin from '@fontsource-variable/big-shoulders-stencil/files/big-shoulders-stencil-latin-wght-normal.woff2?url';
+	import displayLatin from '@fontsource-variable/big-shoulders/files/big-shoulders-latin-opsz-normal.woff2?url';
 	import bodyLatin from '@fontsource-variable/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-wght-normal.woff2?url';
 	import Footer from '$lib/components/Footer.svelte';
 	import Header from '$lib/components/Header.svelte';
@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<link rel="preload" href={stencilLatin} as="font" type="font/woff2" crossorigin="anonymous" />
+	<link rel="preload" href={displayLatin} as="font" type="font/woff2" crossorigin="anonymous" />
 	<link rel="preload" href={bodyLatin} as="font" type="font/woff2" crossorigin="anonymous" />
 </svelte:head>
 

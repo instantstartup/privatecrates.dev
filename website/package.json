@@ -16,7 +16,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
-		"@fontsource-variable/big-shoulders-stencil": "^5.3.0",
+		"@fontsource-variable/big-shoulders": "^5.3.0",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.70.3",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
