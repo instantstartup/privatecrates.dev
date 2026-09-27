@@ -68,6 +68,32 @@ jobs:
       - run: cargo publish --registry ${name}`;
 }
 
+/** The workflow `cargo privatecrates init` writes for a workspace: one crate per `<crate>-v<version>` tag. */
+export function ciPublishWorkspace(name: string): string {
+	return `name: publish
+on:
+  push:
+    tags: ["v*", "*-v*"]
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: cargo install cargo-credential-privatecrates --locked
+      - name: cargo publish
+        env:
+          TAG: \${{ github.ref_name }}
+        run: |
+          case "$TAG" in
+            v[0-9]*) cargo publish --workspace --registry ${name} ;;
+            *-v[0-9]*) cargo publish --package "\${TAG%-v*}" --registry ${name} ;;
+            *) echo "::error::$TAG is neither v<version> nor <crate>-v<version>"; exit 1 ;;
+          esac`;
+}
+
 export function verifyWorkflow(registryUrl: string): string {
 	return `name: verify registry
 on:
@@ -306,7 +332,7 @@ ${numbered([
 	`Install the CLI if it is missing: ${INSTALL_CLI}`,
 	`List ${org}'s repositories that contain Rust crates (gh repo list ${org} --limit 500, then look for Cargo.toml). Show me the list and ask which crates to publish before changing anything.`,
 	`In each chosen repository, on a new branch: run ${cli(`init --registry ${slug}`, apex)}, which also sets publish = ["${slug}"] on each crate; set publish = false on any crate that should not be published, commit, and open a pull request with gh pr create. Do not merge it: I review and merge.`,
-	`Once a pull request is merged, publish a first version from CI by pushing a tag that matches the crate's version, e.g. git tag v0.1.0 && git push origin v0.1.0. The publish workflow runs in GitHub Actions; follow it with gh run watch.`,
+	`Once a pull request is merged, publish a first version from CI by pushing a tag that matches the crate's version, e.g. git tag v0.1.0 && git push origin v0.1.0; in a workspace, tag one crate with <crate>-v<version> (e.g. story_engine-v0.1.0), since v<version> publishes every crate. The publish workflow runs in GitHub Actions; follow it with gh run watch.`,
 	`Run ${cli('doctor', apex)} in each repository, and fix or report anything it flags.`
 ])}
 

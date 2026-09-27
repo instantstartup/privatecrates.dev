@@ -84,7 +84,7 @@ ${indent(fence(storageRepoCommands(ORG)))}
 
 1. List the organisation's repositories with Rust crates (\`gh repo list ${ORG}\`, then look for \`Cargo.toml\`), and ask the admin which crates to publish.
 2. In each chosen repository, on a new branch, run \`${cli(`init --registry ${SLUG}`)}\`. Check that each crate to publish has \`publish = ["<name>"]\` in its \`Cargo.toml\`, so it can never go to crates.io by accident. Commit and open a pull request with \`gh pr create\`. The admin reviews and merges.
-3. Publish a first version by pushing a tag that matches the crate's version, e.g. \`git tag v0.1.0 && git push origin v0.1.0\`. The workflow publishes with GitHub Actions' OIDC token and records provenance. Publishing from a laptop is refused by default.
+3. Publish a first version by pushing a tag that matches the crate's version, e.g. \`git tag v0.1.0 && git push origin v0.1.0\`. In a workspace, \`<crate>-v<version>\` (e.g. \`story_engine-v0.1.0\`) publishes that one crate and \`v<version>\` publishes every crate. The workflow publishes with GitHub Actions' OIDC token and records provenance. Publishing from a laptop is refused by default.
 4. Check each repository:
 ${indent(fence(doctorCommands()))}
 

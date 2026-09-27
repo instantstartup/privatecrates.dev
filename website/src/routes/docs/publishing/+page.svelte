@@ -2,7 +2,7 @@
 	import Callout from '$lib/components/Callout.svelte';
 	import CodeBlock from '$lib/components/CodeBlock.svelte';
 	import Seo from '$lib/components/Seo.svelte';
-	import { ciPublish, ownersToml, publishRefused, publishTarget } from '$lib/snippets';
+	import { ciPublish, ciPublishWorkspace, ownersToml, publishRefused, publishTarget } from '$lib/snippets';
 
 	const yank = `cargo yank --registry acme --version 0.2.0 story_engine
 cargo yank --registry acme --version 0.2.0 --undo story_engine`;
@@ -45,12 +45,25 @@ cargo yank --registry acme --version 0.2.0 --undo story_engine`;
 		this workflow run published exactly these bytes.
 	</li>
 </ol>
+<p>Because the token names one version and one checksum, it cannot be replayed to publish anything else.</p>
+
+<h2 id="workspaces">Workspaces and monorepos</h2>
 <p>
-	Because the token names one version and one checksum, it cannot be replayed to publish anything else.
-	Publishing a workspace works the same way: Cargo asks for one token per crate. Many crates can live in one
-	repository: each crate’s <code>package.repository</code> names that repository (a link to the crate’s
-	directory, such as <code>https://github.com/acme/mono/tree/main/crates/foo</code>, also works), and each
-	gets its own owners file.
+	Many crates can live in one repository: each crate’s <code>package.repository</code> names that repository
+	(a link to the crate’s directory, such as <code>https://github.com/acme/mono/tree/main/crates/foo</code>,
+	also works), and each gets its own owners file. Cargo asks for one token per crate.
+</p>
+<p>
+	Crates in a workspace usually get their own tags. In a workspace, <code>cargo privatecrates init</code>
+	writes a workflow that follows the release-plz and cargo-release convention:
+	<code>story_engine-v0.2.0</code>
+	publishes just <code>story_engine</code>, and <code>v0.2.0</code> publishes every crate in the workspace, each
+	of which needs a new version.
+</p>
+<CodeBlock caption=".github/workflows/publish.yml" code={ciPublishWorkspace('acme')} />
+<p>
+	The tag reaches the script through an environment variable rather than being pasted into it, so a crafted
+	tag name cannot run commands.
 </p>
 
 <h2 id="first-publish">A crate’s first publish</h2>

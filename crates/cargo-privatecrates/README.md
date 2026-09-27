@@ -29,7 +29,8 @@ cargo privatecrates doctor [--registry <name> …] [--crate <name> …] [--json]
 - **`init --registry <name>`**, in a crate repository or workspace: adds the registry to `.cargo/config.toml`
   (keeping its formatting and comments), sets `package.repository` from the `origin` remote where it is missing
   (in `[workspace.package]`, with `repository.workspace = true` in members, for a workspace), and writes
-  `.github/workflows/publish.yml`, which publishes on tags `v*` with GitHub Actions' OIDC token. Running it again
+  `.github/workflows/publish.yml`, which publishes on tags `v*` with GitHub Actions' OIDC token (in a workspace,
+  also on `<crate>-v*`, publishing just that crate, while `v*` publishes them all). Running it again
   changes nothing; a file it did not write is replaced only with `--force`.
 - **`doctor`**: checks that the credential provider is installed, the registry is configured and answers, you can
   read it, `package.repository` matches the `origin` remote, publishing is restricted to the registry, a workflow

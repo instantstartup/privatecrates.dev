@@ -5,6 +5,7 @@ export function load(): { toc: TocItem[] } {
 	return {
 		toc: [
 			['trusted', 'Trusted publishing from GitHub Actions'],
+			['workspaces', 'Workspaces and monorepos'],
 			['first-publish', 'A crate’s first publish'],
 			['owners', 'The owners file'],
 			['laptop', 'Publishing from a developer’s machine'],

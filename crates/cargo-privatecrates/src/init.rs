@@ -94,7 +94,7 @@ impl fmt::Display for Report {
             write!(
                 f,
                 "Next: commit this and open a pull request. Once it is merged, push a tag such as v0.1.0 to publish \
-                 from GitHub Actions."
+                 from GitHub Actions (in a workspace, story_engine-v0.1.0 publishes just that crate)."
             )
         }
     }
@@ -460,21 +460,47 @@ pub fn inherit_repository(doc: &mut DocumentMut) -> bool {
 
 /// The publishing workflow, as on the website (`ciPublish` in website/src/lib/snippets.ts).
 pub fn workflow(slug: &str, workspace: bool, working_directory: Option<&str>) -> String {
-    let publish = if workspace {
-        format!("cargo publish --workspace --registry {slug}")
-    } else {
-        format!("cargo publish --registry {slug}")
-    };
     let defaults = working_directory
         .map(|dir| format!("    defaults:\n      run:\n        working-directory: {dir}\n"))
         .unwrap_or_default();
+    let (about, tags, publish) = if workspace {
+        (
+            format!(
+                "# Publishes to the PrivateCrates registry `{slug}` from tags: story_engine-v1.2.3 publishes that one crate
+# (the release-plz and cargo-release convention); v1.2.3 publishes every crate in the workspace, each of which needs
+# a new version."
+            ),
+            r#"["v*", "*-v*"]"#,
+            // The tag comes in through the environment, never pasted into the script.
+            format!(
+                "      - name: cargo publish
+        env:
+          TAG: ${{{{ github.ref_name }}}}
+        run: |
+          case \"$TAG\" in
+            v[0-9]*) cargo publish --workspace --registry {slug} ;;
+            *-v[0-9]*) cargo publish --package \"${{TAG%-v*}}\" --registry {slug} ;;
+            *) echo \"::error::$TAG is neither v<version> nor <crate>-v<version>\"; exit 1 ;;
+          esac
+"
+            ),
+        )
+    } else {
+        (
+            format!(
+                "# Publishes to the PrivateCrates registry `{slug}` when a tag such as v1.2.3 is pushed."
+            ),
+            r#"["v*"]"#,
+            format!("      - run: cargo publish --registry {slug}\n"),
+        )
+    };
     format!(
-        "# Publishes to the PrivateCrates registry `{slug}` when a tag such as v1.2.3 is pushed. The job's OIDC token
+        "{about} The job's OIDC token
 # is the credential and the provenance: no secrets. Written by `cargo privatecrates init`.
 name: publish
 on:
   push:
-    tags: [\"v*\"]
+    tags: {tags}
 permissions:
   id-token: write
   contents: read
@@ -484,8 +510,7 @@ jobs:
 {defaults}    steps:
       - uses: actions/checkout@v5
       - run: cargo install {PROVIDER} --locked
-      - run: {publish}
-"
+{publish}"
     )
 }
 
@@ -522,7 +547,12 @@ fn write_workflow(path: &Path, content: &str, slug: &str, force: bool) -> Result
         std::fs::create_dir_all(dir).map_err(Error::io("create", dir))?;
     }
     std::fs::write(path, content).map_err(Error::io("write", path))?;
-    Ok(change(action, "publishes on tags v*"))
+    let tags = if content.contains("*-v*") {
+        "publishes on tags <crate>-v* (one crate) and v* (the workspace)"
+    } else {
+        "publishes on tags v*"
+    };
+    Ok(change(action, tags))
 }
 
 /// Whether a workflow runs `cargo publish` for the registry.
@@ -749,7 +779,19 @@ jobs:
 "
         );
         let workspace = workflow("acme", true, Some("rust"));
-        assert!(workspace.contains("      - run: cargo publish --workspace --registry acme\n"));
+        assert!(
+            workspace.contains("    tags: [\"v*\", \"*-v*\"]\n"),
+            "{workspace}"
+        );
+        assert!(
+            workspace.contains("          TAG: ${{ github.ref_name }}\n"),
+            "{workspace}"
+        );
+        assert!(workspace.contains("v[0-9]*) cargo publish --workspace --registry acme ;;"));
+        assert!(
+            workspace
+                .contains("*-v[0-9]*) cargo publish --package \"${TAG%-v*}\" --registry acme ;;")
+        );
         assert!(workspace.contains(
             "    runs-on: ubuntu-latest\n    defaults:\n      run:\n        working-directory: rust\n    steps:\n"
         ));
