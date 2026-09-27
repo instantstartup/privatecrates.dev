@@ -95,7 +95,7 @@ jobs:
 }
 
 /** The verifier's version, pinned in its workflow: the client tools' release (privatecrates-common's verifier.rs). */
-export const VERIFIER_VERSION = '0.2.4';
+export const VERIFIER_VERSION = '0.2.5';
 
 /** The same workflow as privatecrates-common's `verifier::workflow`, which the account page offers. */
 export function verifyWorkflow(registryUrl: string): string {
