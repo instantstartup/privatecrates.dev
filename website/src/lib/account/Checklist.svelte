@@ -1,19 +1,24 @@
 <script lang="ts">
-	import { api, ApiError, type Onboarding, type Step } from '$lib/api';
-	import { PRICE_USD, TRIAL_DAYS } from '$lib/site';
+	import { api, ApiError, hasSubscription, planOf, type Onboarding, type Org, type Step } from '$lib/api';
+	import { FREE_MEMBER_LIMIT, PRICE_USD, TRIAL_MONTHS } from '$lib/site';
 	import ErrorNotice from './ErrorNotice.svelte';
+	import { formatDate, plural } from './format';
 	import SlugForm from './SlugForm.svelte';
 
 	interface Props {
 		doc: Onboarding;
+		/** The organisation from the session: its plan, member count and whether a trial is available. */
+		org: Org;
 		admin: boolean;
 		/** Re-reads the onboarding document (after a step done on GitHub). */
 		onrefresh: () => Promise<void>;
 		onchange: (doc: Onboarding) => void;
+		/** Called after the free trial starts, with the new onboarding document already passed to onchange. */
+		ontrialstarted?: () => void;
 		refreshing: boolean;
 	}
 
-	let { doc, admin, onrefresh, onchange, refreshing }: Props = $props();
+	let { doc, org, admin, onrefresh, onchange, ontrialstarted, refreshing }: Props = $props();
 
 	interface StepCopy {
 		title: string;
@@ -41,13 +46,59 @@
 			title: 'Choose your registry name',
 			body: 'Saved as privatecrates.toml in your storage repository, so later changes are a pull request.'
 		},
-		subscription: {
-			title: `Start your ${TRIAL_DAYS}-day free trial`,
-			body: `$${PRICE_USD} per month after the trial, billed by Stripe. Cancel before the trial ends and you pay nothing.`
+		plan: {
+			title: 'Choose a plan',
+			body: ''
 		}
 	};
 
+	const limit = $derived(org.free_member_limit ?? FREE_MEMBER_LIMIT);
+	const members = $derived(org.members ?? null);
+	/** What the plan step offers an admin, per docs/website-api.md. */
+	const planAction = $derived<'trial' | 'checkout' | null>(
+		org.trial_available ? 'trial' : planOf(org) === 'inactive' && hasSubscription(org) ? 'checkout' : null
+	);
+
+	function planCopy(step: Step): StepCopy {
+		const plan = planOf(org);
+		if (step.status === 'done') {
+			if (plan === 'free')
+				return {
+					title: 'Plan: free',
+					body:
+						members === null
+							? `Free for organisations with up to ${limit} members.`
+							: `Free: ${members} of ${limit} members. Every feature, no card.`
+				};
+			if (plan === 'trial') {
+				const ends = formatDate(org.trial_ends_at ?? org.tenant?.trial_ends_at);
+				return {
+					title: 'Plan: free trial',
+					body: step.detail ?? (ends ? `Your free trial runs until ${ends}.` : 'Your free trial has started.')
+				};
+			}
+			return { title: 'Plan', body: step.detail ?? '' };
+		}
+		const count = members === null ? 'This organisation' : `${plural(members, 'member')}:`;
+		if (planAction === 'trial')
+			return {
+				title: `Start your ${TRIAL_MONTHS}-month free trial`,
+				body:
+					step.detail ??
+					`${count} more than the ${limit} the free plan covers. Start a ${TRIAL_MONTHS}-month free trial, no card needed.`
+			};
+		if (planAction === 'checkout')
+			return {
+				title: 'Subscribe',
+				body:
+					step.detail ??
+					`This organisation has had its free trial. Subscribe to use the registry: $${PRICE_USD} per month.`
+			};
+		return { title: 'Choose a plan', body: step.detail ?? '' };
+	}
+
 	function stepCopy(step: Step): StepCopy {
+		if (step.id === 'plan' || step.id === 'subscription') return planCopy(step);
 		return (
 			copy[step.id] ?? {
 				title: step.id.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
@@ -74,18 +125,38 @@
 		return () => document.removeEventListener('visibilitychange', onVisible);
 	});
 
-	let checkingOut = $state(false);
-	let checkoutError = $state<ApiError | null>(null);
+	let busy = $state<'trial' | 'checkout' | null>(null);
+	let planError = $state<ApiError | null>(null);
+	let planErrorTitle = $state('');
+
+	function toApiError(e: unknown): ApiError {
+		return e instanceof ApiError ? e : new ApiError(0, [{ detail: String(e) }]);
+	}
 
 	async function startTrial() {
-		checkingOut = true;
-		checkoutError = null;
+		busy = 'trial';
+		planError = null;
+		try {
+			onchange(await api.trial(doc.org.login));
+			ontrialstarted?.();
+		} catch (e) {
+			planError = toApiError(e);
+			planErrorTitle = 'The free trial could not start';
+		} finally {
+			busy = null;
+		}
+	}
+
+	async function subscribe() {
+		busy = 'checkout';
+		planError = null;
 		try {
 			const { url } = await api.checkout(doc.org.login);
 			location.assign(url);
 		} catch (e) {
-			checkoutError = e instanceof ApiError ? e : new ApiError(0, [{ detail: String(e) }]);
-			checkingOut = false;
+			planError = toApiError(e);
+			planErrorTitle = 'Checkout could not be opened';
+			busy = null;
 		}
 	}
 </script>
@@ -130,7 +201,10 @@
 									: 'to do'})</span
 						>
 					</h4>
-					{#if step.status !== 'done'}
+					{#if step.id === 'plan' || step.id === 'subscription'}
+						<!-- Built from the server's detail where there is one (see planCopy). -->
+						{#if c.body}<p>{c.body}</p>{/if}
+					{:else if step.status !== 'done'}
 						<!-- The server's detail is organisation-specific; our own copy covers the rest. -->
 						{@const text =
 							step.detail && (step.id !== 'settings' || step.status === 'blocked') ? step.detail : c.body}
@@ -141,19 +215,42 @@
 						<div class="action">
 							{#if step.id === 'settings'}
 								<SlugForm org={doc.org.login} suggested={doc.suggested_slug} onsaved={onchange} />
-							{:else if step.id === 'subscription'}
-								{#if checkoutError}
-									<ErrorNotice error={checkoutError} title="Checkout could not be opened" />
+							{:else if step.id === 'plan' || step.id === 'subscription'}
+								{#if planError}
+									<ErrorNotice error={planError} title={planErrorTitle} />
 								{/if}
-								<div class="row">
-									<button class="btn btn-primary" type="button" onclick={startTrial} disabled={checkingOut}>
-										{checkingOut ? 'Opening Stripe Checkout…' : `Start ${TRIAL_DAYS}-day free trial`}
-									</button>
-									<span class="fine"
-										>Then ${PRICE_USD} per month. You enter card details on Stripe. The free trial is for an organisation’s
-										first subscription.</span
-									>
-								</div>
+								{#if planAction === 'trial'}
+									<div class="row">
+										<button
+											class="btn btn-primary"
+											type="button"
+											onclick={startTrial}
+											disabled={busy !== null}
+										>
+											{busy === 'trial' ? 'Starting the trial…' : `Start ${TRIAL_MONTHS}-month free trial`}
+										</button>
+										<span class="fine"
+											>No card needed. Afterwards ${PRICE_USD} per organisation per month; add a card any time under
+											Manage billing. One free trial per organisation.</span
+										>
+									</div>
+								{:else if planAction === 'checkout'}
+									<div class="row">
+										<button
+											class="btn btn-primary"
+											type="button"
+											onclick={subscribe}
+											disabled={busy !== null}
+										>
+											{busy === 'checkout'
+												? 'Opening Stripe Checkout…'
+												: `Subscribe, $${PRICE_USD} per month`}
+										</button>
+										<span class="fine"
+											>You enter card details on Stripe. The first charge is taken today.</span
+										>
+									</div>
+								{/if}
 							{:else if step.action_url}
 								<div class="row">
 									<a
@@ -179,6 +276,15 @@
 			</li>
 		{/each}
 	</ol>
+
+	{#if doneCount === doc.steps.length}
+		<p class="all-done" role="status">
+			Every step is done. Opening your registry…
+			<button class="btn btn-quiet" type="button" onclick={onrefresh} disabled={refreshing}>
+				{refreshing ? 'Checking…' : 'Check again'}
+			</button>
+		</p>
+	{/if}
 </section>
 
 <style>
@@ -285,6 +391,13 @@
 	}
 	.fine {
 		font-size: var(--text-sm);
+		color: var(--ink-soft);
+	}
+	.all-done {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem;
 		color: var(--ink-soft);
 	}
 </style>

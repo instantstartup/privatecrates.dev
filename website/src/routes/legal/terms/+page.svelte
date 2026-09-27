@@ -34,11 +34,14 @@
 
 		<h2>4. Subscription, trial and billing</h2>
 		<ul>
-			<li>$100 per GitHub organisation per month, billed through Stripe.</li>
-			<li>A 14-day free trial; the first charge is taken when it ends unless cancelled first.</li>
+			<li>Free for GitHub organisations with 5 or fewer active members.</li>
 			<li>
-				On cancellation or non-payment, publishing stops at once and reads continue for 14 days after the paid
-				period ends.
+				Larger organisations: $100 per GitHub organisation per month, billed through Stripe, after a 3-month
+				free trial that needs no card. One trial per organisation.
+			</li>
+			<li>
+				When a trial ends without a card, or on cancellation or non-payment, publishing stops and reads
+				continue for 14 days after the trial or paid period ends.
 			</li>
 			<li><mark>TODO: taxes, refunds, price changes and notice periods.</mark></li>
 		</ul>

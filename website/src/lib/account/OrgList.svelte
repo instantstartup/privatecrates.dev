@@ -1,20 +1,24 @@
 <script lang="ts">
 	import type { Org } from '$lib/api';
-	import { tenantBadge } from './format';
+	import { memberCount, planBadge, setupLabel } from './format';
 
 	interface Props {
 		orgs: Org[];
 		selected: string | null;
+		/** Whether an organisation's registry works (decided by the account page). */
+		isLive: (org: Org) => boolean;
 	}
 
-	let { orgs, selected }: Props = $props();
+	let { orgs, selected, isLive }: Props = $props();
 </script>
 
 <nav aria-label="Your organisations">
 	<h2 class="title">Organisations</h2>
 	<ul>
 		{#each orgs as org (org.id)}
-			{@const badge = tenantBadge(org.tenant)}
+			{@const badge = planBadge(org)}
+			{@const setup = setupLabel(org, isLive(org))}
+			{@const members = memberCount(org)}
 			<li class={['row', org.login === selected && 'selected']}>
 				<span class="monogram" aria-hidden="true">{org.login.slice(0, 1).toUpperCase()}</span>
 				<span class="text">
@@ -22,9 +26,13 @@
 						href="?org={encodeURIComponent(org.login)}"
 						aria-current={org.login === selected ? 'true' : undefined}>{org.login}</a
 					>
-					<span class="meta">{org.role === 'admin' ? 'Admin' : 'Member'}</span>
+					<span class="meta">{org.role === 'admin' ? 'Admin' : 'Member'}{members ? `, ${members}` : ''}</span>
+					<span class="badges">
+						<span class={['badge', setup === 'Live' ? 'live' : 'idle']}>{setup}</span>
+						<span class={['badge', badge.tone]}><span class="visually-hidden">Plan: </span>{badge.label}</span
+						>
+					</span>
 				</span>
-				<span class={['badge', badge.tone]}>{badge.label}</span>
 			</li>
 		{/each}
 	</ul>
@@ -43,7 +51,7 @@
 	.row {
 		position: relative;
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		gap: 0.75rem;
 		padding: 0.6rem 0.75rem;
 		border: 2px solid transparent;
@@ -93,6 +101,12 @@
 		font-size: var(--text-sm);
 		color: var(--ink-soft);
 	}
+	.badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+		margin-top: 0.3rem;
+	}
 	.badge {
 		flex: none;
 		font-size: var(--text-sm);
@@ -114,6 +128,11 @@
 	.badge.danger {
 		color: var(--danger);
 		background: var(--danger-bg);
+	}
+	.badge.live {
+		color: var(--signal-ink);
+		background: var(--signal);
+		border-color: var(--ink);
 	}
 	.badge.idle {
 		color: var(--ink-soft);

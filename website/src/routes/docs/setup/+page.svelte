@@ -10,6 +10,7 @@
 		publishTarget,
 		settingsToml
 	} from '$lib/snippets';
+	import { FREE_MEMBER_LIMIT, TRIAL_MONTHS } from '$lib/site';
 </script>
 
 <Seo
@@ -49,7 +50,11 @@
 		<strong>Choose your registry name.</strong> It becomes your hostname,
 		<code>your-name.privatecrates.dev</code>, and is saved as <code>privatecrates.toml</code> in the storage repository.
 	</li>
-	<li><strong>Start the 14-day trial</strong> through Stripe Checkout.</li>
+	<li>
+		<strong>Choose a plan.</strong> Organisations with {FREE_MEMBER_LIMIT} or fewer members are free, with nothing
+		to choose. Larger ones start a {TRIAL_MONTHS}-month free trial with one click and no card; see
+		<a href="/pricing">pricing</a>.
+	</li>
 </ol>
 
 <h3 id="settings-file">The settings file</h3>
