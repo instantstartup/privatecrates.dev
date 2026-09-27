@@ -277,9 +277,9 @@
 	}
 	h1 {
 		font-size: var(--text-display);
-		text-wrap: pretty;
-		/* Tight, but with room for descenders (the g in "signed") above the next line's capitals. */
-		line-height: 1.04;
+		text-wrap: balance;
+		/* Big Shoulders' long descenders (the g in "signed") need clear space above the next line's ascenders. */
+		line-height: 1.15;
 		margin-bottom: 1.25rem;
 	}
 	.actions {
