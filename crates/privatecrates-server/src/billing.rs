@@ -1,8 +1,9 @@
-//! Billing with Stripe (docs/website-api.md): $100 per organisation per month, with a 14-day trial.
+//! Billing with Stripe (docs/website-api.md): free for organisations with few members; otherwise $100 per
+//! organisation per month, after a no-card trial.
 //!
 //! Stripe is the source of truth and there is no database. Each subscription's metadata names its GitHub
 //! organisation; subscriptions are listed at start-up and kept current by Stripe's webhooks, with a periodic reload
-//! as the backstop. Without Stripe configured (tests, local development), every tenant is active.
+//! as the backstop. Plans are computed without Stripe too, but without it every tenant is active.
 
 use std::{
     collections::HashMap,
@@ -21,18 +22,21 @@ use bytes::Bytes;
 use hmac::{Hmac, KeyInit, Mac};
 use miette::Diagnostic;
 use reqwest::Method;
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::Sha256;
 
-use crate::{AppState, config::StripeConfig, error::ApiError, github::now_secs};
+use crate::{AppState, config::Config, config::StripeConfig, error::ApiError, github::now_secs};
 
 /// Reads keep working this long after a subscription's last paid period ends.
 pub const READ_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
-pub const TRIAL_DAYS: u32 = 14;
+/// Publishes warn this long before a trial with no payment method ends.
+pub const TRIAL_REMINDER: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 /// How often subscriptions are listed again, in case a webhook was missed.
 pub const REFRESH: Duration = Duration::from_secs(10 * 60);
 /// How far a webhook's timestamp may be from our clock, against replays (Stripe's own libraries use 5 minutes).
 const WEBHOOK_TOLERANCE_SECS: u64 = 5 * 60;
+/// The Stripe API version of our requests, and of the webhook endpoint (`scripts/stripe-setup.sh`).
+const API_VERSION: &str = "2026-08-26.dahlia";
 const ORG_ID_KEY: &str = "github_org_id";
 
 #[derive(Debug, Error, Diagnostic)]
@@ -55,7 +59,8 @@ pub enum BillingError {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Subscription {
     pub id: String,
-    pub customer: String,
+    /// Requested expanded, for its default payment method.
+    customer: Customer,
     /// `trialing`, `active`, `past_due`, `canceled`, `unpaid`, `incomplete`, `incomplete_expired` or `paused`.
     pub status: String,
     pub created: u64,
@@ -69,7 +74,29 @@ pub struct Subscription {
     #[serde(default)]
     pub ended_at: Option<u64>,
     #[serde(default)]
+    default_payment_method: Option<serde_json::Value>,
+    #[serde(default)]
     metadata: HashMap<String, String>,
+}
+
+/// A subscription's customer: its ID, or the customer itself when expanded.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum Customer {
+    Id(String),
+    Expanded {
+        id: String,
+        #[serde(default)]
+        invoice_settings: InvoiceSettings,
+        #[serde(default)]
+        default_source: Option<serde_json::Value>,
+    },
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct InvoiceSettings {
+    #[serde(default)]
+    default_payment_method: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -88,12 +115,38 @@ impl Subscription {
         self.metadata.get(ORG_ID_KEY)?.parse().ok()
     }
 
+    fn customer_id(&self) -> &str {
+        match &self.customer {
+            Customer::Id(id) | Customer::Expanded { id, .. } => id,
+        }
+    }
+
     /// `past_due` keeps working while Stripe retries the payment.
     pub fn is_active(&self) -> bool {
         matches!(self.status.as_str(), "trialing" | "active" | "past_due")
     }
 
+    /// Whether Stripe has a payment method to charge when a trial ends: it looks at the subscription's and then the
+    /// customer's defaults.
+    pub fn has_payment_method(&self) -> bool {
+        self.default_payment_method.is_some()
+            || matches!(
+                &self.customer,
+                Customer::Expanded { invoice_settings, default_source, .. }
+                    if invoice_settings.default_payment_method.is_some() || default_source.is_some()
+            )
+    }
+
+    /// When the trial ends, while the subscription is in one.
+    pub fn trial_ends_at(&self) -> Option<u64> {
+        self.trial_end.filter(|_| self.status == "trialing")
+    }
+
+    /// When the current paid period ends, outside a trial.
     pub fn current_period_end(&self) -> Option<u64> {
+        if self.status == "trialing" {
+            return None;
+        }
         self.current_period_end.or_else(|| {
             self.items
                 .data
@@ -111,7 +164,7 @@ impl Subscription {
     }
 }
 
-/// What a tenant may do, given its subscription.
+/// What a tenant may do, given its plan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Standing {
     Active,
@@ -130,6 +183,44 @@ fn standing(subscription: Option<&Subscription>, now: u64) -> Standing {
     match subscription.paid_until() {
         Some(until) if now < until + READ_GRACE.as_secs() => Standing::Grace,
         _ => Standing::Lapsed,
+    }
+}
+
+/// An organisation's plan, as the website shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Plan {
+    /// At or under the member limit.
+    Free,
+    Trial,
+    Paid,
+    /// Stripe is retrying a failed payment.
+    PastDue,
+    /// Over the limit, with a subscription that ended or never started.
+    Inactive,
+}
+
+/// An organisation's plan and what it is based on.
+#[derive(Debug, Clone)]
+pub struct OrgPlan {
+    pub plan: Plan,
+    /// `None` when unknown, which counts as free.
+    pub members: Option<u64>,
+    pub subscription: Option<Subscription>,
+    /// Whether the organisation can start its no-card trial.
+    pub trial_available: bool,
+}
+
+impl OrgPlan {
+    /// When a trial with no payment method ends, if that is within the reminder period.
+    pub fn trial_ending(&self, now: u64) -> Option<u64> {
+        let subscription = self.subscription.as_ref()?;
+        if self.plan != Plan::Trial || subscription.has_payment_method() {
+            return None;
+        }
+        subscription
+            .trial_ends_at()
+            .filter(|&end| end <= now + TRIAL_REMINDER.as_secs())
     }
 }
 
@@ -181,11 +272,13 @@ struct Stripe {
 }
 
 impl Stripe {
+    /// A Stripe API call. A POST with an idempotency key has its effect once, however often it is repeated.
     async fn call<T: DeserializeOwned>(
         &self,
         method: Method,
         path: &str,
         form: &[(&str, &str)],
+        idempotency_key: Option<&str>,
     ) -> Result<T, BillingError> {
         let url = self
             .config
@@ -195,7 +288,11 @@ impl Stripe {
         let mut request = self
             .http
             .request(method.clone(), url)
-            .bearer_auth(&self.config.secret_key);
+            .bearer_auth(&self.config.secret_key)
+            .header("Stripe-Version", API_VERSION);
+        if let Some(key) = idempotency_key {
+            request = request.header("Idempotency-Key", key);
+        }
         request = if method == Method::GET {
             request.query(form)
         } else {
@@ -219,8 +316,13 @@ impl Stripe {
             .chars()
             .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
             .collect();
-        self.call(Method::GET, &format!("/v1/subscriptions/{id}"), &[])
-            .await
+        self.call(
+            Method::GET,
+            &format!("/v1/subscriptions/{id}"),
+            &[("expand[]", "customer")],
+            None,
+        )
+        .await
     }
 }
 
@@ -235,20 +337,38 @@ struct Url {
     url: String,
 }
 
+#[derive(Deserialize)]
+struct Created {
+    id: String,
+}
+
+/// "3-month" for 90 days, otherwise "45-day".
+pub fn trial_length(days: u32) -> String {
+    if days.is_multiple_of(30) {
+        format!("{}-month", days / 30)
+    } else {
+        format!("{days}-day")
+    }
+}
+
 pub struct Billing {
     stripe: Option<Stripe>,
+    free_member_limit: u64,
+    trial_days: u32,
     /// GitHub organisation ID → its latest subscription.
     subscriptions: RwLock<HashMap<u64, Subscription>>,
+    /// Held while a trial starts, so that a double click starts one.
+    starting_trial: tokio::sync::Mutex<()>,
 }
 
 impl Billing {
-    pub fn new(config: Option<StripeConfig>) -> Result<Self, BillingError> {
-        let stripe = match config {
-            Some(config) => Some(Stripe {
+    pub fn new(config: &Config) -> Result<Self, BillingError> {
+        let stripe = match &config.stripe {
+            Some(stripe) => Some(Stripe {
                 http: reqwest::Client::builder()
                     .timeout(Duration::from_secs(30))
                     .build()?,
-                config,
+                config: stripe.clone(),
             }),
             None => {
                 tracing::warn!("Stripe is not configured, so every tenant is treated as active");
@@ -257,12 +377,23 @@ impl Billing {
         };
         Ok(Self {
             stripe,
+            free_member_limit: config.free_member_limit,
+            trial_days: config.trial_days,
             subscriptions: RwLock::default(),
+            starting_trial: tokio::sync::Mutex::default(),
         })
     }
 
     pub fn enabled(&self) -> bool {
         self.stripe.is_some()
+    }
+
+    pub fn free_member_limit(&self) -> u64 {
+        self.free_member_limit
+    }
+
+    pub fn trial_days(&self) -> u32 {
+        self.trial_days
     }
 
     /// Lists every subscription from Stripe and keeps the latest per organisation.
@@ -273,12 +404,16 @@ impl Billing {
         let mut by_org = HashMap::new();
         let mut after: Option<String> = None;
         loop {
-            let mut query = vec![("status", "all"), ("limit", "100")];
+            let mut query = vec![
+                ("status", "all"),
+                ("limit", "100"),
+                ("expand[]", "data.customer"),
+            ];
             if let Some(after) = &after {
                 query.push(("starting_after", after));
             }
             let page: List<Subscription> = stripe
-                .call(Method::GET, "/v1/subscriptions", &query)
+                .call(Method::GET, "/v1/subscriptions", &query, None)
                 .await?;
             after = page.data.last().map(|s| s.id.clone());
             for subscription in page.data {
@@ -300,8 +435,32 @@ impl Billing {
             .cloned()
     }
 
-    pub fn standing(&self, org_id: u64) -> Standing {
-        if !self.enabled() {
+    /// An unknown member count counts as free: GitHub failing must not take registries down.
+    fn is_free(&self, members: Option<u64>) -> bool {
+        members.is_none_or(|n| n <= self.free_member_limit)
+    }
+
+    /// The organisation's plan, given its member count.
+    pub fn plan(&self, org_id: u64, members: Option<u64>) -> OrgPlan {
+        let subscription = self.subscription(org_id);
+        let free = self.is_free(members);
+        let plan = match subscription.as_ref().map(|s| s.status.as_str()) {
+            _ if free => Plan::Free,
+            Some("trialing") => Plan::Trial,
+            Some("active") => Plan::Paid,
+            Some("past_due") => Plan::PastDue,
+            _ => Plan::Inactive,
+        };
+        OrgPlan {
+            plan,
+            members,
+            trial_available: self.enabled() && !free && subscription.is_none(),
+            subscription,
+        }
+    }
+
+    pub fn standing(&self, org_id: u64, members: Option<u64>) -> Standing {
+        if !self.enabled() || self.is_free(members) {
             return Standing::Active;
         }
         standing(self.subscription(org_id).as_ref(), now_secs())
@@ -319,25 +478,98 @@ impl Billing {
         self.stripe.as_ref().ok_or(ApiError::BillingNotConfigured)
     }
 
-    /// A Checkout session for a new subscription; returns the URL to send the admin to. The trial is for an
-    /// organisation's first subscription only, and a returning organisation keeps its Stripe customer.
+    /// Starts the organisation's no-card trial: a Stripe customer and a trialing subscription that cancels itself
+    /// if no card was added by its end. Each organisation gets one trial.
+    pub async fn start_trial(
+        &self,
+        org_id: u64,
+        org_login: &str,
+        members: Option<u64>,
+    ) -> Result<(), ApiError> {
+        let stripe = self.stripe()?;
+        let _starting = self.starting_trial.lock().await;
+        let org = || org_login.to_owned();
+        match self.subscription(org_id) {
+            Some(s) if s.is_active() => return Err(ApiError::AlreadySubscribed { org: org() }),
+            Some(_) => return Err(ApiError::TrialUsed { org: org() }),
+            None => {}
+        }
+        if self.is_free(members) {
+            return Err(ApiError::FreePlan {
+                org: org(),
+                limit: self.free_member_limit,
+            });
+        }
+        // Keyed by organisation, so a repeat (another instance, a retry) creates nothing more; Stripe keeps keys
+        // for 24 hours, and after that the subscription is known.
+        let key = format!("privatecrates-trial-{org_id}");
+        let org_id = org_id.to_string();
+        let customer: Created = stripe
+            .call(
+                Method::POST,
+                "/v1/customers",
+                &[
+                    ("name", org_login),
+                    ("metadata[github_org_id]", &org_id),
+                    ("metadata[github_org_login]", org_login),
+                ],
+                Some(&format!("{key}-customer")),
+            )
+            .await?;
+        let trial_days = self.trial_days.to_string();
+        let subscription: Subscription = stripe
+            .call(
+                Method::POST,
+                "/v1/subscriptions",
+                &[
+                    ("customer", &customer.id),
+                    ("items[0][price]", &stripe.config.price_id),
+                    ("trial_period_days", &trial_days),
+                    (
+                        "payment_settings[save_default_payment_method]",
+                        "on_subscription",
+                    ),
+                    (
+                        "trial_settings[end_behavior][missing_payment_method]",
+                        "cancel",
+                    ),
+                    ("metadata[github_org_id]", &org_id),
+                    ("metadata[github_org_login]", org_login),
+                    ("expand[]", "customer"),
+                ],
+                Some(&key),
+            )
+            .await?;
+        tracing::info!(org = %org_login, subscription = %subscription.id, "trial started");
+        self.record(subscription);
+        Ok(())
+    }
+
+    /// A Checkout session for an organisation that cannot have a trial: a card is required and billing starts at
+    /// once. Returns the URL to send the admin to. A returning organisation keeps its Stripe customer.
     pub async fn checkout(
         &self,
         org_id: u64,
         org_login: &str,
+        members: Option<u64>,
         success_url: &str,
         cancel_url: &str,
     ) -> Result<String, ApiError> {
         let stripe = self.stripe()?;
-        let previous = self.subscription(org_id);
-        if previous.as_ref().is_some_and(Subscription::is_active) {
-            return Err(ApiError::AlreadySubscribed {
-                org: org_login.to_owned(),
-            });
-        }
+        let org = || org_login.to_owned();
+        let previous = match self.subscription(org_id) {
+            Some(s) if s.is_active() => return Err(ApiError::AlreadySubscribed { org: org() }),
+            _ if self.is_free(members) => {
+                return Err(ApiError::FreePlan {
+                    org: org(),
+                    limit: self.free_member_limit,
+                });
+            }
+            None => return Err(ApiError::TrialAvailable { org: org() }),
+            Some(previous) => previous,
+        };
         let org_id = org_id.to_string();
-        let trial_days = TRIAL_DAYS.to_string();
-        let mut form = vec![
+        let form = [
             ("mode", "subscription"),
             ("line_items[0][price]", stripe.config.price_id.as_str()),
             ("line_items[0][quantity]", "1"),
@@ -348,18 +580,15 @@ impl Billing {
             ("metadata[github_org_login]", org_login),
             ("subscription_data[metadata][github_org_id]", &org_id),
             ("subscription_data[metadata][github_org_login]", org_login),
+            ("customer", previous.customer_id()),
         ];
-        match &previous {
-            Some(previous) => form.push(("customer", &previous.customer)),
-            None => form.push(("subscription_data[trial_period_days]", &trial_days)),
-        }
         let session: Url = stripe
-            .call(Method::POST, "/v1/checkout/sessions", &form)
+            .call(Method::POST, "/v1/checkout/sessions", &form, None)
             .await?;
         Ok(session.url)
     }
 
-    /// A customer portal session, where an admin manages payment details or cancels.
+    /// A customer portal session, where an admin adds a card, manages payment details or cancels.
     pub async fn portal(
         &self,
         org_id: u64,
@@ -377,9 +606,10 @@ impl Billing {
                 Method::POST,
                 "/v1/billing_portal/sessions",
                 &[
-                    ("customer", &subscription.customer),
+                    ("customer", subscription.customer_id()),
                     ("return_url", return_url),
                 ],
+                None,
             )
             .await?;
         Ok(session.url)
@@ -514,6 +744,98 @@ mod tests {
         assert_eq!(standing(Some(&canceled), 1000 + grace), Standing::Lapsed);
         let unpaid = subscription("s", "unpaid", 1);
         assert_eq!(standing(Some(&unpaid), 1001), Standing::Grace);
+    }
+
+    fn billing(stripe: bool) -> Billing {
+        let mut config = crate::config::tests::config("privatecrates.dev");
+        config.stripe = stripe.then(|| StripeConfig {
+            api: "https://api.stripe.com".parse().unwrap(),
+            secret_key: "sk_test".into(),
+            webhook_secret: b"whsec".to_vec(),
+            price_id: "price".into(),
+        });
+        Billing::new(&config).unwrap()
+    }
+
+    #[test]
+    fn plans_follow_members_then_the_subscription() {
+        let billed = billing(true);
+        let plan = |members| billed.plan(100, members);
+        for members in [None, Some(0), Some(5)] {
+            let free = plan(members);
+            assert_eq!(free.plan, Plan::Free);
+            assert!(!free.trial_available);
+            assert_eq!(billed.standing(100, members), Standing::Active);
+        }
+        let over = plan(Some(6));
+        assert_eq!(over.plan, Plan::Inactive);
+        assert!(over.trial_available);
+        assert_eq!(billed.standing(100, Some(6)), Standing::Lapsed);
+        for (status, expected) in [
+            ("trialing", Plan::Trial),
+            ("active", Plan::Paid),
+            ("past_due", Plan::PastDue),
+            ("canceled", Plan::Inactive),
+            ("unpaid", Plan::Inactive),
+        ] {
+            billed.record(subscription("s", status, 1));
+            let over = plan(Some(6));
+            assert_eq!(over.plan, expected, "{status}");
+            assert!(!over.trial_available, "{status}");
+            // A subscription does not stop a small organisation being free.
+            assert_eq!(plan(Some(5)).plan, Plan::Free);
+        }
+
+        // Without Stripe, plans are still computed but nothing is enforced.
+        let unbilled = billing(false);
+        assert_eq!(unbilled.plan(100, Some(6)).plan, Plan::Inactive);
+        assert!(!unbilled.plan(100, Some(6)).trial_available);
+        assert_eq!(unbilled.standing(100, Some(6)), Standing::Active);
+    }
+
+    #[test]
+    fn trials_without_a_card_are_reminded_in_their_last_fortnight() {
+        let now = 1_800_000_000;
+        let trial = |trial_end: u64, customer: serde_json::Value| {
+            let subscription: Subscription = serde_json::from_value(serde_json::json!({
+                "id": "s", "customer": customer, "status": "trialing", "created": 1, "trial_end": trial_end,
+                "metadata": { "github_org_id": "100" },
+            }))
+            .unwrap();
+            OrgPlan {
+                plan: Plan::Trial,
+                members: Some(6),
+                subscription: Some(subscription),
+                trial_available: false,
+            }
+        };
+        let no_card = serde_json::json!({ "id": "cus_1", "invoice_settings": { "default_payment_method": null } });
+        let soon = now + 13 * 24 * 60 * 60;
+        assert_eq!(trial(soon, no_card.clone()).trial_ending(now), Some(soon));
+        assert_eq!(
+            trial(now + 15 * 24 * 60 * 60, no_card.clone()).trial_ending(now),
+            None
+        );
+        let card = serde_json::json!({ "id": "cus_1", "invoice_settings": { "default_payment_method": "pm_1" } });
+        let with_card = trial(soon, card);
+        assert!(
+            with_card
+                .subscription
+                .as_ref()
+                .unwrap()
+                .has_payment_method()
+        );
+        assert_eq!(with_card.trial_ending(now), None);
+        let mut free = trial(soon, no_card);
+        free.plan = Plan::Free;
+        assert_eq!(free.trial_ending(now), None);
+    }
+
+    #[test]
+    fn trial_lengths_read_naturally() {
+        assert_eq!(trial_length(90), "3-month");
+        assert_eq!(trial_length(30), "1-month");
+        assert_eq!(trial_length(14), "14-day");
     }
 
     #[test]

@@ -3,37 +3,12 @@
 mod common;
 
 use common::{Crate, Harness, READER_WEBHOOK_SECRET, STORAGE_WEBHOOK_SECRET};
-use hmac::{Hmac, KeyInit, Mac};
 use serde_json::{Value, json};
-use sha2::Sha256;
 
 /// Delivers a webhook from the reader App, which sends most events.
 async fn webhook(h: &Harness, event: &str, delivery: &str, payload: &Value) -> reqwest::Response {
-    deliver(h, READER_WEBHOOK_SECRET, event, delivery, payload).await
-}
-
-/// Delivers a GitHub webhook to the website's host, signed with `secret`.
-async fn deliver(
-    h: &Harness,
-    secret: &[u8],
-    event: &str,
-    delivery: &str,
-    payload: &Value,
-) -> reqwest::Response {
-    let body = serde_json::to_vec(payload).unwrap();
-    let mut mac = Hmac::<Sha256>::new_from_slice(secret).unwrap();
-    mac.update(&body);
-    let signature = format!("sha256={}", hex::encode(mac.finalize().into_bytes()));
-    h.client
-        .post(format!("http://localhost:{}/webhooks/github", h.port))
-        .header("X-GitHub-Event", event)
-        .header("X-GitHub-Delivery", delivery)
-        .header("X-Hub-Signature-256", signature)
-        .header("Content-Type", "application/json")
-        .body(body)
-        .send()
+    h.github_webhook(READER_WEBHOOK_SECRET, event, delivery, payload)
         .await
-        .unwrap()
 }
 
 /// A crate published from `acme/story-engine`, and the index path to read it at.
@@ -72,13 +47,19 @@ async fn deliveries_must_be_signed() {
         .unwrap();
     assert_eq!(forged.status(), 401);
     let zen = json!({ "zen": "Design for failure." });
-    let other_secret = deliver(&h, b"another App's secret", "ping", "d-1", &zen).await;
+    let other_secret = h
+        .github_webhook(b"another App's secret", "ping", "d-1", &zen)
+        .await;
     assert_eq!(other_secret.status(), 401);
 
     // Each App signs with its own secret. Events we do not use are accepted and ignored.
-    let reader = deliver(&h, READER_WEBHOOK_SECRET, "ping", "d-2", &zen).await;
+    let reader = h
+        .github_webhook(READER_WEBHOOK_SECRET, "ping", "d-2", &zen)
+        .await;
     assert_eq!(reader.status(), 204);
-    let storage = deliver(&h, STORAGE_WEBHOOK_SECRET, "ping", "d-3", &zen).await;
+    let storage = h
+        .github_webhook(STORAGE_WEBHOOK_SECRET, "ping", "d-3", &zen)
+        .await;
     assert_eq!(storage.status(), 204);
 }
 
@@ -232,7 +213,7 @@ async fn push(h: &Harness, delivery: &str, branch: &str) -> reqwest::StatusCode 
         "repository": { "id": h.org.storage_repo, "full_name": "acme/crates-store" },
         "installation": { "id": h.org.storage_installation },
     });
-    deliver(h, STORAGE_WEBHOOK_SECRET, "push", delivery, &payload)
+    h.github_webhook(STORAGE_WEBHOOK_SECRET, "push", delivery, &payload)
         .await
         .status()
 }
@@ -289,15 +270,9 @@ async fn a_new_installation_adds_a_tenant() {
         "installation": { "id": globex.storage_installation, "account": { "login": "globex", "id": globex.id } },
     });
     assert_eq!(
-        deliver(
-            &h,
-            STORAGE_WEBHOOK_SECRET,
-            "installation",
-            "d-1",
-            &installed
-        )
-        .await
-        .status(),
+        h.github_webhook(STORAGE_WEBHOOK_SECRET, "installation", "d-1", &installed)
+            .await
+            .status(),
         204
     );
     // The tenant exists now, so the registry asks for a token.

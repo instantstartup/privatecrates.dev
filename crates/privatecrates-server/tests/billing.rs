@@ -1,10 +1,11 @@
-//! Stripe billing and its enforcement (docs/website-api.md).
+//! Plans, Stripe billing and their enforcement (docs/website-api.md).
 
 mod common;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use common::{Crate, Harness, Options, error_code, error_detail};
+use common::{Crate, Harness, Options, READER_WEBHOOK_SECRET, error_code, error_detail};
+use privatecrates_server::AppState;
 use privatecrates_testkit::stripe::{self, FakeStripe};
 use serde_json::{Value, json};
 
@@ -45,7 +46,7 @@ async fn send_event(h: &Harness, event_type: &str, object: Value) {
     assert_eq!(response.status(), 200, "{}", response.text().await.unwrap());
 }
 
-/// Signs in an admin of `acme`, and returns a crate repository and a reader's token.
+/// Signs in an admin of `acme`, its only member so far, and returns a crate repository and a reader's token.
 async fn setup(h: &Harness) -> (String, u64, String) {
     let admin = h.fake.add_user("alice", "ghu_", &[]);
     h.fake.add_member(&admin, &h.org, "admin");
@@ -55,35 +56,406 @@ async fn setup(h: &Harness) -> (String, u64, String) {
     (session, repo, reader)
 }
 
+/// Like [`setup`], with `acme` grown to 12 members: over the free limit.
+async fn setup_large(h: &Harness) -> (String, u64, String) {
+    let setup = setup(h).await;
+    h.fake.add_org_members(&h.org, 11);
+    setup
+}
+
+/// A GitHub `organization` webhook for a member of `acme` joining or leaving.
+async fn membership_changed(h: &Harness, action: &str, delivery: &str) {
+    let payload = json!({
+        "action": action,
+        "membership": { "user": { "id": 424242, "login": "carol" }, "state": "active", "role": "member" },
+        "organization": { "id": h.org.id, "login": "acme" },
+        "installation": { "id": h.org.reader_installation },
+    });
+    let response = h
+        .github_webhook(READER_WEBHOOK_SECRET, "organization", delivery, &payload)
+        .await;
+    assert_eq!(response.status(), 204);
+}
+
+async fn session_org(h: &Harness, session: &str) -> Value {
+    let doc: Value = h
+        .api_get("/api/session", session)
+        .await
+        .json()
+        .await
+        .unwrap();
+    doc["orgs"][0].clone()
+}
+
+async fn plan_step(h: &Harness, session: &str) -> Value {
+    let doc: Value = h
+        .api_get("/api/orgs/acme/onboarding", session)
+        .await
+        .json()
+        .await
+        .unwrap();
+    let step = doc["steps"][4].clone();
+    assert_eq!(step["id"], "plan");
+    step
+}
+
+/// `POST /api/orgs/acme/{action}` with the `{}` body the website sends.
+async fn post(h: &Harness, session: &str, action: &str) -> reqwest::Response {
+    h.api_post(&format!("/api/orgs/acme/{action}"), session)
+        .body("{}")
+        .send()
+        .await
+        .unwrap()
+}
+
+async fn publish(h: &Harness, repo: u64, version: &str) -> reqwest::Response {
+    let krate = Crate::new("story_engine", version, "acme/story-engine");
+    let token = h.publish_token("acme/story-engine", repo, "release.yml", &krate);
+    h.publish(&krate, &token).await
+}
+
+/// Publishes, asserting success, and returns Cargo's `warnings.other`.
+async fn publish_warnings(h: &Harness, repo: u64, version: &str) -> Vec<Value> {
+    let response = publish(h, repo, version).await;
+    assert_eq!(response.status(), 200);
+    let body: Value = response.json().await.unwrap();
+    body["warnings"]["other"].as_array().unwrap().clone()
+}
+
 #[tokio::test]
-async fn checkout_starts_a_trial_and_the_webhook_activates_the_registry() {
+async fn a_free_organisation_needs_no_subscription() {
     let (h, stripe) = start().await;
     let (session, repo, reader) = setup(&h).await;
+    h.fake.add_org_members(&h.org, 4);
 
-    // No subscription yet: the registry is not served.
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    assert!(publish_warnings(&h, repo, "0.1.0").await.is_empty());
+
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["members"], 5);
+    assert_eq!(org["free_member_limit"], 5);
+    assert_eq!(org["plan"], "free");
+    assert_eq!(org["trial_ends_at"], Value::Null);
+    assert_eq!(org["has_payment_method"], false);
+    assert_eq!(org["current_period_end"], Value::Null);
+    assert_eq!(org["trial_available"], false);
+    assert_eq!(org["tenant"]["status"], Value::Null);
+    let step = plan_step(&h, &session).await;
+    assert_eq!(step["status"], "done");
+    assert_eq!(step["detail"], "Free: 5 of 5 members");
+
+    // Nothing to pay for.
+    for action in ["trial", "checkout"] {
+        let response = post(&h, &session, action).await;
+        assert_eq!(response.status(), 409, "{action}");
+        assert_eq!(error_code(response).await, "billing::free_plan");
+    }
+    assert!(stripe.customers().is_empty());
+}
+
+#[tokio::test]
+async fn over_the_limit_without_a_subscription_is_inactive() {
+    let (h, _stripe) = start().await;
+    let (session, repo, reader) = setup_large(&h).await;
+
     let response = h.get("/index/config.json", Some(&reader)).await;
     assert_eq!(response.status(), 402);
     assert_eq!(error_code(response).await, "billing::subscription_inactive");
-    let session_doc: Value = h
-        .api_get("/api/session", &session)
-        .await
-        .json()
-        .await
-        .unwrap();
-    assert_eq!(session_doc["orgs"][0]["tenant"]["status"], Value::Null);
-    let onboarding: Value = h
-        .api_get("/api/orgs/acme/onboarding", &session)
-        .await
-        .json()
-        .await
-        .unwrap();
-    assert_eq!(onboarding["steps"][4]["status"], "todo");
+    assert_eq!(publish(&h, repo, "0.1.0").await.status(), 402);
 
-    let response = h
-        .api_post("/api/orgs/acme/checkout", &session)
-        .send()
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["members"], 12);
+    assert_eq!(org["plan"], "inactive");
+    assert_eq!(org["trial_available"], true);
+    assert_eq!(org["tenant"]["status"], Value::Null);
+    let step = plan_step(&h, &session).await;
+    assert_eq!(step["status"], "todo");
+    assert_eq!(
+        step["detail"],
+        "12 members: start your 3-month free trial, no card needed."
+    );
+
+    // The trial comes first; Checkout is for organisations that already had one.
+    let response = post(&h, &session, "checkout").await;
+    assert_eq!(response.status(), 409);
+    assert_eq!(error_code(response).await, "billing::trial_available");
+}
+
+#[tokio::test]
+async fn the_trial_starts_without_a_card() {
+    let (h, stripe) = start().await;
+    let (session, repo, reader) = setup_large(&h).await;
+
+    let response = post(&h, &session, "trial").await;
+    assert_eq!(response.status(), 200);
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(doc["org"]["login"], "acme");
+    assert_eq!(doc["steps"][4]["id"], "plan");
+    assert_eq!(doc["steps"][4]["status"], "done");
+
+    let org_id = h.org.id.to_string();
+    let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
+    assert_eq!(customer["metadata"]["github_org_id"], org_id);
+    assert_eq!(customer["metadata"]["github_org_login"], "acme");
+    let [request]: [_; 1] = stripe.subscription_requests().try_into().unwrap();
+    assert_eq!(request["customer"], customer["id"].as_str().unwrap());
+    assert_eq!(request["items[0][price]"], stripe::PRICE_ID);
+    assert_eq!(request["trial_period_days"], "90");
+    assert_eq!(
+        request["payment_settings[save_default_payment_method]"],
+        "on_subscription"
+    );
+    assert_eq!(
+        request["trial_settings[end_behavior][missing_payment_method]"],
+        "cancel"
+    );
+    assert_eq!(request["metadata[github_org_id]"], org_id);
+    assert_eq!(request["metadata[github_org_login]"], "acme");
+    let [subscription]: [Value; 1] = stripe.subscriptions(h.org.id).try_into().unwrap();
+    let trial_end = subscription["trial_end"].as_u64().unwrap();
+    assert!(trial_end.abs_diff(now() + 90 * DAY) < 60);
+
+    // Recorded at once, without waiting for Stripe's webhook.
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["plan"], "trial");
+    assert!(org["trial_ends_at"].as_str().unwrap().ends_with('Z'));
+    assert_eq!(org["has_payment_method"], false);
+    assert_eq!(org["current_period_end"], Value::Null);
+    assert_eq!(org["trial_available"], false);
+    assert_eq!(org["tenant"]["status"], "trialing");
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    // Ninety days to go: no reminder yet.
+    assert!(publish_warnings(&h, repo, "0.1.0").await.is_empty());
+
+    let response = post(&h, &session, "trial").await;
+    assert_eq!(response.status(), 409);
+    assert_eq!(error_code(response).await, "billing::already_subscribed");
+    let response = post(&h, &session, "checkout").await;
+    assert_eq!(error_code(response).await, "billing::already_subscribed");
+
+    // A card is added in the billing portal, and the trial converts.
+    let response = post(&h, &session, "portal").await;
+    assert_eq!(response.status(), 200);
+    let portal = stripe.portals().pop().unwrap();
+    assert_eq!(portal["customer"], customer["id"].as_str().unwrap());
+    let id = subscription["id"].as_str().unwrap();
+    stripe.add_card(id);
+    h.state.billing.load().await.unwrap();
+    assert_eq!(session_org(&h, &session).await["has_payment_method"], true);
+    stripe.end_trial(id);
+    send_event(&h, "customer.subscription.updated", json!({ "id": id })).await;
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["plan"], "paid");
+    assert!(org["current_period_end"].as_str().is_some());
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+}
+
+#[tokio::test]
+async fn a_double_click_starts_one_trial() {
+    let (h, stripe) = start().await;
+    let (session, _, _) = setup_large(&h).await;
+    let (first, second) = tokio::join!(post(&h, &session, "trial"), post(&h, &session, "trial"));
+    let mut statuses = [first.status().as_u16(), second.status().as_u16()];
+    statuses.sort_unstable();
+    assert_eq!(statuses, [200, 409]);
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+
+    // Another instance that has not seen the subscription yet repeats the same idempotent requests.
+    let other = AppState::new(h.state.config.clone()).unwrap();
+    other
+        .billing
+        .start_trial(h.org.id, "acme", Some(12))
         .await
         .unwrap();
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+    assert_eq!(stripe.customers().len(), 1);
+}
+
+#[tokio::test]
+async fn a_trial_that_ends_without_a_card_is_cancelled() {
+    let (h, stripe) = start().await;
+    let (session, repo, reader) = setup_large(&h).await;
+    assert_eq!(post(&h, &session, "trial").await.status(), 200);
+    publish_warnings(&h, repo, "0.1.0").await;
+    let id = stripe.subscriptions(h.org.id)[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    stripe.end_trial(&id);
+    send_event(&h, "customer.subscription.deleted", json!({ "id": id })).await;
+    assert_eq!(stripe.subscriptions(h.org.id)[0]["status"], "canceled");
+
+    // Publishing stops at once; reads continue for the grace period.
+    let response = publish(&h, repo, "0.2.0").await;
+    assert_eq!(response.status(), 402);
+    let detail = error_detail(response).await;
+    assert!(detail.contains(&h.apex("/account")), "{detail}");
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    assert_eq!(
+        h.get("/index/st/or/story_engine", Some(&reader))
+            .await
+            .status(),
+        200
+    );
+
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["plan"], "inactive");
+    assert_eq!(org["trial_available"], false);
+    assert_eq!(org["tenant"]["status"], "canceled");
+    let step = plan_step(&h, &session).await;
+    assert_eq!(step["status"], "todo");
+    assert_eq!(
+        step["detail"],
+        "12 members: the subscription is canceled. Subscribe with a card to keep using the registry."
+    );
+
+    // One trial per organisation: now it subscribes through Checkout, with a card and no trial.
+    let response = post(&h, &session, "trial").await;
+    assert_eq!(response.status(), 409);
+    assert_eq!(error_code(response).await, "billing::trial_used");
+    let response = post(&h, &session, "checkout").await;
+    assert_eq!(response.status(), 200);
+    let checkout = stripe.checkouts().pop().unwrap();
+    assert_eq!(
+        checkout["customer"],
+        stripe.customers()[0]["id"].as_str().unwrap()
+    );
+    assert!(!checkout.contains_key("subscription_data[trial_period_days]"));
+
+    // Fifteen days after it ended, reads stop too.
+    stripe.update_subscription(&id, json!({ "ended_at": now() - 15 * DAY }));
+    send_event(&h, "customer.subscription.updated", json!({ "id": id })).await;
+    for path in [
+        "/index/config.json",
+        "/index/st/or/story_engine",
+        "/api/v1/crates/story_engine/0.1.0/download",
+    ] {
+        let response = h.get(path, Some(&reader)).await;
+        assert_eq!(response.status(), 402, "{path}");
+        assert_eq!(error_code(response).await, "billing::subscription_inactive");
+    }
+}
+
+#[tokio::test]
+async fn publishes_remind_of_a_trial_ending_without_a_card() {
+    let (h, stripe) = start().await;
+    let (session, repo, _) = setup_large(&h).await;
+    assert_eq!(post(&h, &session, "trial").await.status(), 200);
+    let id = stripe.subscriptions(h.org.id)[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let ends = now() + 10 * DAY;
+    stripe.update_subscription(&id, json!({ "trial_end": ends }));
+    send_event(&h, "customer.subscription.updated", json!({ "id": id })).await;
+
+    let date = time::OffsetDateTime::from_unix_timestamp(ends as i64)
+        .unwrap()
+        .date();
+    assert_eq!(
+        publish_warnings(&h, repo, "0.1.0").await,
+        [json!(format!(
+            "the PrivateCrates free trial for acme ends on {date}; add a card at {}",
+            h.apex("/account")
+        ))]
+    );
+
+    // With a card, the trial converts by itself: no reminder.
+    stripe.add_card(&id);
+    send_event(&h, "customer.subscription.updated", json!({ "id": id })).await;
+    assert!(publish_warnings(&h, repo, "0.2.0").await.is_empty());
+}
+
+#[tokio::test]
+async fn growing_past_the_limit_starts_the_trial() {
+    let (h, stripe) = start().await;
+    let (session, repo, reader) = setup(&h).await;
+    h.fake.add_org_members(&h.org, 4);
+    // Counted: five members.
+    assert_eq!(session_org(&h, &session).await["plan"], "free");
+
+    h.fake.add_org_members(&h.org, 1);
+    membership_changed(&h, "member_added", "d-1").await;
+    let [subscription]: [Value; 1] = stripe.subscriptions(h.org.id).try_into().unwrap();
+    assert_eq!(subscription["status"], "trialing");
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["members"], 6);
+    assert_eq!(org["plan"], "trial");
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    publish_warnings(&h, repo, "0.1.0").await;
+
+    // Only the first time: more members start nothing more.
+    h.fake.add_org_members(&h.org, 1);
+    membership_changed(&h, "member_added", "d-2").await;
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+}
+
+#[tokio::test]
+async fn the_periodic_refresh_starts_the_trial_too() {
+    let (h, stripe) = start().await;
+    setup_large(&h).await;
+    let tenant = h.state.tenants.by_org(h.org.id).unwrap();
+    h.state.start_trial_if_grown(&tenant).await;
+    assert_eq!(stripe.subscriptions(h.org.id)[0]["status"], "trialing");
+    h.state.start_trial_if_grown(&tenant).await;
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+}
+
+#[tokio::test]
+async fn shrinking_to_the_limit_makes_the_organisation_free() {
+    let (h, stripe) = start().await;
+    let (session, repo, reader) = setup(&h).await;
+    h.fake.add_org_members(&h.org, 5);
+    // A trial long over.
+    let id = stripe.add_subscription(h.org.id, "acme", "canceled");
+    stripe.update_subscription(&id, json!({ "ended_at": now() - 60 * DAY }));
+    h.state.billing.load().await.unwrap();
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        402
+    );
+
+    h.fake.remove_org_members(&h.org, 1);
+    membership_changed(&h, "member_removed", "d-1").await;
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    publish_warnings(&h, repo, "0.1.0").await;
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["members"], 5);
+    assert_eq!(org["plan"], "free");
+    // The old subscription is still reported, so the website can tell what happened.
+    assert_eq!(org["tenant"]["status"], "canceled");
+    // Nothing was started for it.
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+}
+
+#[tokio::test]
+async fn a_returning_organisation_subscribes_through_checkout() {
+    let (h, stripe) = start().await;
+    let (session, repo, reader) = setup_large(&h).await;
+    let previous = stripe.add_subscription(h.org.id, "acme", "canceled");
+    stripe.update_subscription(&previous, json!({ "ended_at": now() - 60 * DAY }));
+    h.state.billing.load().await.unwrap();
+
+    let response = post(&h, &session, "checkout").await;
     assert_eq!(response.status(), 200);
     let body: Value = response.json().await.unwrap();
     assert!(
@@ -97,7 +469,8 @@ async fn checkout_starts_a_trial_and_the_webhook_activates_the_registry() {
     assert_eq!(checkout["mode"], "subscription");
     assert_eq!(checkout["line_items[0][price]"], stripe::PRICE_ID);
     assert_eq!(checkout["line_items[0][quantity]"], "1");
-    assert_eq!(checkout["subscription_data[trial_period_days]"], "14");
+    assert_eq!(checkout["customer"], format!("cus_{}", h.org.id));
+    assert!(!checkout.contains_key("subscription_data[trial_period_days]"));
     assert_eq!(
         checkout["subscription_data[metadata][github_org_id]"],
         org_id
@@ -116,50 +489,27 @@ async fn checkout_starts_a_trial_and_the_webhook_activates_the_registry() {
     let completed = stripe.complete_checkout();
     send_event(&h, "checkout.session.completed", completed).await;
 
-    let session_doc: Value = h
-        .api_get("/api/session", &session)
-        .await
-        .json()
-        .await
-        .unwrap();
-    let tenant = &session_doc["orgs"][0]["tenant"];
-    assert_eq!(tenant["status"], "trialing");
-    assert!(tenant["trial_ends_at"].as_str().unwrap().ends_with('Z'));
-    assert_eq!(tenant["current_period_end"], Value::Null);
-    let response = h.get("/index/config.json", Some(&reader)).await;
-    assert_eq!(response.status(), 200);
-    h.publish_from_ci(
-        "acme/story-engine",
-        repo,
-        &Crate::new("story_engine", "0.1.0", "acme/story-engine"),
-    )
-    .await;
-
-    // One subscription at a time.
-    let response = h
-        .api_post("/api/orgs/acme/checkout", &session)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(response.status(), 409);
-    assert_eq!(error_code(response).await, "billing::already_subscribed");
-
-    let response = h
-        .api_post("/api/orgs/acme/portal", &session)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(response.status(), 200);
-    let body: Value = response.json().await.unwrap();
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["plan"], "paid");
+    assert_eq!(org["has_payment_method"], true);
+    let tenant = &org["tenant"];
+    assert_eq!(tenant["status"], "active");
+    assert_eq!(tenant["trial_ends_at"], Value::Null);
     assert!(
-        body["url"]
+        tenant["current_period_end"]
             .as_str()
             .unwrap()
-            .starts_with("https://billing.stripe.com/")
+            .ends_with('Z')
     );
-    let portal = stripe.portals().pop().unwrap();
-    assert_eq!(portal["customer"], format!("cus_{}", h.org.id));
-    assert_eq!(portal["return_url"], h.apex("/account?org=acme"));
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    publish_warnings(&h, repo, "0.1.0").await;
+
+    let response = post(&h, &session, "checkout").await;
+    assert_eq!(response.status(), 409);
+    assert_eq!(error_code(response).await, "billing::already_subscribed");
 }
 
 #[tokio::test]
@@ -168,25 +518,29 @@ async fn billing_needs_an_admin_and_a_subscription_for_the_portal() {
     let member = h.fake.add_user("bob", "ghu_", &[]);
     h.fake.add_member(&member, &h.org, "member");
     let member = h.sign_in(&member).await;
-    for path in ["/api/orgs/acme/checkout", "/api/orgs/acme/portal"] {
-        let response = h.api_post(path, &member).send().await.unwrap();
+    for action in ["trial", "checkout", "portal"] {
+        let response = post(&h, &member, action).await;
         assert_eq!(response.status(), 403);
         assert_eq!(error_code(response).await, "account::admin_required");
     }
     let (admin, _, _) = setup(&h).await;
+    let response = post(&h, &admin, "portal").await;
+    assert_eq!(response.status(), 409);
+    assert_eq!(error_code(response).await, "billing::no_subscription");
+    // The website sends `{}` to sign out too.
     let response = h
-        .api_post("/api/orgs/acme/portal", &admin)
+        .api_post("/auth/logout", &admin)
+        .body("{}")
         .send()
         .await
         .unwrap();
-    assert_eq!(response.status(), 409);
-    assert_eq!(error_code(response).await, "billing::no_subscription");
+    assert_eq!(response.status(), 204);
 }
 
 #[tokio::test]
 async fn webhooks_must_be_signed_and_fresh() {
     let (h, stripe) = start().await;
-    let (_, _, reader) = setup(&h).await;
+    let (_, _, reader) = setup_large(&h).await;
     let id = stripe.add_subscription(h.org.id, "acme", "active");
     let object = json!({ "id": id, "object": "subscription" });
 
@@ -222,17 +576,15 @@ async fn webhooks_must_be_signed_and_fresh() {
 #[tokio::test]
 async fn a_lapsed_subscription_stops_publishing_then_reads() {
     let (h, stripe) = start().await;
-    let (_, repo, reader) = setup(&h).await;
+    let (_, repo, reader) = setup_large(&h).await;
     let id = stripe.add_subscription(h.org.id, "acme", "active");
     h.state.billing.load().await.unwrap();
-    let v1 = Crate::new("story_engine", "0.1.0", "acme/story-engine");
-    h.publish_from_ci("acme/story-engine", repo, &v1).await;
+    publish_warnings(&h, repo, "0.1.0").await;
 
     // Past due: Stripe is retrying the payment, so everything keeps working.
     stripe.update_subscription(&id, json!({ "status": "past_due" }));
     send_event(&h, "customer.subscription.updated", json!({ "id": id })).await;
-    let v2 = Crate::new("story_engine", "0.2.0", "acme/story-engine");
-    h.publish_from_ci("acme/story-engine", repo, &v2).await;
+    publish_warnings(&h, repo, "0.2.0").await;
 
     // Cancelled yesterday: publishing stops at once, reads continue.
     stripe.update_subscription(
@@ -240,21 +592,13 @@ async fn a_lapsed_subscription_stops_publishing_then_reads() {
         json!({ "status": "canceled", "ended_at": now() - DAY }),
     );
     send_event(&h, "customer.subscription.deleted", json!({ "id": id })).await;
-    let v3 = Crate::new("story_engine", "0.3.0", "acme/story-engine");
-    let token = h.publish_token("acme/story-engine", repo, "release.yml", &v3);
-    let response = h.publish(&v3, &token).await;
+    let response = publish(&h, repo, "0.3.0").await;
     assert_eq!(response.status(), 402);
     let detail = error_detail(response).await;
     assert!(detail.contains(&h.apex("/account")), "{detail}");
     assert!(detail.contains("acme"), "{detail}");
     assert_eq!(
         h.get("/index/config.json", Some(&reader)).await.status(),
-        200
-    );
-    assert_eq!(
-        h.get("/index/st/or/story_engine", Some(&reader))
-            .await
-            .status(),
         200
     );
     let download = h
@@ -265,21 +609,14 @@ async fn a_lapsed_subscription_stops_publishing_then_reads() {
     // Fifteen days after it ended, reads stop too.
     stripe.update_subscription(&id, json!({ "ended_at": now() - 15 * DAY }));
     send_event(&h, "customer.subscription.updated", json!({ "id": id })).await;
-    for path in [
-        "/index/config.json",
-        "/index/st/or/story_engine",
-        "/api/v1/crates/story_engine/0.1.0/download",
-    ] {
-        let response = h.get(path, Some(&reader)).await;
-        assert_eq!(response.status(), 402, "{path}");
-        assert_eq!(error_code(response).await, "billing::subscription_inactive");
-    }
+    let response = h.get("/index/config.json", Some(&reader)).await;
+    assert_eq!(response.status(), 402);
 }
 
 #[tokio::test]
 async fn start_up_keeps_the_latest_subscription_per_organisation() {
     let (h, stripe) = start().await;
-    let (session, _, reader) = setup(&h).await;
+    let (session, _, reader) = setup_large(&h).await;
     stripe.add_subscription(h.org.id, "acme", "canceled");
     let current = stripe.add_subscription(h.org.id, "acme", "active");
     // Enough other customers for several pages.
@@ -292,26 +629,46 @@ async fn start_up_keeps_the_latest_subscription_per_organisation() {
         200
     );
     assert_eq!(h.state.billing.subscription(h.org.id).unwrap().id, current);
-    let session_doc: Value = h
-        .api_get("/api/session", &session)
-        .await
-        .json()
-        .await
-        .unwrap();
-    let tenant = &session_doc["orgs"][0]["tenant"];
-    assert_eq!(tenant["status"], "active");
-    assert!(tenant["current_period_end"].as_str().is_some());
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["plan"], "paid");
+    assert_eq!(org["tenant"]["status"], "active");
+    assert!(org["tenant"]["current_period_end"].as_str().is_some());
+}
 
-    // A returning organisation keeps its customer and gets no second trial.
-    stripe.update_subscription(&current, json!({ "status": "canceled", "ended_at": now() }));
-    h.state.billing.load().await.unwrap();
-    let response = h
-        .api_post("/api/orgs/acme/checkout", &session)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(response.status(), 200);
-    let checkout = stripe.checkouts().pop().unwrap();
-    assert_eq!(checkout["customer"], format!("cus_{}", h.org.id));
-    assert!(!checkout.contains_key("subscription_data[trial_period_days]"));
+#[tokio::test]
+async fn without_stripe_plans_are_still_computed() {
+    let h = Harness::start().await;
+    let (session, repo, reader) = setup_large(&h).await;
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["members"], 12);
+    assert_eq!(org["plan"], "inactive");
+    assert_eq!(org["trial_available"], false);
+    let step = plan_step(&h, &session).await;
+    assert_eq!(step["status"], "todo");
+    assert_eq!(
+        step["detail"],
+        "12 members: billing is not set up on this server."
+    );
+    // Nothing is enforced without billing.
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    publish_warnings(&h, repo, "0.1.0").await;
+    let response = post(&h, &session, "trial").await;
+    assert_eq!(response.status(), 503);
+    assert_eq!(error_code(response).await, "billing::not_configured");
+}
+
+#[tokio::test]
+async fn without_stripe_a_small_organisation_is_free() {
+    let h = Harness::start().await;
+    let (session, _, _) = setup(&h).await;
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["members"], 1);
+    assert_eq!(org["plan"], "free");
+    assert_eq!(org["trial_available"], false);
+    let step = plan_step(&h, &session).await;
+    assert_eq!(step["status"], "done");
+    assert_eq!(step["detail"], "Free: 1 of 5 members");
 }

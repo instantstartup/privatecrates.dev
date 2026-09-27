@@ -26,7 +26,12 @@ Reserved slugs (refused at onboarding, never routed as tenants): `www`, `dev`, `
   the customer portal. Each organisation gets one trial (a returning organisation subscribes through Checkout, with
   a card and no trial).
 - **Growing past the limit never breaks anything**: when a free organisation's member count first exceeds the limit
-  and it has never had a subscription, the server starts its 3-month trial automatically (same call as above).
+  and it has never had a subscription, the server starts its 3-month trial automatically (same call as above). It
+  does so from the `organization` webhook and from the 10-minute refresh, for any registered organisation over the
+  limit that has never had a subscription (so one registered while already over the limit gets its trial within 10
+  minutes if no admin starts it first).
+- Without Stripe configured (local development, and dev until billing is set up) plans are still computed and shown,
+  but nothing is enforced: every tenant is active, `trial_available` is `false`, and `tenant.status` is `null`.
 - Stripe is the source of truth for subscriptions. Each subscription's metadata holds `github_org_id` and
   `github_org_login`. The server loads subscriptions at start-up, re-lists them every 10 minutes, and keeps them
   current from Stripe webhooks; there is still no database.
@@ -119,7 +124,9 @@ Returns the onboarding document.
 ### `POST /api/orgs/{org}/checkout`
 Admin only; body `{}`. For organisations that cannot have a trial (a returning organisation): a Stripe Checkout
 session (subscription, the configured price, card required, no trial, metadata `github_org_id`/`github_org_login`,
-`client_reference_id` = org id). Returns `{"url": "https://checkout.stripe.com/…"}`. Success URL:
+`client_reference_id` = org id). Refused with `billing::already_subscribed` 409 if subscribed, `billing::free_plan`
+409 if at or under the member limit, and `billing::trial_available` 409 if the organisation can still start its
+trial. Returns `{"url": "https://checkout.stripe.com/…"}`. Success URL:
 `/account?org=acme&checkout=success`; cancel URL: `/account?org=acme`.
 
 ### `POST /api/orgs/{org}/portal`

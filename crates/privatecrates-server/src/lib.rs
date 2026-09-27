@@ -8,6 +8,7 @@ pub mod crate_file;
 pub mod crates_io;
 pub mod error;
 pub mod github;
+pub mod members;
 pub mod oidc;
 pub mod publish;
 pub mod routes;
@@ -40,14 +41,14 @@ use tower::ServiceExt;
 
 use crate::{
     auth::PermissionCache,
-    billing::{Billing, BillingError},
+    billing::{Billing, BillingError, OrgPlan, Standing},
     config::{Config, HostKind},
     crates_io::CratesIo,
     error::ApiError,
     github::{GitHub, GitHubError},
     oidc::{Oidc, RegistryTokens},
     session::Sealer,
-    tenant::{BlobCache, Tenants},
+    tenant::{BlobCache, Tenant, Tenants},
     website::Website,
 };
 
@@ -86,6 +87,7 @@ pub struct AppState {
     pub webhook_deliveries: moka::future::Cache<String, ()>,
     pub sealer: Sealer,
     pub billing: Billing,
+    pub members: members::Members,
     pub website: Website,
 }
 
@@ -110,7 +112,8 @@ impl AppState {
             search: search::Search::default(),
             webhook_deliveries: webhooks::deliveries(),
             sealer: Sealer::new(&config.session_secret),
-            billing: Billing::new(config.stripe.clone())?,
+            billing: Billing::new(&config)?,
+            members: members::Members::default(),
             website: Website::new(config.website_dir.as_deref()),
             config,
         })
@@ -119,6 +122,43 @@ impl AppState {
     /// Discovers tenants and loads their storage repositories.
     pub async fn discover(&self) -> Result<(), GitHubError> {
         self.tenants.discover(&self.gh, &self.blobs).await
+    }
+
+    /// An organisation's member count, or `None` when unknown (see [`members::Members::count`]).
+    pub async fn members(&self, org_id: u64, org_login: &str) -> Option<u64> {
+        let installation = self.tenants.by_org(org_id).map(|t| t.reader_installation);
+        self.members
+            .count(&self.gh, org_id, org_login, installation)
+            .await
+    }
+
+    pub async fn plan(&self, org_id: u64, org_login: &str) -> OrgPlan {
+        self.billing
+            .plan(org_id, self.members(org_id, org_login).await)
+    }
+
+    /// What a tenant may do: everything while it is free or subscribed.
+    pub async fn standing(&self, tenant: &Tenant) -> Standing {
+        let members = self.members(tenant.org_id, &tenant.org_login).await;
+        self.billing.standing(tenant.org_id, members)
+    }
+
+    /// Starts the trial of a registered organisation that is over the member limit and has never had a
+    /// subscription, so that growing past the limit never breaks its registry. Called from webhooks and the periodic
+    /// refresh, never while serving a request: a failure is logged, and the next refresh tries again.
+    pub async fn start_trial_if_grown(&self, tenant: &Tenant) {
+        let plan = self.plan(tenant.org_id, &tenant.org_login).await;
+        if !plan.trial_available {
+            return;
+        }
+        tracing::info!(org = %tenant.org_login, members = ?plan.members, "over the free member limit; starting the trial");
+        if let Err(e) = self
+            .billing
+            .start_trial(tenant.org_id, &tenant.org_login, plan.members)
+            .await
+        {
+            tracing::warn!(org = %tenant.org_login, error = %e, "starting the trial automatically failed");
+        }
     }
 
     /// Refreshes every tenant's storage snapshot; cheap when nothing changed.
@@ -202,7 +242,12 @@ fn to_apex(state: &AppState, request: &Request) -> Response {
 
 /// The website, the account API and the webhooks, on the apex host.
 fn apex_router(state: Arc<AppState>) -> Router {
-    Router::new()
+    let mut router = Router::new();
+    if !state.config.is_production() {
+        // Only production may be indexed; the website's own robots.txt is for it.
+        router = router.route("/robots.txt", get(website::disallow_robots));
+    }
+    router
         .merge(account::routes(state.clone()))
         .merge(billing::routes())
         .merge(webhooks::routes())
@@ -243,9 +288,9 @@ fn tenant_router(state: Arc<AppState>) -> Router {
         .with_state(state)
 }
 
-/// Keeps tenants, their storage snapshots and subscriptions fresh. Webhooks (SPEC §7, and Stripe's) make most of
-/// this unnecessary; the timers remain as the backstop, for instance for a webhook that reached an instance being
-/// replaced by a deploy.
+/// Keeps tenants, their storage snapshots, subscriptions and member counts fresh, and starts the trials of tenants
+/// that grew past the free member limit. Webhooks (SPEC §7, and Stripe's) make most of this unnecessary; the timers
+/// remain as the backstop, for instance for a webhook that reached an instance being replaced by a deploy.
 pub fn spawn_refresh(state: Arc<AppState>) {
     let subscriptions = state.clone();
     tokio::spawn(async move {
@@ -254,7 +299,13 @@ pub fn spawn_refresh(state: Arc<AppState>) {
         loop {
             tick.tick().await;
             if let Err(e) = subscriptions.billing.load().await {
+                // Without a current list, an organisation's earlier subscription could be missed.
                 tracing::warn!(error = %e, "loading subscriptions failed");
+                continue;
+            }
+            // Recounts each organisation's members once their count expires.
+            for tenant in subscriptions.tenants.all() {
+                subscriptions.start_trial_if_grown(&tenant).await;
             }
         }
     });

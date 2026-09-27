@@ -8,6 +8,9 @@ use url::Url;
 
 use crate::tenant::is_reserved;
 
+/// The production apex; any other `BASE_DOMAIN` is kept out of search engines.
+const PRODUCTION_DOMAIN: &str = "privatecrates.dev";
+
 #[derive(Clone)]
 pub struct Config {
     pub bind: SocketAddr,
@@ -37,6 +40,10 @@ pub struct Config {
     pub website_dir: Option<PathBuf>,
     /// Stripe billing. Without it, every tenant is treated as active.
     pub stripe: Option<StripeConfig>,
+    /// Organisations with at most this many members use PrivateCrates for free.
+    pub free_member_limit: u64,
+    /// The length of the no-card trial that larger organisations get once.
+    pub trial_days: u32,
     pub oidc_issuer: String,
     pub oidc_jwks_url: Url,
     pub crates_io_api: Url,
@@ -123,6 +130,8 @@ impl Config {
             session_secret: secret("SESSION_SECRET")?,
             website_dir: optional("WEBSITE_DIR").map(PathBuf::from),
             stripe,
+            free_member_limit: parse_or("FREE_MEMBER_LIMIT", 5)?,
+            trial_days: parse_or("TRIAL_DAYS", 90)?,
             oidc_issuer: optional("OIDC_ISSUER")
                 .unwrap_or_else(|| "https://token.actions.githubusercontent.com".into()),
             oidc_jwks_url: url_or(
@@ -151,6 +160,11 @@ impl Config {
     /// Where an organisation admin manages the organisation's registry and subscription.
     pub fn account_url(&self) -> String {
         format!("{}/account", self.apex_url())
+    }
+
+    /// Whether this is the production deployment, the only one search engines may index.
+    pub fn is_production(&self) -> bool {
+        self.base_domain == PRODUCTION_DOMAIN
     }
 
     /// The tenant slug for a `Host` header, if it is a subdomain of the base domain. Reserved names are never
@@ -259,6 +273,8 @@ pub(crate) mod tests {
             session_secret: vec![8; 32],
             website_dir: None,
             stripe: None,
+            free_member_limit: 5,
+            trial_days: 90,
             oidc_issuer: "https://token.actions.githubusercontent.com".into(),
             oidc_jwks_url: "https://token.actions.githubusercontent.com/.well-known/jwks"
                 .parse()
@@ -293,6 +309,13 @@ pub(crate) mod tests {
             vec![b"reader".to_vec(), b"storage".to_vec()]
         );
         assert!(secrets(",").is_empty());
+    }
+
+    #[test]
+    fn only_the_production_domain_is_production() {
+        assert!(config("privatecrates.dev").is_production());
+        assert!(!config("dev.privatecrates.dev").is_production());
+        assert!(!config("localhost:8080").is_production());
     }
 
     #[test]

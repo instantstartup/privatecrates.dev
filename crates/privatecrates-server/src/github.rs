@@ -373,6 +373,26 @@ impl GitHub {
         Ok(all)
     }
 
+    /// The number of an organisation's members, with an installation token that may read them. Outside
+    /// collaborators and pending invitations are not members.
+    pub async fn org_member_count(&self, token: &str, org: &str) -> Result<u64, GitHubError> {
+        let mut count = 0;
+        for page in 1.. {
+            let batch: Vec<serde::de::IgnoredAny> = json(
+                self.request(Method::GET, &format!("/orgs/{org}/members"), token)
+                    .query(&[("per_page", PER_PAGE), ("page", page)])
+                    .send()
+                    .await?,
+            )
+            .await?;
+            count += batch.len() as u64;
+            if batch.len() < PER_PAGE {
+                break;
+            }
+        }
+        Ok(count)
+    }
+
     // --- Calls with the caller's token ---
 
     pub async fn user(&self, token: &str) -> Result<User, GitHubError> {
