@@ -1,0 +1,13 @@
+{
+    "statuses": {
+        "api": "up",
+        "webhooks": "up",
+        "dashboard": "up",
+        "stripejs": "up",
+        "checkout": "up",
+        "supportsite": "up"
+    },
+    "largestatus": "up",
+    "message": "All services are online.",
+    "time": "February 09, 2024 @ 06:08PM +00:00"
+}

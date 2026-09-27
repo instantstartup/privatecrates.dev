@@ -1,0 +1,10 @@
+# Headers for the static assets (Workers Static Assets reads this file; it is not served).
+/*
+  Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Strict-Transport-Security: max-age=31536000
+  Cross-Origin-Resource-Policy: same-origin
+
+/fonts/*
+  Cache-Control: public, max-age=604800

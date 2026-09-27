@@ -1,0 +1,74 @@
+// status.privatecrates.dev: the public status page, as a Cloudflare Worker.
+// Deliberately independent of Railway, so it stays up when the service is down. See docs/deploy.md §14.
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "privatecrates-status",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-09-26",
+
+	// Bundles status/incidents/*.md into src/generated/incidents.json and copies the site's fonts into public/fonts.
+	// Runs before every `wrangler deploy` (including --dry-run) and `wrangler dev`.
+	"build": {
+		"command": "node scripts/build.ts",
+		"watch_dir": ["src", "incidents"]
+	},
+
+	// A Custom Domain: Wrangler creates the proxied DNS record for status.privatecrates.dev on deploy, and the Worker
+	// answers every path on it (a Custom Domain pattern is a hostname only; it has no path or wildcard, so this is the
+	// equivalent of the route `status.privatecrates.dev/*`).
+	"routes": [{ "pattern": "status.privatecrates.dev", "custom_domain": true }],
+	"workers_dev": false,
+	"preview_urls": false,
+
+	// Probe every minute (UTC).
+	"triggers": {
+		"crons": ["* * * * *"]
+	},
+
+	// 90 days of per-minute results and per-day summaries. Create with:
+	//   pnpm exec wrangler d1 create privatecrates-status
+	// then paste the database_id it prints here, and apply the migrations (docs/deploy.md §14).
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "privatecrates-status",
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "migrations"
+		}
+	],
+
+	// Fonts (copied by the build), the stylesheet and the one small script, served before the Worker runs.
+	"assets": {
+		"directory": "./public"
+	},
+
+	"vars": {
+		// The environments to probe. `path` is where each one's page lives on status.privatecrates.dev.
+		// `canary` is a registry slug on that apex; its /index/config.json must answer 401 with WWW-Authenticate.
+		"ENVIRONMENTS": [
+			{
+				"id": "production",
+				"name": "Production",
+				"apex": "privatecrates.dev",
+				"canary": "canary",
+				"path": "/"
+			},
+			{
+				"id": "dev",
+				"name": "Development",
+				"apex": "dev.privatecrates.dev",
+				"canary": "canary",
+				"path": "/dev"
+			}
+		],
+		"GITHUB_STATUS_URL": "https://www.githubstatus.com/api/v2/summary.json",
+		"GITHUB_STATUS_PAGE": "https://www.githubstatus.com",
+		"STRIPE_STATUS_URL": "https://status.stripe.com/api/v2/summary.json",
+		"STRIPE_STATUS_PAGE": "https://status.stripe.com",
+		"PROBE_TIMEOUT_MS": "10000"
+	},
+
+	"observability": {
+		"enabled": true
+	}
+}

@@ -76,6 +76,64 @@ jobs:
       - if: hashFiles('website/package.json') != ''
         run: pnpm build
 
+  status:
+    name: Status page (test, type-check, dry-run deploy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: status
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Did status/ change?
+        id: changes
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base=""
+          if [ "$EVENT" = pull_request ]; then base="$PR_BASE"; fi
+          if [ "$EVENT" = push ]; then base="$PUSH_BEFORE"; fi
+          # Manual runs, new branches and unknown bases check everything.
+          if [ -z "$base" ] || [ "$base" = 0000000000000000000000000000000000000000 ] \
+            || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$base" HEAD -- status .github/workflows/ci.yml | grep -q .; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::status/ unchanged; skipping."
+          fi
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.changes.outputs.run == 'true'
+        with:
+          node-version: 24
+      - name: Enable pnpm (corepack, the version in package.json's packageManager)
+        if: steps.changes.outputs.run == 'true'
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: corepack enable && pnpm --version
+      - if: steps.changes.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Build (incidents, fonts)
+        if: steps.changes.outputs.run == 'true'
+        run: pnpm build
+      - name: Type-check (wrangler types, tsc)
+        if: steps.changes.outputs.run == 'true'
+        run: pnpm check
+      - if: steps.changes.outputs.run == 'true'
+        run: pnpm test
+      - name: wrangler deploy --dry-run
+        if: steps.changes.outputs.run == 'true'
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: pnpm deploy:dry-run
+
   docker:
     name: Docker image builds
     runs-on: ubuntu-24.04

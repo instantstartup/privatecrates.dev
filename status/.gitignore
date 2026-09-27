@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.wrangler/
+# Made by `pnpm build` (scripts/build.ts) and `wrangler types`.
+src/generated/
+public/fonts/
+worker-configuration.d.ts
