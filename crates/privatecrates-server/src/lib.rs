@@ -1,6 +1,8 @@
 //! PrivateCrates: a hosted private Cargo registry that is a thin wrapper over GitHub. See SPEC.md.
 
+pub mod account;
 pub mod auth;
+pub mod billing;
 pub mod config;
 pub mod crate_file;
 pub mod crates_io;
@@ -9,7 +11,9 @@ pub mod github;
 pub mod oidc;
 pub mod publish;
 pub mod routes;
+pub mod session;
 pub mod tenant;
+pub mod website;
 
 use std::{
     sync::{
@@ -19,22 +23,47 @@ use std::{
     time::Duration,
 };
 
+use apollo_errors::Error;
 use axum::{
     Router,
-    extract::DefaultBodyLimit,
-    http::{HeaderMap, header},
+    extract::{DefaultBodyLimit, Request},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
+    middleware,
+    response::{IntoResponse, Response},
     routing::{get, post, put},
 };
+use miette::Diagnostic;
 use sha2::{Digest, Sha256};
+use tower::ServiceExt;
 
 use crate::{
     auth::PermissionCache,
-    config::Config,
+    billing::{Billing, BillingError},
+    config::{Config, HostKind},
     crates_io::CratesIo,
+    error::ApiError,
     github::{GitHub, GitHubError},
     oidc::{Oidc, RegistryTokens},
+    session::Sealer,
     tenant::{BlobCache, Tenants},
+    website::Website,
 };
+
+#[derive(Debug, Error, Diagnostic)]
+pub enum StartError {
+    #[error("{source}")]
+    #[diagnostic(code(start::github))]
+    GitHub {
+        #[from]
+        source: GitHubError,
+    },
+    #[error("{source}")]
+    #[diagnostic(code(start::billing))]
+    Billing {
+        #[from]
+        source: BillingError,
+    },
+}
 
 pub struct AppState {
     pub config: Config,
@@ -50,10 +79,13 @@ pub struct AppState {
     /// (storage repository ID, release tag) → signed download URL.
     pub download_urls: moka::future::Cache<(u64, String), String>,
     pub publish_limiter: PublishLimiter,
+    pub sealer: Sealer,
+    pub billing: Billing,
+    pub website: Website,
 }
 
 impl AppState {
-    pub fn new(config: Config) -> Result<Self, GitHubError> {
+    pub fn new(config: Config) -> Result<Self, StartError> {
         Ok(Self {
             gh: GitHub::new(&config)?,
             tenants: Tenants::default(),
@@ -70,6 +102,9 @@ impl AppState {
                 .time_to_live(routes::DOWNLOAD_URL_TTL)
                 .build(),
             publish_limiter: PublishLimiter::new(config.publish_rate_per_minute),
+            sealer: Sealer::new(&config.session_secret),
+            billing: Billing::new(config.stripe.clone())?,
+            website: Website::new(config.website_dir.as_deref()),
             config,
         })
     }
@@ -122,10 +157,59 @@ impl PublishLimiter {
     }
 }
 
+/// Routes each request by its `Host`: the apex serves the website and account API, `www.` redirects to the apex,
+/// and `{slug}.` serves that tenant's registry. `/healthz` answers on any host.
 pub fn router(state: Arc<AppState>) -> Router {
-    let publish_limit = state.config.max_crate_bytes + 10 * 1024 * 1024;
+    let apex = apex_router(state.clone());
+    let tenant = tenant_router(state.clone());
     Router::new()
         .route("/healthz", get(routes::healthz))
+        .fallback(move |request: Request| {
+            let (apex, tenant, state) = (apex.clone(), tenant.clone(), state.clone());
+            async move {
+                let host = routes::request_host(request.headers(), request.uri());
+                let Ok(response) = match state.config.host_kind(host.as_deref().unwrap_or_default())
+                {
+                    HostKind::Apex => apex.oneshot(request).await,
+                    HostKind::Tenant(_) => tenant.oneshot(request).await,
+                    HostKind::Www => Ok(to_apex(&state, &request)),
+                    HostKind::Unknown => Ok(ApiError::NotFound.into_response()),
+                };
+                response
+            }
+        })
+        .layer(tower_http::trace::TraceLayer::new_for_http())
+}
+
+fn to_apex(state: &AppState, request: &Request) -> Response {
+    let path = request.uri().path_and_query().map_or("/", |p| p.as_str());
+    match HeaderValue::from_str(&format!("{}{path}", state.config.apex_url())) {
+        Ok(location) => (
+            StatusCode::MOVED_PERMANENTLY,
+            [(header::LOCATION, location)],
+        )
+            .into_response(),
+        Err(_) => ApiError::NotFound.into_response(),
+    }
+}
+
+/// The website, the account API and the webhooks, on the apex host.
+fn apex_router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .merge(account::routes(state.clone()))
+        .merge(billing::routes())
+        .fallback(website::serve)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            website::security_headers,
+        ))
+        .with_state(state)
+}
+
+/// A tenant's registry, on `{slug}.{BASE_DOMAIN}`.
+fn tenant_router(state: Arc<AppState>) -> Router {
+    let publish_limit = state.config.max_crate_bytes + 10 * 1024 * 1024;
+    Router::new()
         .route("/login", get(routes::login_page))
         .route("/index/config.json", get(routes::config_json))
         .route("/index/{*path}", get(routes::index_file))
@@ -147,13 +231,24 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/v1/oidc/exchange", post(routes::oidc_exchange))
         .route("/api/v1/auth", get(routes::auth_info))
-        .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state)
 }
 
-/// Keeps tenants and their storage snapshots fresh. Webhooks (SPEC §7) will make most of this unnecessary; the
-/// timers remain as the backstop.
+/// Keeps tenants, their storage snapshots and subscriptions fresh. Webhooks (SPEC §7, and Stripe's) make most of
+/// this unnecessary; the timers remain as the backstop, for instance for a webhook that reached an instance being
+/// replaced by a deploy.
 pub fn spawn_refresh(state: Arc<AppState>) {
+    let subscriptions = state.clone();
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(billing::REFRESH);
+        tick.tick().await;
+        loop {
+            tick.tick().await;
+            if let Err(e) = subscriptions.billing.load().await {
+                tracing::warn!(error = %e, "loading subscriptions failed");
+            }
+        }
+    });
     let storage = state.clone();
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(storage.config.storage_refresh);

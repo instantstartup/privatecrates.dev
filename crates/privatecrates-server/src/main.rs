@@ -16,6 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = Arc::new(AppState::new(config)?);
     state.discover().await?;
     tracing::info!(tenants = state.tenants.all().len(), "tenants discovered");
+    state.billing.load().await?;
     spawn_refresh(state.clone());
     let listener = tokio::net::TcpListener::bind(bind).await?;
     tracing::info!(%bind, "listening");

@@ -28,6 +28,8 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+pub mod stripe;
+
 /// The private key of the fake Apps. Test-only.
 pub const APP_PRIVATE_KEY: &str = include_str!("../keys/app.pem");
 const OIDC_PRIVATE_KEY: &str = include_str!("../keys/oidc.pem");
@@ -39,6 +41,8 @@ pub const ACTIONS_REQUEST_TOKEN: &str = "fake-actions-request-token";
 pub const READER_APP_ID: u64 = 1;
 /// The reader App's OAuth client ID, for the device flow.
 pub const READER_CLIENT_ID: &str = "Iv1.fakereader";
+/// The reader App's client secret, for the web sign-in flow.
+pub const READER_CLIENT_SECRET: &str = "fake-reader-client-secret";
 pub const STORAGE_APP_ID: u64 = 2;
 
 #[derive(Clone, Debug)]
@@ -120,6 +124,7 @@ struct World {
     device_codes: HashMap<String, u32>,
     /// Refresh token → user token.
     refresh_tokens: HashMap<String, String>,
+    web: Web,
     calls: Vec<String>,
 }
 
@@ -455,6 +460,195 @@ fn now() -> u64 {
         .as_secs()
 }
 
+// --- Website sign-in: the web flow, organisation membership and App installation per organisation ---
+
+#[derive(Default)]
+struct Web {
+    /// Installations of organisations that have not installed that App (yet).
+    uninstalled: HashSet<u64>,
+    /// User ID → (organisation ID, role).
+    memberships: HashMap<u64, Vec<(u64, String)>>,
+    /// Web flow code → the user token it exchanges for.
+    codes: HashMap<String, String>,
+}
+
+impl FakeGitHub {
+    /// Adds an organisation that has installed neither App, with an empty repository meant for storage.
+    pub fn add_org_without_apps(&self, login: &str) -> Org {
+        let mut w = self.world();
+        let org = Org {
+            id: w.id(),
+            login: login.into(),
+            reader_installation: w.id(),
+            storage_installation: w.id(),
+            storage_repo: w.id(),
+        };
+        w.repos.insert(
+            org.storage_repo,
+            Repo {
+                id: org.storage_repo,
+                owner_id: org.id,
+                owner: login.into(),
+                name: "crates-store".into(),
+                immutable_releases: true,
+                ..Repo::default()
+            },
+        );
+        w.web.uninstalled.insert(org.reader_installation);
+        w.web.uninstalled.insert(org.storage_installation);
+        w.orgs.push(org.clone());
+        org
+    }
+
+    pub fn install_app(&self, org: &Org, app_id: u64) {
+        let installation = if app_id == READER_APP_ID {
+            org.reader_installation
+        } else {
+            org.storage_installation
+        };
+        self.world().web.uninstalled.remove(&installation);
+    }
+
+    /// Makes the user holding `token` a member of `org` with `role` (`admin` or `member`).
+    pub fn add_member(&self, token: &str, org: &Org, role: &str) {
+        let mut w = self.world();
+        let user = w.users[token].id;
+        w.web
+            .memberships
+            .entry(user)
+            .or_default()
+            .push((org.id, role.into()));
+    }
+
+    /// A code that the web flow exchanges for `token`, as GitHub hands to the callback after the user approves.
+    pub fn web_flow_code(&self, token: &str) -> String {
+        let mut w = self.world();
+        let code = format!("code-{}", w.id());
+        w.web.codes.insert(code.clone(), token.into());
+        code
+    }
+}
+
+fn web_routes() -> Router<FakeGitHub> {
+    Router::new()
+        .route("/user/orgs", get(user_orgs))
+        .route("/user/memberships/orgs/{org}", get(user_membership))
+        .route("/orgs/{org}/installation", get(org_installation))
+}
+
+fn org_json(org: &Org) -> Value {
+    json!({ "id": org.id, "login": org.login, "avatar_url": format!("https://avatars.githubusercontent.com/u/{}", org.id) })
+}
+
+fn user_memberships(
+    w: &World,
+    headers: &HeaderMap,
+) -> Result<(User, Vec<(Org, String)>), Response> {
+    let Principal::User(user) = principal(w, headers)? else {
+        return Err(error(StatusCode::FORBIDDEN, "needs a user token"));
+    };
+    let memberships = w
+        .web
+        .memberships
+        .get(&user.id)
+        .into_iter()
+        .flatten()
+        .filter_map(|(org, role)| {
+            let org = w.orgs.iter().find(|o| o.id == *org)?;
+            Some((org.clone(), role.clone()))
+        })
+        .collect();
+    Ok((user, memberships))
+}
+
+async fn user_orgs(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Query(page): Query<Page>,
+) -> Response {
+    let w = fake.world();
+    match user_memberships(&w, &headers) {
+        Ok((_, memberships)) => {
+            let orgs: Vec<Value> = memberships.iter().map(|(org, _)| org_json(org)).collect();
+            Json(paginate(&orgs, &page)).into_response()
+        }
+        Err(e) => e,
+    }
+}
+
+async fn user_membership(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Path(org): Path<String>,
+) -> Response {
+    let w = fake.world();
+    let (user, memberships) = match user_memberships(&w, &headers) {
+        Ok(m) => m,
+        Err(e) => return e,
+    };
+    match memberships
+        .iter()
+        .find(|(o, _)| o.login.eq_ignore_ascii_case(&org))
+    {
+        Some((org, role)) => Json(json!({
+            "state": "active",
+            "role": role,
+            "organization": org_json(org),
+            "user": { "login": user.login, "id": user.id },
+        }))
+        .into_response(),
+        None => error(StatusCode::NOT_FOUND, "Not Found"),
+    }
+}
+
+async fn org_installation(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Path(org): Path<String>,
+) -> Response {
+    let w = fake.world();
+    let app = match principal(&w, &headers) {
+        Ok(Principal::App(app)) => app,
+        Ok(_) => return error(StatusCode::FORBIDDEN, "needs an App JWT"),
+        Err(e) => return e,
+    };
+    let installation = w
+        .orgs
+        .iter()
+        .find(|o| o.login.eq_ignore_ascii_case(&org))
+        .map(|o| {
+            let id = if app == READER_APP_ID {
+                o.reader_installation
+            } else {
+                o.storage_installation
+            };
+            (id, o)
+        });
+    match installation {
+        Some((id, o)) if !w.web.uninstalled.contains(&id) => {
+            Json(json!({ "id": id, "account": { "login": o.login, "id": o.id } })).into_response()
+        }
+        _ => error(StatusCode::NOT_FOUND, "Not Found"),
+    }
+}
+
+/// The web flow's code exchange: `POST /login/oauth/access_token` with the App's client secret and a code.
+fn web_flow_token(w: &mut World, form: &AccessTokenForm, code: &str) -> Response {
+    if form.client_secret.as_deref() != Some(READER_CLIENT_SECRET) {
+        return Json(json!({ "error": "incorrect_client_credentials" })).into_response();
+    }
+    match w.web.codes.remove(code) {
+        Some(token) => Json(json!({
+            "access_token": token,
+            "expires_in": 28800,
+            "refresh_token": format!("ghr_{}", w.id()),
+            "token_type": "bearer",
+        }))
+        .into_response(),
+        None => Json(json!({ "error": "bad_verification_code" })).into_response(),
+    }
+}
+
 // --- The HTTP side ---
 
 enum Principal {
@@ -647,6 +841,7 @@ fn router(fake: FakeGitHub) -> Router {
         .route("/api/v1/crates/{name}", get(crates_io_crate))
         .route("/login/device/code", post(device_code))
         .route("/login/oauth/access_token", post(oauth_access_token))
+        .merge(web_routes())
         .layer(axum::middleware::from_fn_with_state(
             fake.clone(),
             record_call,
@@ -684,8 +879,10 @@ async fn app_installations(
             } else {
                 o.storage_installation
             };
-            json!({ "id": id, "account": { "login": o.login, "id": o.id } })
+            (id, o)
         })
+        .filter(|(id, _)| !w.web.uninstalled.contains(id))
+        .map(|(id, o)| json!({ "id": id, "account": { "login": o.login, "id": o.id } }))
         .collect();
     Json(paginate(&all, &page)).into_response()
 }
@@ -1169,7 +1366,10 @@ async fn device_code(
 #[derive(Deserialize)]
 struct AccessTokenForm {
     client_id: String,
+    #[serde(default)]
     grant_type: String,
+    client_secret: Option<String>,
+    code: Option<String>,
     device_code: Option<String>,
     refresh_token: Option<String>,
 }
@@ -1181,6 +1381,9 @@ async fn oauth_access_token(
     let mut w = fake.world();
     if form.client_id != READER_CLIENT_ID {
         return Json(json!({ "error": "incorrect_client_credentials" })).into_response();
+    }
+    if let Some(code) = &form.code {
+        return web_flow_token(&mut w, &form, code);
     }
     let user_token = match form.grant_type.as_str() {
         "urn:ietf:params:oauth:grant-type:device_code" => {

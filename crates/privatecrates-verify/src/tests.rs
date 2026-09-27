@@ -332,6 +332,32 @@ fn the_app_may_not_change_owners_or_settings() {
 }
 
 #[test]
+fn the_app_may_create_settings_at_sign_up() {
+    let dir = tempfile::tempdir().unwrap();
+    git(dir.path(), &["init", "-q", "-b", "main"]);
+    let repo = Repo { dir };
+    repo.commit(&[("README.md", Some("crates\n"))]);
+    let mut mem = Mem::default();
+    repo.app_commit(
+        &mut mem,
+        &[("privatecrates.toml", Some("slug = \"acme\"\n"))],
+    );
+    assert_eq!(
+        errors(&run(&repo, &mem, &State::default())),
+        Vec::<String>::new()
+    );
+    repo.app_commit(
+        &mut mem,
+        &[("privatecrates.toml", Some("slug = \"evil\"\n"))],
+    );
+    let e = errors(&run(&repo, &mem, &State::default()));
+    assert!(
+        e.iter().any(|e| e.starts_with("privatecrates.toml")),
+        "{e:?}"
+    );
+}
+
+#[test]
 fn a_person_may_change_owners() {
     let (repo, mem) = published();
     repo.commit(&[(

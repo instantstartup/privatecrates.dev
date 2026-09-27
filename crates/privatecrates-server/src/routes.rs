@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use axum::{
     Json,
     extract::{FromRequestParts, Path, State},
-    http::{HeaderMap, StatusCode, header, request::Parts},
+    http::{HeaderMap, StatusCode, Uri, header, request::Parts},
     response::{Html, IntoResponse, Response},
 };
 use bytes::Bytes;
@@ -18,12 +18,23 @@ use privatecrates_common::{
 use crate::{
     AppState,
     auth::{Caller, Credential, Resolver},
+    billing::Standing,
     error::ApiError,
     publish,
     tenant::{Tenant, index_path},
 };
 
-/// The tenant a request is for, from its `Host` header.
+/// A request's host, lowercased: the `Host` header, or the authority of an HTTP/2 request.
+pub fn request_host(headers: &HeaderMap, uri: &Uri) -> Option<String> {
+    headers
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .or_else(|| uri.authority().map(|a| a.as_str()))
+        .map(str::to_ascii_lowercase)
+}
+
+/// The tenant a request is for, from its `Host` header. A tenant whose subscription lapsed more than the grace
+/// period ago is refused here, for every request; publishing is refused as soon as it lapses (see `publish`).
 pub struct TenantHost(pub Arc<Tenant>);
 
 impl FromRequestParts<Arc<AppState>> for TenantHost {
@@ -33,22 +44,23 @@ impl FromRequestParts<Arc<AppState>> for TenantHost {
         parts: &mut Parts,
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
-        let host = parts
-            .headers
-            .get(header::HOST)
-            .and_then(|h| h.to_str().ok())
-            .or_else(|| parts.uri.authority().map(|a| a.as_str()))
-            .ok_or(ApiError::NotFound)?;
-        let slug = state
+        let host = request_host(&parts.headers, &parts.uri).ok_or(ApiError::NotFound)?;
+        let tenant = state
             .config
-            .slug_for_host(&host.to_ascii_lowercase())
-            .map(str::to_owned)
+            .slug_for_host(&host)
+            .and_then(|slug| state.tenants.get(slug))
             .ok_or(ApiError::NotFound)?;
-        state
-            .tenants
-            .get(&slug)
-            .map(TenantHost)
-            .ok_or(ApiError::NotFound)
+        if state.billing.standing(tenant.org_id) == Standing::Lapsed {
+            return Err(subscription_inactive(state, &tenant));
+        }
+        Ok(TenantHost(tenant))
+    }
+}
+
+fn subscription_inactive(state: &AppState, tenant: &Tenant) -> ApiError {
+    ApiError::SubscriptionInactive {
+        org: tenant.org_login.clone(),
+        account_url: state.config.account_url(),
     }
 }
 
@@ -227,6 +239,9 @@ pub async fn publish(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    if state.billing.standing(tenant.org_id) != Standing::Active {
+        return Err(subscription_inactive(&state, &tenant));
+    }
     let credential = credential(&state, &tenant, &headers)?;
     if !state.publish_limiter.allow(&headers).await {
         return Err(ApiError::PublishRateLimited);
