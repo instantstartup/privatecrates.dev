@@ -121,9 +121,12 @@
 			<h2 id="subprocessors">4. Subprocessors</h2>
 			<p>
 				The customer authorises the subprocessors below. The processor will tell the customer before adding or
-				replacing one, giving the customer the chance to object <Todo
-					>notice period and how notice is given</Todo
-				>.
+				replacing one, at least 30 days before the change, by updating the subprocessor list on the trust
+				centre and emailing the customer’s billing email address. The customer may object within that period
+				on reasonable data protection grounds; if the processor cannot accommodate the objection, the customer
+				may end the service and receive a prorated refund of anything prepaid. Where a subprocessor must be
+				replaced urgently, for example after a failure or a breach, the processor may make the change at once
+				and gives notice as soon as it can.
 			</p>
 			<div class="table-scroll">
 				<table class="table-cards">
@@ -186,9 +189,7 @@
 					<strong>Caches</strong> are in memory only and are lost on restart; access caches expire within 5 minutes.
 				</li>
 				<li>
-					<strong>Logs</strong> age out under the hosting provider’s retention period <Todo
-						>confirm the period</Todo
-					>.
+					<strong>Logs</strong> are deleted by the hosting provider after 30 days.
 				</li>
 				<li>
 					<strong>Billing records</strong> at Stripe are kept as the law requires <Todo

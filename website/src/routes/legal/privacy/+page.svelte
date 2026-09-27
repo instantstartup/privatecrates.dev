@@ -59,7 +59,10 @@
 		</ul>
 
 		<h2>5. Retention</h2>
-		<p><mark>TODO: retention periods for logs and billing records.</mark></p>
+		<p>
+			Service logs are deleted after 30 days. Nothing else about you is stored by us: caches live in memory
+			and expire within minutes. <mark>TODO: retention period for billing records held by Stripe.</mark>
+		</p>
 
 		<h2>6. Your rights</h2>
 		<p><mark>TODO: access, correction, deletion and complaint rights, and how to exercise them.</mark></p>

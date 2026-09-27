@@ -101,11 +101,7 @@
 				registry names, crate names and versions, the workflow that published them, and error codes and
 				messages. Tokens and crate contents are never logged.
 			</p>
-			<p>
-				Logs are kept for Railway’s log retention period <Todo
-					>confirm the retention period of our Railway plan</Todo
-				>.
-			</p>
+			<p>Logs are kept for 30 days, Railway’s retention period, then deleted.</p>
 
 			<h2 id="where-it-runs">Where it runs</h2>
 			<div class="table-scroll">
@@ -152,8 +148,10 @@
 
 			<h2 id="subprocessors">Subprocessors</h2>
 			<p>
-				The companies that process customer data on our behalf. We will announce a new subprocessor here
-				before it starts <Todo>decide the notice period and how customers are told</Todo>.
+				The companies that process customer data on our behalf. We announce a new subprocessor here, and email
+				each organisation’s billing address, at least 30 days before it starts. If you object and we cannot
+				accommodate it, you may cancel and get a prorated refund of anything prepaid. An urgent replacement,
+				after a failure or a breach, may happen at once, with notice as soon as we can give it.
 			</p>
 			<div class="table-scroll">
 				<table class="subprocessors table-cards">

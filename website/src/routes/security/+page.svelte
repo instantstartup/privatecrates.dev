@@ -84,9 +84,8 @@
 				</li>
 				<li>Do not degrade the service for others.</li>
 				<li>
-					Give us reasonable time to fix a problem before you publish it <Todo
-						>the disclosure deadline, e.g. 90 days</Todo
-					>.
+					Give us 90 days to fix a problem before you publish it, or less once a fix has shipped. For a
+					complex problem we may ask for longer, and agree it with you.
 				</li>
 			</ul>
 
@@ -120,7 +119,7 @@
 
 			<h2 id="response">What happens next</h2>
 			<ul>
-				<li><strong>Acknowledgement:</strong> <Todo>target time to acknowledge a report</Todo></li>
+				<li><strong>Acknowledgement:</strong> within 3 business days.</li>
 				<li><strong>Triage and first assessment:</strong> <Todo>target time</Todo></li>
 				<li>
 					<strong>Fix:</strong>
