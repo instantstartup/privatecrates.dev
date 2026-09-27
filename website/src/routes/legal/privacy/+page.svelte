@@ -35,8 +35,9 @@
 				cookie in your browser, valid for 8 hours. Nothing is stored on our side.
 			</li>
 			<li>
-				<strong>Billing:</strong> Stripe processes payment details; we receive the subscription status and the organisation
-				it belongs to.
+				<strong>Billing:</strong> we count your organisation’s active members through GitHub, to tell whether it
+				is on the free plan; we keep the count for up to 24 hours and not the members’ names. Stripe processes payment
+				details; we receive the subscription status and the organisation it belongs to.
 			</li>
 			<li>
 				<strong>Crates:</strong> crate files pass through the service while being published and are stored in your

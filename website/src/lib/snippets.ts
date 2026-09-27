@@ -15,17 +15,22 @@ export function dependency(name: string): string {
 story_engine = { version = "0.2", registry = "${name}" }`;
 }
 
-export function publishTarget(name: string): string {
+export function publishTarget(name: string, org = 'acme'): string {
 	return `[package]
 name = "story_engine"
 version = "0.2.0"
 # The owning repository: it must be in your organisation.
-repository = "https://github.com/acme/story-engine"
+# In a monorepo, a link to the crate's directory works too.
+repository = "https://github.com/${org}/story-engine"
 # Publish only to your registry, never to crates.io by accident.
 publish = ["${name}"]`;
 }
 
 export const installProvider = `cargo install cargo-credential-privatecrates --locked`;
+
+/** Publishing is tag-triggered (see ciPublish). */
+export const pushTag = `git tag v0.2.0
+git push origin v0.2.0`;
 
 export function loginCommands(name: string): string {
 	return `# Sign in now (optional: the first build does it too)

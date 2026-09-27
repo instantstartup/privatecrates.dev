@@ -4,7 +4,15 @@ export const SITE_NAME = 'PrivateCrates';
 
 /** Price per GitHub organisation per month, in US dollars. */
 export const PRICE_USD = 100;
-export const TRIAL_DAYS = 14;
+/** Organisations with this many active members or fewer are free (FREE_MEMBER_LIMIT on the server). */
+export const FREE_MEMBER_LIMIT = 5;
+/** Length of the no-card free trial for larger organisations (TRIAL_DAYS on the server). */
+export const TRIAL_DAYS = 90;
+export const TRIAL_MONTHS = 3;
+/** The trial banner and publish warnings start this many days before a trial without a card ends. */
+export const TRIAL_REMINDER_DAYS = 14;
+/** Reads keep working for this long after an inactive subscription's period ends. */
+export const READ_GRACE_DAYS = 14;
 
 export interface NavLink {
 	href: string;

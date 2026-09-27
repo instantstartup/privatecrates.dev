@@ -6,11 +6,21 @@
 	import ErrorNotice from '$lib/account/ErrorNotice.svelte';
 	import OrgList from '$lib/account/OrgList.svelte';
 	import RegistryPanel from '$lib/account/RegistryPanel.svelte';
-	import { api, ApiError, isActive, loginUrl, type Onboarding, type Session } from '$lib/api';
+	import {
+		allDone,
+		api,
+		ApiError,
+		isActive,
+		loginUrl,
+		planOf,
+		type Onboarding,
+		type Org,
+		type Session
+	} from '$lib/api';
 	import Callout from '$lib/components/Callout.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import Crane from '$lib/illustrations/Crane.svelte';
-	import { PRICE_USD, TRIAL_DAYS } from '$lib/site';
+	import { FREE_MEMBER_LIMIT, PRICE_USD, TRIAL_MONTHS } from '$lib/site';
 
 	type View = { kind: 'loading' } | { kind: 'failed'; error: ApiError } | { kind: 'ready'; session: Session };
 
@@ -26,8 +36,18 @@
 	const selectedLogin = $derived(params.get('org') ?? (orgs.length === 1 ? orgs[0].login : null));
 	const selected = $derived(orgs.find((o) => o.login === selectedLogin) ?? null);
 	const installUrl = $derived(session?.install_url ?? null);
-	/** A registry with a subscription (in any state); otherwise the set-up checklist is shown. */
-	const subscribed = $derived(selected?.tenant?.status != null);
+	// Onboarding documents that came back with every step done, by organisation. With billing not configured the
+	// session alone cannot tell that the registry works, so these count too.
+	let finished = $state<Record<string, Onboarding>>({});
+
+	/** The registry works: configured, and free, trialling, paid or retrying a payment. */
+	function isLive(org: Org): boolean {
+		return org.tenant !== null && (planOf(org) !== 'inactive' || org.login in finished);
+	}
+	const live = $derived(selected ? isLive(selected) : false);
+	/** Configured, but its subscription ended: the registry view explains, with the way back. */
+	const paused = $derived(!!selected && !live && selected.tenant !== null && selected.tenant.status !== null);
+	const showRegistry = $derived(live || paused);
 	const pageTitle = $derived(
 		view.kind !== 'ready'
 			? 'Account'
@@ -81,6 +101,7 @@
 		try {
 			const doc = await api.onboarding(login);
 			if (selected?.login === login) onboarding = doc;
+			onboardingChanged(login, doc);
 		} catch (e) {
 			onboardingError = toApiError(e);
 		} finally {
@@ -88,8 +109,21 @@
 		}
 	}
 
+	/**
+	 * After a POST (settings, trial) or a re-check: when every step is done, remember it. Either way re-read the
+	 * session when something changed, so the organisation list and the registry view catch up without a reload.
+	 */
+	function onboardingChanged(login: string, doc: Onboarding, posted = false) {
+		const done = allDone(doc);
+		if (done) finished = { ...finished, [login]: doc };
+		if (done || posted) void loadSession(false);
+	}
+
+	// Set when the trial is started from this page, for the confirmation above the registry.
+	let trialStartedFor = $state<string | null>(null);
+
 	// A string, so re-reading the session (which replaces every object) does not reload the checklist.
-	const onboardingFor = $derived(selected && !subscribed ? selected.login : null);
+	const onboardingFor = $derived(selected && !showRegistry ? selected.login : null);
 	$effect(() => {
 		const login = onboardingFor;
 		untrack(() => {
@@ -140,14 +174,18 @@
 
 <Seo
 	title={pageTitle}
-	description="Sign in with GitHub to set up your organisation's private Cargo registry, start a trial and manage billing."
+	description="Sign in with GitHub to set up your organisation's private Cargo registry and manage its plan."
 	path="/account"
 	noindex
 />
 
-<div class="page account">
+<div class={['page', 'account', view.kind === 'loading' && 'busy']}>
 	{#if view.kind === 'loading'}
-		<h1>Account</h1>
+		<!-- The same header as when signed in, with the sign-in line's space kept, so nothing moves on arrival. -->
+		<div class="who">
+			<h1>Account</h1>
+			<p class="signed-in placeholder" aria-hidden="true"></p>
+		</div>
 		<div class="loading panel" role="status" aria-busy="true">
 			<span class="bar"></span>
 			<span class="bar short"></span>
@@ -172,8 +210,9 @@
 					<a class="btn btn-primary" href={loginUrl('/account')} data-sveltekit-reload>Sign in with GitHub</a>
 				</div>
 				<p class="fine">
-					{TRIAL_DAYS}-day free trial, then ${PRICE_USD} per organisation per month. The sign-in lasts 8 hours and
-					is kept only in an encrypted cookie.
+					Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months free,
+					no card needed, then ${PRICE_USD} per organisation per month. The sign-in lasts 8 hours and is kept only
+					in an encrypted cookie.
 				</p>
 			</div>
 			<Crane class="signed-out-art" label="you" />
@@ -232,7 +271,7 @@
 		{:else}
 			<div class="layout">
 				<div class="orgs">
-					<OrgList {orgs} selected={selected?.login ?? null} />
+					<OrgList {orgs} selected={selected?.login ?? null} {isLive} />
 					{#if installUrl}
 						<div class="add-org">
 							<a
@@ -267,8 +306,8 @@
 
 							{#if checkoutSuccess}
 								{#if selected.tenant && isActive(selected.tenant.status)}
-									<Callout tone="ok" role="status" title="Your trial has started">
-										<p>Your registry is live. Connect Cargo below.</p>
+									<Callout tone="ok" role="status" title="Your subscription has started">
+										<p>Your registry is live again. Publishing works from now on.</p>
 									</Callout>
 								{:else if waitingForStripe}
 									<Callout role="status" title="Checkout complete">
@@ -284,8 +323,26 @@
 								{/if}
 							{/if}
 
-							{#if selected.tenant && subscribed}
-								<RegistryPanel org={selected} tenant={selected.tenant} />
+							{#if trialStartedFor === selected.login && planOf(selected) === 'trial'}
+								<Callout tone="ok" role="status" title="Your {TRIAL_MONTHS}-month free trial has started">
+									<p>
+										No card needed until it ends. Add one any time under Manage billing, at the bottom of this
+										page.
+									</p>
+								</Callout>
+							{/if}
+
+							{#if selected.tenant && showRegistry}
+								<RegistryPanel
+									org={selected}
+									tenant={selected.tenant}
+									{live}
+									planDetail={finished[selected.login]?.steps.find((s) => s.id === 'plan')?.detail}
+									onchange={() => {
+										trialStartedFor = selected.login;
+										void loadSession(false);
+									}}
+								/>
 							{:else if onboardingError}
 								<ErrorNotice error={onboardingError} title="The set-up checklist could not be loaded">
 									<p>
@@ -297,10 +354,15 @@
 							{:else if onboarding}
 								<Checklist
 									doc={onboarding}
+									org={selected}
 									admin={selected.role === 'admin'}
 									{refreshing}
 									onrefresh={() => loadOnboarding(selected.login)}
-									onchange={(doc) => (onboarding = doc)}
+									onchange={(doc) => {
+										onboarding = doc;
+										onboardingChanged(selected.login, doc, true);
+									}}
+									ontrialstarted={() => (trialStartedFor = selected.login)}
 								/>
 							{:else}
 								<div class="loading" role="status" aria-busy="true">
@@ -321,6 +383,10 @@
 	.account {
 		padding-top: 2.5rem;
 		min-height: 60vh;
+	}
+	/* While loading, keep the footer below the fold so it does not jump down when the account arrives. */
+	.account.busy {
+		min-height: 100vh;
 	}
 	h1 {
 		font-size: var(--text-3xl);
@@ -384,6 +450,9 @@
 	}
 	.who h1 {
 		margin-bottom: 0;
+	}
+	.placeholder {
+		min-height: 2.75rem;
 	}
 	.signed-in {
 		display: flex;

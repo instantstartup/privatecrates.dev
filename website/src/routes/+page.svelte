@@ -5,7 +5,7 @@
 	import Crate from '$lib/illustrations/Crate.svelte';
 	import Harbour from '$lib/illustrations/Harbour.svelte';
 	import Lighthouse from '$lib/illustrations/Lighthouse.svelte';
-	import { PRICE_USD, TRIAL_DAYS } from '$lib/site';
+	import { FREE_MEMBER_LIMIT, PRICE_USD, TRIAL_MONTHS } from '$lib/site';
 	import { cargoConfig, ciBuild, ciPublish } from '$lib/snippets';
 </script>
 
@@ -23,11 +23,12 @@
 			can push to it can publish them. No new accounts, no keys to hand out, no access lists to keep in sync.
 		</p>
 		<div class="actions">
-			<a class="btn btn-primary" href="/account">Start {TRIAL_DAYS}-day free trial</a>
+			<a class="btn btn-primary" href="/account">Set up your registry</a>
 			<a class="btn btn-quiet" href="/docs/setup">How to set up a registry</a>
 		</div>
 		<p class="terms">
-			${PRICE_USD} per organisation per month after the trial. Unlimited developers, SSO included.
+			Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months free
+			with no card, then ${PRICE_USD} per organisation per month. SSO included.
 		</p>
 	</div>
 	<div class="scene">
@@ -155,16 +156,20 @@
 			<Crate tone="harbour" class="c3" />
 		</div>
 		<div>
-			<h2 id="price">One price per organisation</h2>
-			<p class="amount"><span class="figure">${PRICE_USD}</span> per GitHub organisation per month</p>
+			<h2 id="price">Free for small teams, one price for the rest</h2>
+			<p class="amount">
+				Free up to {FREE_MEMBER_LIMIT} members, then <span class="figure">${PRICE_USD}</span> per GitHub organisation
+				per month
+			</p>
 			<ul class="includes">
-				<li>Unlimited developers and CI jobs</li>
+				<li>Unlimited CI jobs, and unlimited users on the paid plan</li>
+				<li>{TRIAL_MONTHS} months free for larger organisations, no card to start</li>
 				<li>SAML SSO and SCIM through GitHub, included</li>
 				<li>Provenance on every version, and the verifier</li>
 				<li>Search across your crates and crates.io</li>
 			</ul>
 			<div class="actions">
-				<a class="btn btn-primary" href="/account">Start {TRIAL_DAYS}-day free trial</a>
+				<a class="btn btn-primary" href="/account">Set up your registry</a>
 				<a class="btn btn-quiet" href="/pricing">Pricing details</a>
 			</div>
 		</div>
@@ -216,8 +221,8 @@
 		</FaqItem>
 		<FaqItem question="What happens if we stop paying?">
 			<p>
-				Publishing stops straight away. Builds keep reading crates for 14 days after the billing period ends,
-				so nothing breaks overnight. Your crates and index stay in your repository either way.
+				Publishing stops when the subscription or free trial ends. Builds keep reading crates for 14 more
+				days, so nothing breaks overnight. Your crates and index stay in your repository either way.
 			</p>
 		</FaqItem>
 	</div>

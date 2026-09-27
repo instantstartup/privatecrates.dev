@@ -2,24 +2,80 @@
 // (see __MOCK_API__ in vite.config.ts; scripts/externalise-inline.js fails the build if it leaks).
 //
 // Pick a scenario with a query parameter on /account; it is remembered for the browser tab:
-//   ?mock=admin        signed in; organisations in every state (default)
-//   ?mock=member       signed in as a member of organisations only
-//   ?mock=no-orgs      signed in, in no organisations
-//   ?mock=signed-out   not signed in
-//   ?mock=down         the API cannot be reached
-//   ?mock=broken       the API answers 502 (HTML) to everything
-//   ?mock=reset        start over (admin, nothing set up)
+//   ?mock=admin          signed in; organisations in every state, acme not set up (default)
+//   ?mock=member         the same, as a member of every organisation
+//   ?mock=no-orgs        signed in, in no organisations
+//   ?mock=signed-out     not signed in
+//   ?mock=down           the API cannot be reached
+//   ?mock=broken         the API answers 502 (HTML) to everything
+//   ?mock=reset          start over (admin)
+// Billing scenarios, each with the single organisation acme:
+//   ?mock=free           3 members: free, live
+//   ?mock=free-again     4 members, with a paid subscription still running (the "you can cancel" note)
+//   ?mock=over-limit     12 members, set up, before its trial: the plan step offers the trial
+//   ?mock=trial          mid-trial, no card
+//   ?mock=trial-ending   9 days of trial left, no card: the banner
+//   ?mock=paid           subscribed, card on file
+//   ?mock=past-due       a payment failed; Stripe is retrying
+//   ?mock=inactive       the trial ended 3 days ago without a card
+//   ?mock=returning      subscribed once, setting up again: Subscribe (Checkout, no trial)
+//   ?mock=no-billing     12 members, billing not configured on the server
+//   ?mock=just-finished  3 members, only the registry name left: saving it makes the registry live
 // Onboarding: the action links for GitHub steps come back to /account with ?mock_done=<step>, which completes them
-// (comma-separated for several, e.g. ?org=acme&mock_done=storage_repo,storage_app).
+// (comma-separated for several, e.g. ?org=acme&mock_done=storage_repo,storage_app). The billing portal comes back
+// with ?mock_done=card, which adds a card.
 
-import type { CatalogEntry, Onboarding, Org, Session, Step, Tenant } from '../api';
+import type { CatalogEntry, Onboarding, Org, Plan, Session, Step, Tenant } from '../api';
 
-type Scenario = 'admin' | 'member' | 'no-orgs' | 'signed-out' | 'down' | 'broken';
+const SIGNED_IN = ['admin', 'member', 'no-orgs', 'signed-out', 'down', 'broken'] as const;
+const BILLING = [
+	'free',
+	'free-again',
+	'over-limit',
+	'trial',
+	'trial-ending',
+	'paid',
+	'past-due',
+	'inactive',
+	'returning',
+	'no-billing',
+	'just-finished'
+] as const;
+type Scenario = (typeof SIGNED_IN)[number] | (typeof BILLING)[number];
+
+const GITHUB_STEPS = ['reader_app', 'storage_repo', 'storage_app'];
+const LIMIT = 5;
+const TRIAL_DAYS = 90;
+const PRICE_USD = 100;
+
+/** A Stripe subscription; dates are offsets in days from now. */
+interface Sub {
+	status: 'trialing' | 'active' | 'past_due' | 'canceled';
+	trialEnd: number | null;
+	periodEnd: number | null;
+	card: boolean;
+}
+
+/** One organisation as the server would see it. */
+interface OrgModel {
+	id: number;
+	login: string;
+	role: 'admin' | 'member';
+	members: number;
+	done: string[];
+	slug: string | null;
+	sub: Sub | null;
+	/** Had a trial (so POST /trial is refused). */
+	trialUsed: boolean;
+	/** Stripe configured on the server. */
+	billing: boolean;
+	/** Checkout finished but Stripe's webhook has not arrived: the subscription appears after a few session reads. */
+	pendingCheckout: number | null;
+}
 
 interface State {
 	scenario: Scenario;
-	/** Onboarding progress of the "acme" organisation. */
-	acme: { done: string[]; slug: string | null; subscribed: boolean; sessionPolls: number };
+	orgs: OrgModel[];
 	appliedSearch?: string;
 }
 
@@ -41,15 +97,102 @@ const RESERVED = [
 const INSTALL_URL = 'https://github.com/apps/privatecrates-reader/installations/new';
 const TAKEN = ['globex', 'initech'];
 
+function model(id: number, login: string, over: Partial<OrgModel> = {}): OrgModel {
+	return {
+		id,
+		login,
+		role: 'admin',
+		members: 3,
+		done: [...GITHUB_STEPS],
+		slug: login,
+		sub: null,
+		trialUsed: false,
+		billing: true,
+		pendingCheckout: null,
+		...over
+	};
+}
+
+const trialing = (days: number, card = false): Sub => ({
+	status: 'trialing',
+	trialEnd: days,
+	periodEnd: null,
+	card
+});
+const paid = (status: Sub['status'] = 'active'): Sub => ({
+	status,
+	trialEnd: -60,
+	periodEnd: 21,
+	card: true
+});
+
+function orgsFor(scenario: Scenario): OrgModel[] {
+	const acme = (over: Partial<OrgModel>) => [model(100, 'acme', over)];
+	switch (scenario) {
+		case 'free':
+			return acme({ members: 3 });
+		case 'free-again':
+			return acme({ members: 4, sub: paid(), trialUsed: true });
+		case 'over-limit':
+			return acme({ members: 12 });
+		case 'trial':
+			return acme({ members: 12, sub: trialing(52), trialUsed: true });
+		case 'trial-ending':
+			return acme({ members: 12, sub: trialing(9), trialUsed: true });
+		case 'paid':
+			return acme({ members: 12, sub: paid(), trialUsed: true });
+		case 'past-due':
+			return acme({ members: 12, sub: paid('past_due'), trialUsed: true });
+		case 'inactive':
+			return acme({
+				members: 12,
+				sub: { status: 'canceled', trialEnd: -3, periodEnd: -3, card: false },
+				trialUsed: true
+			});
+		case 'returning':
+			// Subscribed once, cancelled long ago, and now setting the registry up again.
+			return acme({
+				members: 12,
+				slug: null,
+				sub: { status: 'canceled', trialEnd: -300, periodEnd: -200, card: false },
+				trialUsed: true
+			});
+		case 'no-billing':
+			return acme({ members: 12, billing: false });
+		case 'just-finished':
+			return acme({ members: 3, slug: null });
+		default: {
+			// acme is listed only because it has installed the reader App (GitHub user tokens see nothing else).
+			const role = scenario === 'member' ? 'member' : 'admin';
+			return [
+				model(100, 'acme', { role, members: 12, done: ['reader_app'], slug: null }),
+				model(101, 'globex', { role: 'member', members: 3 }),
+				model(102, 'initech', { role, members: 40, sub: trialing(52), trialUsed: true }),
+				model(103, 'hooli', { role, members: 9, sub: trialing(6), trialUsed: true }),
+				model(104, 'stark', { role, members: 25, sub: paid(), trialUsed: true }),
+				model(105, 'wayne', { role, members: 8, sub: paid('past_due'), trialUsed: true }),
+				model(106, 'umbrella', {
+					role,
+					members: 30,
+					sub: { status: 'canceled', trialEnd: -3, periodEnd: -3, card: false },
+					trialUsed: true
+				})
+			];
+		}
+	}
+}
+
 function fresh(scenario: Scenario = 'admin'): State {
-	// acme is listed only because it has installed the reader App (GitHub user tokens see nothing else).
-	return { scenario, acme: { done: ['reader_app'], slug: null, subscribed: false, sessionPolls: 0 } };
+	return { scenario, orgs: orgsFor(scenario) };
 }
 
 function load(): State {
 	try {
 		const raw = sessionStorage.getItem(KEY);
-		if (raw) return JSON.parse(raw) as State;
+		if (raw) {
+			const state = JSON.parse(raw) as State;
+			if (Array.isArray(state.orgs)) return state;
+		}
 	} catch {
 		// Fall through to a fresh state.
 	}
@@ -72,11 +215,21 @@ function sync(): State {
 	const params = new URLSearchParams(location.search);
 	const mock = params.get('mock');
 	if (mock === 'reset') state = fresh();
-	else if (mock && ['admin', 'member', 'no-orgs', 'signed-out', 'down', 'broken'].includes(mock))
-		state = { ...state, scenario: mock as Scenario };
+	else if (mock && (BILLING as readonly string[]).includes(mock)) state = fresh(mock as Scenario);
+	else if (mock && (SIGNED_IN as readonly string[]).includes(mock)) {
+		// Switching between the multi-organisation scenarios keeps onboarding progress.
+		const multi = state.orgs.length > 1;
+		state = multi ? { ...state, scenario: mock as Scenario } : fresh(mock as Scenario);
+		const role = mock === 'member' ? 'member' : 'admin';
+		for (const o of state.orgs) if (o.login !== 'globex') o.role = role;
+	}
+	const target = state.orgs.find((o) => o.login === (params.get('org') ?? 'acme')) ?? state.orgs[0];
 	// Comma-separated, e.g. mock_done=storage_repo,storage_app
 	for (const done of (params.get('mock_done') ?? '').split(',').filter(Boolean)) {
-		if (!state.acme.done.includes(done)) state.acme.done.push(done);
+		if (!target) break;
+		if (done === 'card') {
+			if (target.sub) target.sub.card = true;
+		} else if (!target.done.includes(done)) target.done.push(done);
 	}
 	state.appliedSearch = location.search;
 	save(state);
@@ -84,105 +237,134 @@ function sync(): State {
 }
 
 const day = 86_400_000;
-const iso = (offsetDays: number) => new Date(Date.now() + offsetDays * day).toISOString();
+const iso = (offsetDays: number | null) =>
+	offsetDays === null ? null : new Date(Date.now() + offsetDays * day).toISOString();
 const base = 'privatecrates.dev';
 
-function tenant(slug: string, status: string | null, extra: Partial<Tenant> = {}): Tenant {
+const isActive = (sub: Sub | null) =>
+	!!sub && (sub.status === 'trialing' || sub.status === 'active' || sub.status === 'past_due');
+
+function planOf(o: OrgModel): Plan {
+	if (o.members <= LIMIT) return 'free';
+	switch (o.sub?.status) {
+		case 'trialing':
+			return 'trial';
+		case 'active':
+			return 'paid';
+		case 'past_due':
+			return 'past_due';
+		default:
+			return 'inactive';
+	}
+}
+
+function trialAvailable(o: OrgModel): boolean {
+	return o.billing && o.members > LIMIT && !o.trialUsed && !isActive(o.sub);
+}
+
+function tenantOf(o: OrgModel): Tenant | null {
+	if (!o.slug) return null;
 	return {
-		slug,
-		registry_url: `https://${slug}.${base}`,
-		status,
-		trial_ends_at: status === 'trialing' ? iso(9) : null,
-		current_period_end:
-			status === 'trialing' || status === null ? null : iso(status === 'canceled' ? -3 : 21),
-		...extra
+		slug: o.slug,
+		registry_url: `https://${o.slug}.${base}`,
+		status: o.sub?.status ?? null,
+		trial_ends_at: iso(o.sub?.trialEnd ?? null),
+		current_period_end: iso(o.sub?.periodEnd ?? null)
 	};
 }
 
-function avatar(login: string) {
-	return `https://avatars.example.invalid/${login}`;
-}
-
-function acmeTenant(state: State): Tenant | null {
-	const a = state.acme;
-	if (!a.slug) return null;
-	// Pretend Stripe's webhook takes a moment: the subscription appears on the second session read after checkout.
-	if (!a.subscribed || a.sessionPolls < 2) return tenant(a.slug, null);
-	return tenant(a.slug, 'trialing');
+function toOrg(o: OrgModel): Org {
+	return {
+		id: o.id,
+		login: o.login,
+		avatar_url: `https://avatars.example.invalid/${o.login}`,
+		role: o.role,
+		members: o.members,
+		free_member_limit: LIMIT,
+		plan: planOf(o),
+		trial_ends_at: iso(o.sub?.trialEnd ?? null),
+		has_payment_method: o.sub?.card ?? false,
+		current_period_end: iso(o.sub?.periodEnd ?? null),
+		trial_available: trialAvailable(o),
+		tenant: tenantOf(o)
+	};
 }
 
 function session(state: State): Session {
 	if (state.scenario === 'signed-out') return { user: null, orgs: [] };
-	const user = { login: 'alice', avatar_url: avatar('alice'), name: 'Alice Moreau' };
+	const user = { login: 'alice', avatar_url: 'https://avatars.example.invalid/alice', name: 'Alice Moreau' };
 	if (state.scenario === 'no-orgs') return { user, orgs: [], install_url: INSTALL_URL };
-	if (state.acme.subscribed) state.acme.sessionPolls += 1;
-	save(state);
-	const role = state.scenario === 'member' ? 'member' : 'admin';
-	const orgs: Org[] = [
-		{ id: 100, login: 'acme', avatar_url: avatar('acme'), role, tenant: acmeTenant(state) },
-		{
-			id: 101,
-			login: 'globex',
-			avatar_url: avatar('globex'),
-			role: 'member',
-			tenant: tenant('globex', 'trialing')
-		},
-		{ id: 102, login: 'initech', avatar_url: avatar('initech'), role, tenant: tenant('initech', 'active') },
-		{ id: 103, login: 'hooli', avatar_url: avatar('hooli'), role, tenant: tenant('hooli', 'past_due') },
-		{
-			id: 104,
-			login: 'umbrella',
-			avatar_url: avatar('umbrella'),
-			role,
-			tenant: tenant('umbrella', 'canceled')
+	// Pretend Stripe's webhook takes a moment: the subscription appears on the second session read after checkout.
+	for (const o of state.orgs) {
+		if (o.pendingCheckout === null) continue;
+		o.pendingCheckout += 1;
+		if (o.pendingCheckout >= 2) {
+			o.sub = { status: 'active', trialEnd: o.sub?.trialEnd ?? null, periodEnd: 30, card: true };
+			o.pendingCheckout = null;
 		}
-	];
-	return { user, orgs, install_url: INSTALL_URL };
+	}
+	save(state);
+	return { user, orgs: state.orgs.map(toOrg), install_url: INSTALL_URL };
 }
 
-function onboarding(state: State, login: string): Onboarding | null {
-	const s = session(state);
-	const org = s.orgs.find((o) => o.login === login);
-	if (!org) return null;
-	const member = org.role !== 'admin';
-	const done = (id: string): boolean => {
-		if (login !== 'acme') {
-			// Other organisations are fully set up, except a cancelled subscription.
-			return !(id === 'subscription' && org.tenant && org.tenant.status === 'canceled');
-		}
-		if (id === 'settings') return state.acme.slug !== null;
-		if (id === 'subscription') return state.acme.subscribed;
-		return state.acme.done.includes(id);
-	};
-	const appsInstalled = done('reader_app') && done('storage_app');
-	const status = (id: string): Step['status'] =>
-		done(id) ? 'done' : member || (id === 'settings' && !appsInstalled) ? 'blocked' : 'todo';
-	const ask = member ? { detail: `Ask an admin of ${login} to complete this step.` } : {};
-	const back = (id: string) => `/account?org=${login}&mock_done=${id}`;
+function planStep(o: OrgModel, status: (done: boolean) => Step['status']): Step {
+	const plan = planOf(o);
+	if (plan === 'free') return { id: 'plan', status: 'done' };
+	if (!o.billing)
+		return {
+			id: 'plan',
+			status: 'done',
+			detail: 'Billing is not configured on this server, so the registry works without a plan.'
+		};
+	if (isActive(o.sub)) return { id: 'plan', status: 'done' };
+	if (trialAvailable(o))
+		return {
+			id: 'plan',
+			status: status(false),
+			detail: `${o.members} members: start your 3-month free trial, no card needed.`
+		};
 	return {
-		org: { id: org.id, login },
+		id: 'plan',
+		status: status(false),
+		detail: `${o.login} has had its free trial. Subscribe to use the registry: $${PRICE_USD} per month, card required.`
+	};
+}
+
+function onboarding(o: OrgModel): Onboarding {
+	const member = o.role !== 'admin';
+	const appsInstalled = o.done.includes('reader_app') && o.done.includes('storage_app');
+	const ask = member ? { detail: `Ask an admin of ${o.login} to complete this step.` } : {};
+	const status = (done: boolean, needsApps = false): Step['status'] =>
+		done ? 'done' : member || (needsApps && !appsInstalled) ? 'blocked' : 'todo';
+	const back = (id: string) => `/account?org=${o.login}&mock_done=${id}`;
+	const gh = (id: string, extra: Partial<Step> = {}): Step => ({
+		id,
+		status: status(o.done.includes(id)),
+		action_url: back(id),
+		...extra,
+		...ask
+	});
+	const plan = planStep(o, (d) => status(d));
+	return {
+		org: { id: o.id, login: o.login },
 		steps: [
-			{ id: 'reader_app', status: status('reader_app'), action_url: back('reader_app'), ...ask },
-			{
-				id: 'storage_repo',
-				status: status('storage_repo'),
-				detail: `Create a private repository, e.g. ${login}/crates-store, and enable immutable releases in Settings → General → Releases.`,
-				action_url: back('storage_repo'),
-				...ask
-			},
-			{ id: 'storage_app', status: status('storage_app'), action_url: back('storage_app'), ...ask },
+			gh('reader_app'),
+			gh('storage_repo', {
+				detail: `Create a private repository, e.g. ${o.login}/crates-store, and enable immutable releases in Settings → General → Releases.`
+			}),
+			gh('storage_app'),
 			{
 				id: 'settings',
-				status: status('settings'),
+				status: status(o.slug !== null, true),
 				detail: member
 					? ask.detail
 					: appsInstalled
 						? 'Choose your registry name.'
 						: 'Install both Apps first: the storage App writes privatecrates.toml.'
 			},
-			{ id: 'subscription', status: status('subscription'), ...ask }
+			member && plan.status !== 'done' ? { ...plan, ...ask } : plan
 		],
-		suggested_slug: login
+		suggested_slug: o.login
 	};
 }
 
@@ -264,22 +446,23 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	}
 	if (path === '/api/session') return delay(json(session(state)));
 
-	const m = path.match(/^\/api\/orgs\/([^/]+)\/(onboarding|settings|checkout|portal)$/);
+	const m = path.match(/^\/api\/orgs\/([^/]+)\/(onboarding|settings|trial|checkout|portal)$/);
 	if (!m) return delay(error(404, 'not found', 'registry::not_found'));
-	if (state.scenario === 'signed-out') return delay(error(401, 'Sign in to continue.', 'session::required'));
+	if (state.scenario === 'signed-out' || state.scenario === 'no-orgs')
+		return delay(error(401, 'Sign in to continue.', 'session::required'));
 	const [, login, action] = m;
-	const doc = onboarding(state, login);
-	if (!doc) return delay(error(404, `You are not a member of ${login}.`, 'account::org_not_found'));
-	const admin = session(state).orgs.find((o) => o.login === login)?.role === 'admin';
+	const o = state.orgs.find((x) => x.login === login);
+	if (!o) return delay(error(404, `You are not a member of ${login}.`, 'account::org_not_found'));
 
-	if (action === 'onboarding' && method === 'GET') return delay(json(doc));
+	if (action === 'onboarding' && method === 'GET') return delay(json(onboarding(o)));
 	if (method !== 'POST') return delay(error(405, 'method not allowed', 'registry::method'));
-	if (!admin) return delay(error(403, `Only admins of ${login} can do this.`, 'account::admin_required'));
+	if (o.role !== 'admin')
+		return delay(error(403, `Only admins of ${login} can do this.`, 'account::admin_required'));
 
 	if (action === 'settings') {
 		const body = JSON.parse(String(init?.body ?? '{}')) as { slug?: string };
 		const slug = (body.slug ?? '').trim();
-		if (!state.acme.done.includes('storage_app'))
+		if (!o.done.includes('storage_app'))
 			return delay(
 				error(
 					409,
@@ -297,23 +480,39 @@ export const mockFetch: typeof fetch = async (input, init) => {
 			);
 		if (RESERVED.includes(slug))
 			return delay(error(422, `${slug} is reserved. Choose another name.`, 'account::slug_reserved'));
-		if (TAKEN.includes(slug))
+		if (TAKEN.includes(slug) && slug !== login)
 			return delay(error(409, `${slug} is taken. Choose another name.`, 'account::slug_taken'));
-		state.acme.slug = slug;
+		o.slug = slug;
 		save(state);
-		return delay(json(onboarding(state, login)), 700);
+		return delay(json(onboarding(o)), 700);
+	}
+	if (action === 'trial') {
+		if (o.members <= LIMIT)
+			return delay(
+				error(409, `${login} has ${o.members} members, so it is on the free plan.`, 'billing::free_plan')
+			);
+		if (isActive(o.sub))
+			return delay(error(409, `${login} already has a subscription.`, 'billing::already_subscribed'));
+		if (o.trialUsed)
+			return delay(error(409, `${login} has already had its free trial.`, 'billing::trial_used'));
+		if (!o.billing)
+			return delay(error(503, 'Billing is not configured on this server.', 'billing::not_configured'));
+		o.sub = trialing(TRIAL_DAYS);
+		o.trialUsed = true;
+		save(state);
+		return delay(json(onboarding(o)), 700);
 	}
 	if (action === 'checkout') {
-		const current = session(state).orgs.find((o) => o.login === login)?.tenant?.status;
-		if (current === 'trialing' || current === 'active' || current === 'past_due')
+		if (isActive(o.sub))
 			return delay(error(409, `${login} already has a subscription.`, 'billing::already_subscribed'));
-		if (login === 'acme') {
-			state.acme.subscribed = true;
-			state.acme.sessionPolls = 0;
-			save(state);
-		}
+		o.pendingCheckout = 0;
+		save(state);
 		return delay(json({ url: `/account?org=${login}&checkout=success` }), 700);
 	}
-	if (action === 'portal') return delay(json({ url: `/account?org=${login}` }), 500);
+	if (action === 'portal') {
+		if (!o.sub && !o.trialUsed)
+			return delay(error(409, `${login} has no billing account.`, 'billing::no_customer'));
+		return delay(json({ url: `/account?org=${login}&mock_done=card` }), 500);
+	}
 	return delay(error(404, 'not found', 'registry::not_found'));
 };
