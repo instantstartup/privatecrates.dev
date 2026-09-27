@@ -36,13 +36,13 @@
 		overflow: visible;
 	}
 	.body {
-		stroke: var(--ink);
+		stroke: var(--line);
 		stroke-width: 2.5;
 		stroke-linejoin: round;
 	}
 	.batten {
 		fill: none;
-		stroke: var(--ink);
+		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linecap: round;
 	}

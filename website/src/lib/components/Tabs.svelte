@@ -70,7 +70,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.25rem;
-		border-bottom: 2px solid var(--ink);
+		border-bottom: 2px solid var(--line);
 	}
 	button {
 		min-height: 2.75rem;

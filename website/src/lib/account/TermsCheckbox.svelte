@@ -56,7 +56,7 @@
 		gap: 0.35rem 0.7rem;
 		align-items: start;
 		padding: 0.85rem 1rem;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 8px;
 		background: var(--deck);
 	}

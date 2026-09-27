@@ -325,7 +325,7 @@
 	}
 	.manifest {
 		display: grid;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 10px;
 		background: var(--deck);
 		overflow: hidden;
@@ -353,7 +353,7 @@
 		place-items: center;
 		width: 2.6rem;
 		height: 2.6rem;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 4px;
 		background: var(--signal);
 		color: var(--signal-ink);
@@ -459,7 +459,7 @@
 		display: grid;
 		gap: 2rem;
 		padding: 2rem 1.25rem;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 	}
 	@media (min-width: 48rem) {
 		.price-card {

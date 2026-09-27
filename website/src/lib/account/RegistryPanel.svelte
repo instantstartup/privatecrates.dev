@@ -326,7 +326,7 @@
 	}
 	.billing {
 		padding-top: 1.5rem;
-		border-top: 2px solid var(--ink);
+		border-top: 2px solid var(--line);
 	}
 	.url {
 		font-family: var(--font-mono);

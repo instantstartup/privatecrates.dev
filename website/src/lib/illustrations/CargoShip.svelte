@@ -70,7 +70,7 @@
 	.cabin,
 	.funnel,
 	.hull {
-		stroke: var(--ink);
+		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linejoin: round;
 	}
@@ -79,7 +79,7 @@
 	.mast,
 	.funnel-band {
 		fill: none;
-		stroke: var(--ink);
+		stroke: var(--line);
 		stroke-width: 1.5;
 		stroke-linecap: round;
 	}
@@ -111,7 +111,7 @@
 		stroke-width: 3;
 	}
 	.hull {
-		fill: #16343d;
+		fill: var(--hull);
 	}
 	.boot {
 		fill: var(--container);

@@ -32,7 +32,7 @@
 		background: var(--signal);
 		color: var(--signal-ink);
 		font-weight: 700;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 6px;
 	}
 	.skip:focus {

@@ -52,18 +52,18 @@
 	}
 	.gull-body {
 		fill: var(--deck);
-		stroke: var(--ink);
+		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linejoin: round;
 	}
 	.gull-wing,
 	.gull-legs {
 		fill: none;
-		stroke: var(--ink);
+		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linecap: round;
 	}
 	.gull-eye {
-		fill: var(--ink);
+		fill: var(--line);
 	}
 </style>

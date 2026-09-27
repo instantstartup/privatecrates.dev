@@ -45,7 +45,7 @@
 <style>
 	.site-footer {
 		margin-top: 5rem;
-		border-top: 2px solid var(--ink);
+		border-top: 2px solid var(--line);
 		background: var(--deck);
 		padding-block: 2.5rem 3rem;
 		font-size: var(--text-sm);

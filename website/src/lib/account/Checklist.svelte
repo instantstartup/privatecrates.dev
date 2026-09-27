@@ -399,7 +399,7 @@
 		place-items: center;
 		width: 2rem;
 		height: 2rem;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 50%;
 		font-weight: 700;
 		font-size: var(--text-sm);

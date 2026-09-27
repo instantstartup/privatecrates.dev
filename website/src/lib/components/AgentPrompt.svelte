@@ -66,7 +66,7 @@
 		display: grid;
 		gap: 1rem;
 		padding: 1.25rem;
-		border: 2px dashed var(--ink);
+		border: 2px dashed var(--line);
 		border-radius: 10px;
 		background: var(--deck);
 		min-width: 0;
@@ -87,7 +87,7 @@
 	}
 	.prompt {
 		position: relative;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 8px;
 		background: var(--code-bg);
 		color: var(--code-ink);

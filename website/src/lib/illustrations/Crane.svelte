@@ -55,7 +55,7 @@
 	.rail,
 	.rib {
 		fill: none;
-		stroke: var(--ink);
+		stroke: var(--line);
 		stroke-linecap: round;
 		stroke-linejoin: round;
 	}
@@ -79,7 +79,7 @@
 	.cab,
 	.trolley,
 	.spreader {
-		stroke: var(--ink);
+		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linejoin: round;
 	}
@@ -92,6 +92,6 @@
 	}
 	.trolley,
 	.spreader {
-		fill: var(--ink);
+		fill: var(--line);
 	}
 </style>

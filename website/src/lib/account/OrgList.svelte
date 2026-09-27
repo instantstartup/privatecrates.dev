@@ -102,7 +102,7 @@
 		place-items: center;
 		width: 2.1rem;
 		height: 2.1rem;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 4px;
 		background: var(--signal);
 		color: var(--signal-ink);

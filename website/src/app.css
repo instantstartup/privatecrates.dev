@@ -3,7 +3,8 @@
 @import '@fontsource-variable/atkinson-hyperlegible-next/wght.css';
 
 /*
- * Design tokens: "harbour at dawn" (light) and "night watch" (dark).
+ * Design tokens: "harbour at dawn" (light) and "night harbour" (dark): deep blue slate,
+ * off-white text, softened accents and outlines that recede.
  * Every colour on the site comes from these variables; illustrations use them too.
  */
 :root {
@@ -20,15 +21,20 @@
 	--deck: #f9fbfa; /* raised surfaces */
 	--ink: #0f2830; /* deep harbour water, body text */
 	--ink-soft: #3a555e; /* secondary text (≥ 7:1 on --fog) */
+	--line: #0f2830; /* outlines: borders, hard shadows, illustration strokes */
 	--harbour: #125c6c; /* links, focus */
 	--signal: #f2b233; /* lighthouse lamp: primary actions */
 	--signal-ink: #0f2830;
 	--container: #b93a22; /* container red: crates, warnings */
 	--container-ink: #ffffff;
+	--band: #0f2830; /* the preview notice */
+	--band-ink: #edf1ef;
 	--dawn: #f4cdb8; /* dawn sky, hero only */
 	--dawn-2: #dfe8ec;
 	--water: #1d4d5c;
 	--water-2: #2c6a7a;
+	--hull: #16343d;
+	--quay: #3a555e;
 	--rock: #6d7a74; /* the lighthouse's island */
 	--turf: #5e8a57;
 	--foam: #f9fbfa;
@@ -44,69 +50,98 @@
 	--code-key: #f5c35a;
 	--code-string: #9fd9c1;
 	--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(15 40 48 / 0.35);
+	/* Day: the sun is up and the lighthouse is dark; its lamp room shows as glass. */
+	--day: 1;
+	--night: 0;
+	--lamp: #cfe2e5;
+	--glint: var(--signal);
 }
 
 /* .night: a band that is always in the dark palette, whatever the theme. */
 :root[data-theme='dark'],
 .night {
 	color-scheme: dark;
-	--fog: #0a1c22;
-	--deck: #10272f;
-	--ink: #e4eeec;
-	--ink-soft: #a8bec1;
-	--harbour: #82cfdb;
-	--signal: #f5bf47;
-	--signal-ink: #0a1c22;
-	--container: #e0664e;
-	--container-ink: #0a1c22;
-	--dawn: #1b3844;
-	--dawn-2: #0d232b;
-	--water: #0f3441;
-	--water-2: #174a59;
-	--rock: #3d5a61;
-	--turf: #3f6b4f;
-	--foam: #a8bec1;
-	--rule: #25444e;
-	--ok: #7fd4a4;
-	--ok-bg: #12352a;
-	--warn-bg: #3a2a14;
-	--danger: #f59a86;
-	--danger-bg: #3d1c16;
-	--code-bg: #061318;
-	--code-ink: #e4eeec;
-	--code-comment: #8fa9ae;
-	--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(0 0 0 / 0.6);
+	--fog: #172430; /* night harbour: blue slate, never black */
+	--deck: #1e2d3a; /* raised surfaces, one step lighter */
+	--ink: #d9e1e7; /* off-white, 11.9:1 on --fog */
+	--ink-soft: #a7b5c2;
+	--line: #7d90a1; /* outlines recede at night (4.8:1 on --fog) */
+	--harbour: #8cc4d0;
+	--signal: #e9bb5f;
+	--signal-ink: #172430;
+	--container: #d98672;
+	--container-ink: #172430;
+	--band: #253646;
+	--band-ink: #d9e1e7;
+	--dawn: #283d52; /* night sky, hero only */
+	--dawn-2: #121c27;
+	--water: #1a3444;
+	--water-2: #27495b;
+	--hull: #0f1a24;
+	--quay: #3a4a58;
+	--rock: #46586a;
+	--turf: #3e5f50;
+	--foam: #9fb2bd;
+	--rule: #2e3f4e;
+	--ok: #8fcfaa;
+	--ok-bg: #1f3a35;
+	--warn-bg: #3b3426;
+	--danger: #eaa292;
+	--danger-bg: #3f2a2d;
+	--code-bg: #111c26; /* code sits a step below the page */
+	--code-ink: #d9e1e7;
+	--code-comment: #96a8b6;
+	--code-key: #e3c07e;
+	--code-string: #a6d3c0;
+	--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(5 10 16 / 0.7);
+	/* Night: the moon and stars are out and the lighthouse is lit. */
+	--day: 0;
+	--night: 1;
+	--lamp: var(--signal);
+	--glint: #e6e2cf;
 }
 
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme='light']) {
 		color-scheme: dark;
-		--fog: #0a1c22;
-		--deck: #10272f;
-		--ink: #e4eeec;
-		--ink-soft: #a8bec1;
-		--harbour: #82cfdb;
-		--signal: #f5bf47;
-		--signal-ink: #0a1c22;
-		--container: #e0664e;
-		--container-ink: #0a1c22;
-		--dawn: #1b3844;
-		--dawn-2: #0d232b;
-		--water: #0f3441;
-		--water-2: #174a59;
-		--rock: #3d5a61;
-		--turf: #3f6b4f;
-		--foam: #a8bec1;
-		--rule: #25444e;
-		--ok: #7fd4a4;
-		--ok-bg: #12352a;
-		--warn-bg: #3a2a14;
-		--danger: #f59a86;
-		--danger-bg: #3d1c16;
-		--code-bg: #061318;
-		--code-ink: #e4eeec;
-		--code-comment: #8fa9ae;
-		--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(0 0 0 / 0.6);
+		--fog: #172430; /* night harbour: blue slate, never black */
+		--deck: #1e2d3a; /* raised surfaces, one step lighter */
+		--ink: #d9e1e7; /* off-white, 11.9:1 on --fog */
+		--ink-soft: #a7b5c2;
+		--line: #7d90a1; /* outlines recede at night (4.8:1 on --fog) */
+		--harbour: #8cc4d0;
+		--signal: #e9bb5f;
+		--signal-ink: #172430;
+		--container: #d98672;
+		--container-ink: #172430;
+		--band: #253646;
+		--band-ink: #d9e1e7;
+		--dawn: #283d52; /* night sky, hero only */
+		--dawn-2: #121c27;
+		--water: #1a3444;
+		--water-2: #27495b;
+		--hull: #0f1a24;
+		--quay: #3a4a58;
+		--rock: #46586a;
+		--turf: #3e5f50;
+		--foam: #9fb2bd;
+		--rule: #2e3f4e;
+		--ok: #8fcfaa;
+		--ok-bg: #1f3a35;
+		--warn-bg: #3b3426;
+		--danger: #eaa292;
+		--danger-bg: #3f2a2d;
+		--code-bg: #111c26; /* code sits a step below the page */
+		--code-ink: #d9e1e7;
+		--code-comment: #96a8b6;
+		--code-key: #e3c07e;
+		--code-string: #a6d3c0;
+		--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(5 10 16 / 0.7);
+		/* Night: the moon and stars are out and the lighthouse is lit. */
+		--day: 0;
+		--night: 1;
+		--lamp: var(--signal);
+		--glint: #e6e2cf;
 	}
 }
 
@@ -305,7 +340,7 @@
 		min-height: 2.75rem;
 		padding: 0.55rem 1.1rem;
 		border-radius: 6px;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		font-weight: 700;
 		line-height: 1.2;
 		text-decoration: none;
@@ -321,15 +356,15 @@
 	.btn-primary {
 		background: var(--signal);
 		color: var(--signal-ink);
-		box-shadow: 3px 3px 0 var(--ink);
+		box-shadow: 3px 3px 0 var(--line);
 	}
 	.btn-primary:hover {
 		transform: translate(-1px, -1px);
-		box-shadow: 4px 4px 0 var(--ink);
+		box-shadow: 4px 4px 0 var(--line);
 	}
 	.btn-primary:active {
 		transform: translate(2px, 2px);
-		box-shadow: 1px 1px 0 var(--ink);
+		box-shadow: 1px 1px 0 var(--line);
 	}
 	.btn-quiet {
 		background: transparent;

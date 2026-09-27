@@ -263,7 +263,7 @@
 	.summary {
 		margin-top: 2rem;
 		padding: 1.5rem 1.25rem;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 	}
 	@media (min-width: 40rem) {
 		.summary {

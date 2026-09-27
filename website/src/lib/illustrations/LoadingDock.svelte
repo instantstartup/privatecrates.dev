@@ -47,12 +47,12 @@
 	}
 	.quay {
 		fill: var(--rule);
-		stroke: var(--ink);
+		stroke: var(--line);
 		stroke-width: 2;
 	}
 	.bollard {
-		fill: var(--ink);
-		stroke: var(--ink);
+		fill: var(--line);
+		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linejoin: round;
 	}

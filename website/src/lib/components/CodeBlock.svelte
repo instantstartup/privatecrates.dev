@@ -62,7 +62,7 @@
 <style>
 	.code {
 		margin: 0;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 8px;
 		background: var(--code-bg);
 		color: var(--code-ink);

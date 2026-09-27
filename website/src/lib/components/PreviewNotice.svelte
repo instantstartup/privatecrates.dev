@@ -15,8 +15,8 @@
 
 <style>
 	.preview-notice {
-		background: var(--ink);
-		color: var(--fog);
+		background: var(--band);
+		color: var(--band-ink);
 		font-size: var(--text-sm);
 	}
 	.line {
@@ -44,7 +44,7 @@
 	a:hover {
 		color: inherit;
 	}
-	/* The band is dark in the light theme and light in the dark one: the focus ring follows the text. */
+	/* The band is dark in both themes: the focus ring follows the text. */
 	a:focus-visible {
 		outline-color: currentColor;
 	}

@@ -480,7 +480,7 @@
 		place-items: center;
 		width: 2rem;
 		height: 2rem;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 50%;
 		background: var(--signal);
 		color: var(--signal-ink);

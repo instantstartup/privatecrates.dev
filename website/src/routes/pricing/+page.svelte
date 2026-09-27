@@ -257,11 +257,11 @@
 	.plan {
 		display: flex;
 		flex-direction: column;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		overflow: hidden;
 	}
 	.plan.team {
-		box-shadow: 6px 6px 0 var(--ink);
+		box-shadow: 6px 6px 0 var(--line);
 	}
 	.plan-head {
 		padding: 2rem 1.5rem 1rem;

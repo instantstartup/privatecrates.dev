@@ -112,7 +112,7 @@
 		gap: 1.25rem;
 		align-items: end;
 		padding-bottom: 1.5rem;
-		border-bottom: 2px solid var(--ink);
+		border-bottom: 2px solid var(--line);
 	}
 	@media (min-width: 44rem) {
 		.welcome {
@@ -163,7 +163,7 @@
 		place-items: center;
 		width: 2.1rem;
 		height: 2.1rem;
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		border-radius: 4px;
 		background: var(--signal);
 		color: var(--signal-ink);

@@ -33,7 +33,7 @@
 
 <style>
 	.site-header {
-		border-bottom: 2px solid var(--ink);
+		border-bottom: 2px solid var(--line);
 		background: var(--fog);
 	}
 	.bar {
@@ -70,7 +70,7 @@
 		text-underline-offset: 0.35em;
 	}
 	.account {
-		border: 2px solid var(--ink);
+		border: 2px solid var(--line);
 		margin-left: 0.25rem;
 	}
 

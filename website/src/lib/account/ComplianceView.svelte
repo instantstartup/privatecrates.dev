@@ -413,7 +413,7 @@
 		display: grid;
 		gap: 0.75rem;
 		padding-top: 1.5rem;
-		border-top: 2px solid var(--ink);
+		border-top: 2px solid var(--line);
 		min-width: 0;
 	}
 	h4 {
