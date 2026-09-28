@@ -73,7 +73,10 @@
 	<li>
 		Open <em>Settings → Developer settings → Fine-grained tokens → Generate new token</em>. Choose:
 		<ul>
-			<li><strong>Resource owner:</strong> your organisation;</li>
+			<li>
+				<strong>Resource owner:</strong> your organisation. If it is not in the list, an organisation owner
+				first allows fine-grained tokens, under <em>Organisation settings → Personal access tokens</em>;
+			</li>
 			<li>
 				<strong>Expiration:</strong> a date, and a reminder to rotate it (your organisation may set a maximum);
 			</li>
@@ -83,8 +86,10 @@
 				it does not exist.
 			</li>
 			<li>
-				<strong>Permissions:</strong> none. <em>Metadata: read</em> is always included, and it is all the registry
-				needs: the token cannot read code or change anything.
+				<strong>Permissions:</strong> under <em>Repository permissions</em>, add <em>Metadata</em> and set it
+				to <em>Read-only</em>, and nothing else. GitHub does not always add it for you, and without it the
+				token cannot see the repositories at all. It is all the registry needs: the token cannot read code or
+				change anything.
 			</li>
 		</ul>
 	</li>
@@ -101,6 +106,13 @@
 		can see and revoke it.
 	</p>
 </Callout>
+
+<p>
+	If the build then finds no crates (“not found” for each, or “no access” for the registry), check the token
+	on GitHub: that its resource owner is the organisation, that an owner has approved it if your organisation
+	requires that, that <em>Metadata: Read-only</em> is listed, and that the crate’s repository is selected. The registry
+	answers exactly as GitHub lets the token see.
+</p>
 
 <h3 id="render">Render</h3>
 <p>
