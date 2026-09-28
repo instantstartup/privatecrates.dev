@@ -32,7 +32,7 @@
 		{
 			"binding": "DB",
 			"database_name": "privatecrates-status",
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "9bef8b01-e6eb-459d-b303-0ff4160979af",
 			"migrations_dir": "migrations"
 		}
 	],
