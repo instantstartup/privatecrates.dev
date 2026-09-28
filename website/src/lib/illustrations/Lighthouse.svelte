@@ -63,7 +63,8 @@
 		<rect class="band" x="70" y="158" width="60" height="22" />
 		<rect class="band" x="70" y="204" width="60" height="22" />
 	</g>
-	<path class="outline" d="M78 222 86 88H114L122 222Z" />
+	<!-- Not `outline`: Tailwind would add its outline utility, a box round the path. -->
+	<path class="tower-edge" d="M78 222 86 88H114L122 222Z" />
 	<rect class="door" x="94" y="196" width="12" height="20" rx="6" />
 
 	<!-- Gallery, lantern (glass by day, lit at night) and roof -->
@@ -122,7 +123,7 @@
 	.band {
 		fill: var(--container);
 	}
-	.outline,
+	.tower-edge,
 	.gallery,
 	.lamp,
 	.roof,
@@ -131,7 +132,7 @@
 		stroke-width: 2;
 		stroke-linejoin: round;
 	}
-	.outline {
+	.tower-edge {
 		fill: none;
 	}
 	.gallery,

@@ -6,7 +6,7 @@
 	import Harbour from '$lib/illustrations/Harbour.svelte';
 	import Lighthouse from '$lib/illustrations/Lighthouse.svelte';
 	import { FREE_MEMBER_LIMIT, GA_TARGET, PREVIEW, PRICE_USD, TERMS_PATH, TRIAL_MONTHS } from '$lib/site';
-	import { cargoConfig, ciBuild, ciPublish } from '$lib/snippets';
+	import { cargoConfig, pushTag } from '$lib/snippets';
 </script>
 
 <Seo
@@ -145,7 +145,29 @@
 		</p>
 		<p><a href="/docs/ci">Set up CI</a></p>
 	</div>
-	<CodeBlock caption=".github/workflows/build.yml" code={ciBuild} />
+	<ol class="chain" aria-label="What a CI job holds">
+		<li>
+			<span class="num" aria-hidden="true">1</span>
+			<div>
+				<h3>GitHub issues the job a token</h3>
+				<p>It names the repository and the workflow, and expires within minutes.</p>
+			</div>
+		</li>
+		<li>
+			<span class="num" aria-hidden="true">2</span>
+			<div>
+				<h3>Traded for a registry token</h3>
+				<p>Read-only, for your registry alone, for one hour.</p>
+			</div>
+		</li>
+		<li>
+			<span class="num" aria-hidden="true">3</span>
+			<div>
+				<h3>Nothing left to leak</h3>
+				<p>No secret in the repository or its settings, nothing to rotate, nothing to print in a log.</p>
+			</div>
+		</li>
+	</ol>
 </section>
 
 <section class="page split reverse" aria-labelledby="publish">
@@ -162,7 +184,13 @@
 		</p>
 		<p><a href="/docs/publishing">Publishing guide</a></p>
 	</div>
-	<CodeBlock caption=".github/workflows/publish.yml" code={ciPublish('acme')} />
+	<div class="release">
+		<CodeBlock caption="Releasing 0.2.0" code={pushTag} />
+		<p>
+			The workflow that <code>cargo privatecrates init</code> adds does the rest: it runs
+			<code>cargo publish</code> and records GitHub’s signed statement of which workflow published which bytes.
+		</p>
+	</div>
 </section>
 
 <section class="page pricing-teaser" aria-labelledby="price">
@@ -466,6 +494,35 @@
 		margin-top: 0.85rem;
 	}
 	.split-text {
+		max-width: var(--container-prose);
+	}
+
+	/* The CI token chain: the manifest's ruled panel, in one column */
+	.chain {
+		display: grid;
+		border: 2px solid var(--line);
+		border-radius: 10px;
+		background: var(--deck);
+		overflow: hidden;
+	}
+	.chain li {
+		display: flex;
+		gap: 1rem;
+		padding: 1.1rem 1.25rem 1.2rem;
+	}
+	.chain li + li {
+		border-top: 2px dashed var(--rule);
+	}
+	.chain h3 {
+		font-size: var(--text-lg);
+		margin-bottom: 0.2rem;
+	}
+	.chain p {
+		color: var(--ink-soft);
+	}
+	.release p {
+		margin-top: 0.85rem;
+		color: var(--ink-soft);
 		max-width: var(--container-prose);
 	}
 
