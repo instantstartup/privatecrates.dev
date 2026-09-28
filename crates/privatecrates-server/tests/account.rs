@@ -321,7 +321,10 @@ async fn onboarding_checklist() {
             ("plan".into(), "done".into()),
         ]
     );
-    assert_eq!(doc["steps"][4]["detail"], "Free during the private preview.");
+    assert_eq!(
+        doc["steps"][4]["detail"],
+        "Free during the private preview."
+    );
     assert_eq!(
         doc["terms"],
         json!({ "version": TERMS_VERSION, "url": h.apex("/legal/terms"), "accepted": false })
