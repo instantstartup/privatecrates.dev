@@ -436,10 +436,37 @@ fn edit_packages(
 ) -> Result<Vec<Change>, Error> {
     let mut changes = Vec::new();
     let root_manifest = project.root.join("Cargo.toml");
-    if let (true, Some(repository)) = (project.workspace, repository) {
+    let members: BTreeMap<String, String> = project
+        .packages
+        .iter()
+        .map(|p| (p.name.clone(), p.version.clone()))
+        .collect();
+    // Crates whose `publish` leaves the registry out (`false` is an empty list); unset becomes the registry.
+    let unpublished: Vec<&str> = project
+        .packages
+        .iter()
+        .filter(|p| {
+            p.publish
+                .as_ref()
+                .is_some_and(|r| !r.iter().any(|r| r == slug))
+        })
+        .map(|p| p.name.as_str())
+        .collect();
+    if project.workspace {
         changes.push(edit_toml(staged, &root_manifest, |doc| {
-            Ok(set_workspace_repository(doc, repository)
-                .then(|| format!("workspace.package.repository = \"{repository}\"")))
+            let repository_change = repository.and_then(|repository| {
+                set_workspace_repository(doc, repository)
+                    .then(|| format!("workspace.package.repository = \"{repository}\""))
+            });
+            let details: Vec<String> = repository_change
+                .into_iter()
+                .chain(
+                    pin_path_dependencies(doc, &members, slug)
+                        .into_iter()
+                        .map(|p| p.detail),
+                )
+                .collect();
+            Ok((!details.is_empty()).then(|| details.join("; ")))
         })?);
     }
     for package in &project.packages {
@@ -463,11 +490,36 @@ fn edit_packages(
                     ));
                     None
                 }
+                Publish::Unpublished => {
+                    warnings.push(format!(
+                        "{}: `publish = false`, so it will not be published; if it should be, set \
+                         publish = [\"{slug}\"] in {}",
+                        package.name,
+                        package.manifest_path.display()
+                    ));
+                    None
+                }
                 Publish::Unchanged => None,
             };
+            let publishes = publishes_here(doc, slug);
             let details: Vec<String> = [repository_change, publish_change]
                 .into_iter()
                 .flatten()
+                .chain(if publishes {
+                    let pinned = pin_path_dependencies(doc, &members, slug);
+                    for p in &pinned {
+                        if unpublished.contains(&p.member.as_str()) {
+                            warnings.push(format!(
+                                "{} depends on {}, which is not published to {slug}: publish {} too, or \
+                                 publishing {} fails",
+                                package.name, p.member, p.member, package.name
+                            ));
+                        }
+                    }
+                    pinned.into_iter().map(|p| p.detail).collect()
+                } else {
+                    Vec::new()
+                })
                 .collect();
             Ok((!details.is_empty()).then(|| details.join("; ")))
         })?;
@@ -493,8 +545,10 @@ fn edit_packages(
 pub enum Publish {
     /// `publish = ["<slug>"]` was added.
     Restricted,
-    /// Already allows the registry, is `false`, or is inherited from the workspace: left alone.
+    /// Already allows the registry, or is inherited from the workspace: left alone.
     Unchanged,
+    /// `publish = false`: left alone, and worth a warning, since it may be left from before the registry.
+    Unpublished,
     /// Set, but without the registry: left alone, and worth a warning.
     Elsewhere,
 }
@@ -512,7 +566,7 @@ pub fn restrict_publish(doc: &mut DocumentMut, slug: &str) -> Publish {
             Publish::Restricted
         }
         Some(item) => match item.as_value() {
-            Some(toml_edit::Value::Boolean(b)) if !*b.value() => Publish::Unchanged,
+            Some(toml_edit::Value::Boolean(b)) if !*b.value() => Publish::Unpublished,
             Some(toml_edit::Value::Array(list))
                 if list.iter().any(|v| v.as_str() == Some(slug)) =>
             {
@@ -523,6 +577,92 @@ pub fn restrict_publish(doc: &mut DocumentMut, slug: &str) -> Publish {
             _ => Publish::Elsewhere,
         },
     }
+}
+
+/// Whether the manifest's crate is published to the registry: `publish` lists it, or is inherited from the workspace.
+fn publishes_here(doc: &DocumentMut, slug: &str) -> bool {
+    match doc.get("package").and_then(|p| p.get("publish")) {
+        Some(item) => match item.as_value() {
+            Some(toml_edit::Value::Array(list)) => list.iter().any(|v| v.as_str() == Some(slug)),
+            Some(_) => false,
+            None => true,
+        },
+        None => false,
+    }
+}
+
+/// A path dependency [`pin_path_dependencies`] gave a version.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Pinned {
+    /// The workspace crate depended on.
+    pub member: String,
+    pub detail: String,
+}
+
+/// Gives path dependencies on crates of this workspace the `version` and `registry` that publishing needs: Cargo
+/// drops `path` when it publishes, so the published crate names its dependency by version, in the registry. Covers
+/// `[dependencies]`, `[build-dependencies]`, their `[target.*]` forms and `[workspace.dependencies]`; not
+/// dev-dependencies, which Cargo publishes without them. Returns what changed.
+pub fn pin_path_dependencies(
+    doc: &mut DocumentMut,
+    members: &BTreeMap<String, String>,
+    slug: &str,
+) -> Vec<Pinned> {
+    let mut changes = Vec::new();
+    let mut pin = |table: &mut dyn toml_edit::TableLike| {
+        for (key, item) in table.iter_mut() {
+            let Some(dep) = item.as_table_like_mut() else {
+                continue;
+            };
+            if dep.get("path").is_none() || dep.get("version").is_some() {
+                continue;
+            }
+            let name = dep
+                .get("package")
+                .and_then(Item::as_str)
+                .unwrap_or(key.get())
+                .to_owned();
+            let Some(version) = members.get(&name) else {
+                continue;
+            };
+            dep.insert("version", value(version.as_str()));
+            let mut detail = format!("{key}: version = \"{version}\"");
+            if dep.get("registry").is_none() {
+                dep.insert("registry", value(slug));
+                detail.push_str(&format!(", registry = \"{slug}\""));
+            }
+            if let Some(inline) = item.as_inline_table_mut() {
+                // New keys go after the last value, and would inherit the space before `}`.
+                inline.fmt();
+            }
+            changes.push(Pinned {
+                member: name,
+                detail,
+            });
+        }
+    };
+    for name in ["dependencies", "build-dependencies"] {
+        if let Some(table) = doc.get_mut(name).and_then(Item::as_table_like_mut) {
+            pin(table);
+        }
+    }
+    if let Some(targets) = doc.get_mut("target").and_then(Item::as_table_like_mut) {
+        for (_, target) in targets.iter_mut() {
+            for name in ["dependencies", "build-dependencies"] {
+                if let Some(table) = target.get_mut(name).and_then(Item::as_table_like_mut) {
+                    pin(table);
+                }
+            }
+        }
+    }
+    if let Some(table) = doc
+        .get_mut("workspace")
+        .and_then(|w| w.get_mut("dependencies"))
+        .and_then(Item::as_table_like_mut)
+    {
+        pin(table);
+    }
+    changes
 }
 
 /// The `[package]` table, if there is one.
@@ -831,13 +971,67 @@ mod tests {
     }
 
     #[test]
+    fn path_dependencies_on_workspace_crates_get_a_version_and_the_registry() {
+        let members = BTreeMap::from([
+            ("story_engine".to_owned(), "0.3.0".to_owned()),
+            ("story_pack".to_owned(), "0.3.0".to_owned()),
+        ]);
+        let mut pack = doc(
+            "[package]\nname = \"story_pack\"\npublish = [\"acme\"]\n\n[dependencies]\n\
+             story_engine = { path = \"../engine\" }\n\
+             serde = \"1\"\n\
+             pinned = { path = \"../pinned\", version = \"1\" }\n\
+             elsewhere = { path = \"../elsewhere\" }\n\n\
+             [dev-dependencies]\nstory_engine = { path = \"../engine\" }\n\n\
+             [target.'cfg(unix)'.build-dependencies]\nengine = { path = \"../engine\", package = \"story_engine\" }\n",
+        );
+        let changes: Vec<String> = pin_path_dependencies(&mut pack, &members, "acme")
+            .into_iter()
+            .map(|p| p.detail)
+            .collect();
+        assert_eq!(
+            changes,
+            [
+                "story_engine: version = \"0.3.0\", registry = \"acme\"",
+                "engine: version = \"0.3.0\", registry = \"acme\"",
+            ]
+        );
+        let text = pack.to_string();
+        assert!(
+            text.contains("story_engine = { path = \"../engine\", version = \"0.3.0\", registry = \"acme\" }\nserde = \"1\"\n"),
+            "{text}"
+        );
+        // Dev-dependencies, crates outside the workspace and versioned paths are left alone.
+        assert!(
+            text.contains("[dev-dependencies]\nstory_engine = { path = \"../engine\" }\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("elsewhere = { path = \"../elsewhere\" }\n"),
+            "{text}"
+        );
+        assert!(pin_path_dependencies(&mut pack, &members, "acme").is_empty());
+
+        let mut root = doc(
+            "[workspace]\n[workspace.dependencies]\nstory_engine = { path = \"engine\", registry = \"acme\" }\n",
+        );
+        assert_eq!(
+            pin_path_dependencies(&mut root, &members, "acme"),
+            [Pinned {
+                member: "story_engine".into(),
+                detail: "story_engine: version = \"0.3.0\"".into()
+            }]
+        );
+    }
+
+    #[test]
     fn restricts_publish_to_the_registry() {
         let mut unset = doc("[package]\nname = \"x\"\nversion = \"0.1.0\"\n");
         assert_eq!(restrict_publish(&mut unset, "acme"), Publish::Restricted);
         assert!(unset.to_string().ends_with("publish = [\"acme\"]\n"));
         assert_eq!(restrict_publish(&mut unset, "acme"), Publish::Unchanged);
         let mut private = doc("[package]\nname = \"x\"\npublish = false\n");
-        assert_eq!(restrict_publish(&mut private, "acme"), Publish::Unchanged);
+        assert_eq!(restrict_publish(&mut private, "acme"), Publish::Unpublished);
         let mut public = doc("[package]\nname = \"x\"\npublish = true\n");
         assert_eq!(restrict_publish(&mut public, "acme"), Publish::Elsewhere);
         let mut other = doc("[package]\nname = \"x\"\npublish = [\"crates-io\"]\n");
