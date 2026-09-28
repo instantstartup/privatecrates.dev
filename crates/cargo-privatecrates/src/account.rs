@@ -132,6 +132,9 @@ pub struct Setup {
     pub terms: Terms,
     /// What this run did: `terms`, `settings` and `trial`.
     pub performed: Vec<&'static str>,
+    /// What the admin should know that no step says, such as the terms waiting to be accepted.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
     #[serde(skip)]
     domain_flag: String,
 }
@@ -177,6 +180,7 @@ impl Step {
             "reader_app" => "Install the reader App",
             "storage_repo" => "Create the storage repository",
             "storage_app" => "Install the storage App on the storage repository",
+            "immutable_releases" => "Turn on immutable releases in the storage repository",
             "settings" => "Choose the registry name",
             "plan" => "Plan",
             other => other,
@@ -190,6 +194,9 @@ struct Onboarding {
     steps: Vec<Step>,
     suggested_slug: String,
     terms: Terms,
+    /// Names the storage repository once the registry exists.
+    #[serde(default)]
+    verifier: Option<Value>,
 }
 
 impl Onboarding {
@@ -277,7 +284,45 @@ pub fn setup(domain: &Domain, options: &SetupOptions<'_>) -> Result<Setup, Error
         performed.push("trial");
     }
     let onboarding = Onboarding::parse(&api, &path, onboarding)?;
-    Ok(describe(domain, onboarding, performed))
+    // Our Apps cannot read this setting (it needs administration rights), so check it with the admin's own login.
+    let repository = onboarding
+        .verifier
+        .as_ref()
+        .and_then(|v| v["repository"].as_str())
+        .map_or_else(
+            || format!("{}/{STORAGE_REPO}", onboarding.org.login),
+            str::to_owned,
+        );
+    let storage_exists = onboarding
+        .steps
+        .iter()
+        .any(|s| s.id == "storage_repo" && s.done());
+    let immutable = storage_exists.then(|| immutable_releases(&repository));
+    Ok(describe(
+        domain,
+        onboarding,
+        performed,
+        immutable.map(|i| (repository, i)),
+    ))
+}
+
+/// Whether the repository has immutable releases on, asked with the admin's `gh` login; `None` if `gh` could not say.
+fn immutable_releases(repository: &str) -> Option<bool> {
+    let gh = std::env::var_os("PRIVATECRATES_GH").unwrap_or_else(|| "gh".into());
+    let output = std::process::Command::new(gh)
+        .args([
+            "api",
+            &format!("repos/{repository}/immutable-releases"),
+            "--jq",
+            ".enabled",
+        ])
+        .output()
+        .ok()?;
+    match String::from_utf8_lossy(&output.stdout).trim() {
+        "true" if output.status.success() => Some(true),
+        "false" if output.status.success() => Some(false),
+        _ => None,
+    }
 }
 
 /// An organisation's acceptance of the terms, and what `terms` did.
@@ -342,7 +387,12 @@ impl std::fmt::Display for TermsReport {
 }
 
 /// Adds to each step what a person or an agent does about it.
-fn describe(domain: &Domain, onboarding: Onboarding, performed: Vec<&'static str>) -> Setup {
+fn describe(
+    domain: &Domain,
+    onboarding: Onboarding,
+    performed: Vec<&'static str>,
+    immutable: Option<(String, Option<bool>)>,
+) -> Setup {
     let org = &onboarding.org.login;
     let cli = |args: String| format!("cargo privatecrates {args}{}", domain.flag());
     let storage_app_done = onboarding
@@ -353,7 +403,7 @@ fn describe(domain: &Domain, onboarding: Onboarding, performed: Vec<&'static str
         .steps
         .iter()
         .any(|s| s.id == "settings" && s.done());
-    let steps = onboarding
+    let mut steps: Vec<Step> = onboarding
         .steps
         .into_iter()
         .map(|mut step| {
@@ -389,7 +439,61 @@ fn describe(domain: &Domain, onboarding: Onboarding, performed: Vec<&'static str
             step
         })
         .collect();
+    if let Some((repository, enabled)) = immutable {
+        let turn_on = format!("gh api -X PUT repos/{repository}/immutable-releases");
+        let step = match enabled {
+            Some(true) => Step {
+                id: "immutable_releases".into(),
+                status: "done".into(),
+                detail: None,
+                action_url: None,
+                needs_person: false,
+                commands: Vec::new(),
+            },
+            Some(false) => Step {
+                id: "immutable_releases".into(),
+                status: "todo".into(),
+                detail: Some(format!(
+                    "{repository} has immutable releases off, so the registry refuses to publish. An admin turns \
+                     them on with their own gh login."
+                )),
+                action_url: None,
+                needs_person: false,
+                commands: vec![turn_on],
+            },
+            None => Step {
+                id: "immutable_releases".into(),
+                status: "todo".into(),
+                detail: Some(format!(
+                    "Could not check {repository} with gh (it needs an admin's gh login). The registry refuses to \
+                     publish until immutable releases are on."
+                )),
+                action_url: None,
+                needs_person: false,
+                commands: vec![
+                    format!("gh api repos/{repository}/immutable-releases"),
+                    turn_on,
+                ],
+            },
+        };
+        let at = steps
+            .iter()
+            .position(|s| s.id == "storage_repo")
+            .map_or(steps.len(), |i| i + 1);
+        steps.insert(at, step);
+    }
+    let mut notes = Vec::new();
+    if settings_done && !onboarding.terms.accepted {
+        notes.push(format!(
+            "{org} has not accepted the current terms ({}). The registry keeps working, reads and publishing \
+             included; an admin reads them at {} and runs: {}",
+            onboarding.terms.version,
+            onboarding.terms.url,
+            cli(format!("terms {org} --accept {}", onboarding.terms.version))
+        ));
+    }
     Setup {
+        notes,
         apex: domain.apex(),
         registry_url: settings_done.then(|| domain.registry(&onboarding.suggested_slug)),
         org: onboarding.org,
@@ -467,7 +571,8 @@ impl std::fmt::Display for Setup {
             (true, _) => writeln!(f, "\n  Terms ({version}): accepted, {url}")?,
             (false, Some(_)) => writeln!(
                 f,
-                "\n  Terms ({version}): not accepted yet. An admin reads them at {url}, then runs:\n      \
+                "\n  Terms ({version}): not accepted yet. The registry keeps working, reads and publishing \
+                 included; an admin reads them at {url}, then runs:\n      \
                  cargo privatecrates terms {org} --accept {version}{}",
                 self.domain_flag
             )?,

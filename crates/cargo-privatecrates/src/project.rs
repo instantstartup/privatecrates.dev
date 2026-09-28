@@ -145,6 +145,29 @@ pub fn repository_matches(repository: &str, remote: &str) -> bool {
 }
 
 /// Runs a command and returns its standard output.
+/// Whether the tag exists, in the clone or on `origin`: a tag left from before PrivateCrates, such as one used for
+/// git dependencies, cannot publish again.
+pub fn tag_exists(dir: &Path, tag: &str) -> bool {
+    let local = Command::new("git")
+        .args([
+            "rev-parse",
+            "--quiet",
+            "--verify",
+            &format!("refs/tags/{tag}"),
+        ])
+        .current_dir(dir)
+        .output()
+        .is_ok_and(|o| o.status.success());
+    local
+        || run(
+            Command::new("git")
+                .args(["ls-remote", "--tags", "origin", &format!("refs/tags/{tag}")])
+                .current_dir(dir),
+            "git ls-remote",
+        )
+        .is_ok_and(|out| !out.trim().is_empty())
+}
+
 /// Whether git tracks `file` (relative to `dir`).
 pub fn is_tracked(dir: &Path, file: &str) -> bool {
     Command::new("git")

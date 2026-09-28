@@ -221,7 +221,7 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Report {
         for package in publishable(project.as_ref()) {
             checks.push(publish_restricted(package, name));
             if let (true, Some(token)) = (reachable, &token) {
-                checks.push(published(&http, base, token, package));
+                checks.push(published(&http, base, token, package, project.as_ref()));
             }
         }
     }
@@ -236,9 +236,58 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Report {
     }
     if let Some(project) = publishing {
         checks.extend(lockfile(&project.root, &project.packages));
+        for package in publishable(Some(project)) {
+            checks.push(packaging(&project.root, package));
+        }
     }
     let ok = checks.iter().all(|c| c.status != Status::Fail);
     Report { checks, ok }
+}
+
+/// Whether Cargo can package the crate: a manifest mistake such as a `license-file` that does not exist otherwise
+/// shows only when the publish runs. `--list --offline` collects the files without resolving dependencies, so it
+/// needs no network and no sign-in.
+fn packaging(root: &Path, package: &Package) -> Check {
+    let name = Some(package.name.as_str());
+    let output =
+        std::process::Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+            .args([
+                "package",
+                "--list",
+                "--allow-dirty",
+                "--offline",
+                "--quiet",
+                "-p",
+                &package.name,
+            ])
+            .current_dir(root)
+            .output();
+    match output {
+        Ok(o) if o.status.success() => Check::new(
+            "package",
+            name,
+            Status::Pass,
+            format!("{} packages", package.name),
+        ),
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            let problem = stderr
+                .lines()
+                .find_map(|l| l.strip_prefix("error: "))
+                .unwrap_or("cargo package failed")
+                .to_owned();
+            Check::new("package", name, Status::Fail, problem).fix(format!(
+                "fix the manifest; cargo package --list -p {} shows it",
+                package.name
+            ))
+        }
+        Err(e) => Check::new(
+            "package",
+            name,
+            Status::Warn,
+            format!("could not run cargo package: {e}"),
+        ),
+    }
 }
 
 /// A committed `Cargo.lock` must list every crate of the workspace at its current version. Otherwise `cargo publish`
@@ -556,7 +605,13 @@ fn publish_restricted(package: &Package, registry: &str) -> Check {
 }
 
 /// The package's current version is in the registry's index.
-fn published(http: &Client, base: &str, token: &str, package: &Package) -> Check {
+fn published(
+    http: &Client,
+    base: &str,
+    token: &str,
+    package: &Package,
+    project: Option<&Project>,
+) -> Check {
     let name = Some(package.name.as_str());
     let url = format!("{base}/index/{}", index::path(&package.name));
     let found = http
@@ -582,11 +637,45 @@ fn published(http: &Client, base: &str, token: &str, package: &Package) -> Check
             Status::Warn,
             format!("{} {} is not published yet", package.name, package.version),
         )
-        .fix(format!(
-            "merge the workflow, then push a tag: git tag v{0} && git push origin v{0}",
-            package.version
-        ))
+        .fix(match project {
+            Some(project) => tag_to_push(project, package, |tag| {
+                project::tag_exists(&project.root, tag)
+            }),
+            None => format!(
+                "push a tag: git tag v{0} && git push origin v{0}",
+                package.version
+            ),
+        })
     }
+}
+
+/// The tag that publishes a crate, from those not taken yet (SPEC §6.4): `v<version>` publishes a single crate or,
+/// in a workspace whose crates share the version, all of them in dependency order; `<crate>-v<version>` publishes one
+/// crate of a workspace.
+fn tag_to_push(project: &Project, package: &Package, exists: impl Fn(&str) -> bool) -> String {
+    let push = |tag: &str| {
+        format!("merge the workflow, then push a tag: git tag {tag} && git push origin {tag}")
+    };
+    let version = &package.version;
+    let whole = format!("v{version}");
+    let shared = publishable(Some(project)).all(|p| &p.version == version);
+    if (!project.workspace || shared) && !exists(&whole) {
+        return push(&whole);
+    }
+    let one = format!("{}-v{version}", package.name);
+    if project.workspace && !exists(&one) {
+        let order = if publishable(Some(project)).count() > 1 {
+            " (publish crates others depend on first, and wait for each run)"
+        } else {
+            ""
+        };
+        return format!("{}{order}", push(&one));
+    }
+    format!(
+        "the tag {} already exists, on an earlier commit: bump the version in Cargo.toml (and commit Cargo.lock), \
+         then push the tag for the new version",
+        if project.workspace { one } else { whole }
+    )
 }
 
 /// A crate a developer depends on: whether they can see it, and if not, the possible reasons. The registry answers
@@ -711,6 +800,65 @@ impl fmt::Display for Report {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn member(name: &str, version: &str) -> Package {
+        Package {
+            name: name.into(),
+            version: version.into(),
+            manifest_path: PathBuf::from(format!("{name}/Cargo.toml")),
+            repository: None,
+            publish: None,
+        }
+    }
+
+    #[test]
+    fn the_suggested_tag_is_one_not_taken() {
+        let single = Project {
+            root: PathBuf::from("."),
+            workspace: false,
+            packages: vec![member("engine", "0.3.0")],
+        };
+        let workspace = Project {
+            root: PathBuf::from("."),
+            workspace: true,
+            packages: vec![member("engine", "0.3.0"), member("pack", "0.3.0")],
+        };
+        let engine = &workspace.packages[0];
+        let none = |_: &str| false;
+        assert!(
+            tag_to_push(&single, &single.packages[0], none)
+                .ends_with("git tag v0.3.0 && git push origin v0.3.0")
+        );
+        // A workspace sharing one version: one tag publishes every crate.
+        assert!(
+            tag_to_push(&workspace, engine, none)
+                .ends_with("git tag v0.3.0 && git push origin v0.3.0")
+        );
+        // v0.3.0 is left from git dependencies: the crate's own tag, in dependency order.
+        let fix = tag_to_push(&workspace, engine, |t| t == "v0.3.0");
+        assert!(
+            fix.contains("git tag engine-v0.3.0 && git push origin engine-v0.3.0"),
+            "{fix}"
+        );
+        assert!(
+            fix.contains("dependency") || fix.contains("depend on first"),
+            "{fix}"
+        );
+        // Both taken, or a single crate's tag taken: a new version.
+        let fix = tag_to_push(&workspace, engine, |_| true);
+        assert!(
+            fix.starts_with("the tag engine-v0.3.0 already exists"),
+            "{fix}"
+        );
+        let fix = tag_to_push(&single, &single.packages[0], |_| true);
+        assert!(fix.starts_with("the tag v0.3.0 already exists"), "{fix}");
+        // Versions differ: per-crate tags.
+        let mixed = Project {
+            packages: vec![member("engine", "0.3.0"), member("pack", "0.4.0")],
+            ..workspace
+        };
+        assert!(tag_to_push(&mixed, &mixed.packages[1], none).contains("git tag pack-v0.4.0"));
+    }
 
     #[test]
     fn a_committed_lockfile_must_list_the_current_versions() {

@@ -363,7 +363,7 @@ pub fn add_registry(
             let mut table = Table::new();
             table.decor_mut().set_prefix(format!(
                 "{blank_line}# Needs cargo-credential-privatecrates (cargo binstall or cargo install it); the first \
-                 build signs you in on GitHub.\n# Joining the team, editors and troubleshooting: {}\n",
+                 build signs you in on GitHub, as does `cargo privatecrates login`.\n# Joining the team, editors and troubleshooting: {}\n",
                 login_url(index)
             ));
             Item::Table(table)
@@ -620,7 +620,7 @@ permissions:
   contents: read
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 {defaults}    steps:
       - uses: actions/checkout@v5
 {install}{publish}"
@@ -706,7 +706,7 @@ mod tests {
              [registries.other]\n\
              index = \"sparse+https://other.example/index/\"\n\
              \n\
-             # Needs cargo-credential-privatecrates (cargo binstall or cargo install it); the first build signs you in on GitHub.\n\
+             # Needs cargo-credential-privatecrates (cargo binstall or cargo install it); the first build signs you in on GitHub, as does `cargo privatecrates login`.\n\
              # Joining the team, editors and troubleshooting: https://acme.privatecrates.dev/login\n\
              [registries.acme]\n\
              index = \"sparse+https://acme.privatecrates.dev/index/\"\n\
@@ -724,7 +724,7 @@ mod tests {
         assert_eq!(add_registry(&mut config, "acme", INDEX, false), Ok(true));
         assert_eq!(
             config.to_string(),
-            "# Needs cargo-credential-privatecrates (cargo binstall or cargo install it); the first build signs you in on GitHub.\n\
+            "# Needs cargo-credential-privatecrates (cargo binstall or cargo install it); the first build signs you in on GitHub, as does `cargo privatecrates login`.\n\
              # Joining the team, editors and troubleshooting: https://acme.privatecrates.dev/login\n\
              [registries.acme]\n\
              index = \"sparse+https://acme.privatecrates.dev/index/\"\n\
@@ -862,7 +862,7 @@ mod tests {
         assert_eq!(write(false).unwrap(), Action::Unchanged);
 
         // Edited, e.g. to pin the runner: still publishes to the registry, so it is kept.
-        let pinned = content.replace("ubuntu-latest", "ubuntu-24.04");
+        let pinned = content.replace("ubuntu-24.04", "ubuntu-22.04");
         std::fs::write(&path, &pinned).unwrap();
         assert_eq!(write(false).unwrap(), Action::Kept);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), pinned);
@@ -890,7 +890,7 @@ permissions:
   contents: read
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 {}      - run: cargo publish --registry acme
@@ -913,7 +913,7 @@ jobs:
                 .contains("*-v[0-9]*) cargo publish --package \"${TAG%-v*}\" --registry acme ;;")
         );
         assert!(workspace.contains(
-            "    runs-on: ubuntu-latest\n    defaults:\n      run:\n        working-directory: rust\n    steps:\n"
+            "    runs-on: ubuntu-24.04\n    defaults:\n      run:\n        working-directory: rust\n    steps:\n"
         ));
         assert!(publishes_to(&workspace, "acme"));
         assert!(!publishes_to(&workspace, "acme2"));

@@ -12,16 +12,36 @@ use serde_json::{Value, json};
 
 const CLI: &str = env!("CARGO_BIN_EXE_cargo-privatecrates");
 
-/// Runs `cargo privatecrates …` with its tokens in `config`.
+/// Runs `cargo privatecrates …` with its tokens in `config`, and a stand-in for `gh` that reports immutable releases
+/// as on.
 async fn cli(config: &Path, args: &[&str]) -> Output {
+    cli_with_immutable_releases(config, args, "true").await
+}
+
+/// The same, with `gh api …/immutable-releases --jq .enabled` answering `enabled`.
+async fn cli_with_immutable_releases(config: &Path, args: &[&str], enabled: &str) -> Output {
+    let gh = config.join("gh");
+    std::fs::write(&gh, format!("#!/bin/sh\necho {enabled}\n")).unwrap();
+    std::fs::set_permissions(&gh, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
     tokio::process::Command::new(CLI)
         .arg("privatecrates")
         .args(args)
         .env("PRIVATECRATES_CREDENTIAL_STORE", "file")
         .env("PRIVATECRATES_CONFIG_DIR", config)
+        .env("PRIVATECRATES_GH", &gh)
         .output()
         .await
         .unwrap()
+}
+
+/// A step of the checklist, by its id.
+fn step<'a>(setup: &'a Value, id: &str) -> &'a Value {
+    setup["steps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == id)
+        .unwrap_or_else(|| panic!("no step {id} in {setup}"))
 }
 
 fn stdout(output: &Output) -> String {
@@ -109,7 +129,7 @@ async fn an_admin_sets_up_a_registry() {
     assert_eq!(setup["org"]["login"], "globex");
     assert_eq!(setup["suggested_slug"], "globex");
     assert_eq!(setup["registry_url"], Value::Null);
-    let settings = &setup["steps"][3];
+    let settings = &step(&setup, "settings");
     assert_eq!(settings["id"], "settings");
     assert_eq!(settings["status"], "todo");
     assert_eq!(settings["detail"], "Choose your registry name.");
@@ -125,7 +145,7 @@ async fn an_admin_sets_up_a_registry() {
         setup["terms"],
         json!({ "version": TERMS_VERSION, "url": terms_url, "accepted": false })
     );
-    assert!(setup["steps"][0]["action_url"].as_str().is_some());
+    assert!(step(&setup, "reader_app")["action_url"].as_str().is_some());
     let output = cli(config.path(), &with_domain(&["setup", "globex"])).await;
     let text = stdout(&output);
     assert!(
@@ -281,6 +301,23 @@ async fn an_admin_sets_up_a_registry() {
             .is_none()
     );
 
+    // Immutable releases, checked with the admin's gh login: off is a step to do, with the command.
+    let output = cli_with_immutable_releases(
+        config.path(),
+        &with_domain(&["setup", "globex", "--json"]),
+        "false",
+    )
+    .await;
+    let setup = json(&output);
+    let immutable = step(&setup, "immutable_releases");
+    assert_eq!(immutable["status"], "todo");
+    assert_eq!(
+        immutable["commands"][0],
+        "gh api -X PUT repos/globex/crates-store/immutable-releases"
+    );
+    let output = cli(config.path(), &with_domain(&["setup", "globex", "--json"])).await;
+    assert_eq!(step(&json(&output), "immutable_releases")["status"], "done");
+
     // --url names a registry of the same deployment.
     let url = h.base();
     let output = cli(config.path(), &["setup", "acme", "--url", &url, "--json"]).await;
@@ -324,9 +361,9 @@ async fn members_see_the_checklist_but_cannot_act() {
     )
     .await;
     let setup = json(&output);
-    assert_eq!(setup["steps"][3]["status"], "blocked");
+    assert_eq!(step(&setup, "settings")["status"], "blocked");
     assert!(
-        setup["steps"][3]["detail"]
+        step(&setup, "settings")["detail"]
             .as_str()
             .unwrap()
             .contains("ask one of them")
@@ -388,7 +425,7 @@ async fn an_admin_starts_the_trial_with_a_billing_email() {
 
     // The checklist says how, email included.
     let setup = json(&cli(config.path(), &with_domain(&["setup", "acme"])).await);
-    let plan = &setup["steps"][4];
+    let plan = &step(&setup, "plan");
     assert_eq!(plan["status"], "todo");
     assert_eq!(
         plan["commands"][0],
@@ -443,7 +480,7 @@ async fn an_admin_starts_the_trial_with_a_billing_email() {
     assert!(output.status.success(), "{:?}", output);
     let setup = json(&output);
     assert_eq!(setup["performed"], serde_json::json!(["trial"]));
-    assert_eq!(setup["steps"][4]["status"], "done");
+    assert_eq!(step(&setup, "plan")["status"], "done");
     let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
     assert_eq!(customer["email"], "billing@acme.example");
 

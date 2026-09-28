@@ -72,7 +72,7 @@ permissions:
   contents: read
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 ${PROVIDER_STEP}      - run: cargo build --locked`;
@@ -87,7 +87,7 @@ permissions:
   contents: read
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 ${PROVIDER_STEP}      - run: cargo publish --registry ${name}`;
@@ -104,7 +104,7 @@ permissions:
   contents: read
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 ${PROVIDER_STEP}      - name: cargo publish
@@ -132,7 +132,7 @@ permissions:
 concurrency: { group: verify, cancel-in-progress: true }
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
         with: { fetch-depth: 0 }

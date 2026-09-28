@@ -25,7 +25,7 @@ permissions:
 concurrency: {{ group: verify, cancel-in-progress: true }}
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
         with: {{ fetch-depth: 0 }}
