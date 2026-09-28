@@ -194,8 +194,12 @@ environments get their dependencies from a GitHub Actions job:
 - **Or vendor:** run `cargo vendor` in GitHub Actions and hand the vendored tree to the external build, which then
   needs no registry access.
 
-Railway's Dockerfile builds expose variables only as `ARG`s, and build arguments can be recorded in image history,
-so a registry token must never be passed to a Railway build. Railway services use one of the two routes above.
+Platforms that build the image themselves from Git (Railway, Render and others) cannot use either route without
+changing how they deploy. They use a fine-grained GitHub token instead, created by a person on a service account
+with only *Metadata: Read-only* on the repositories whose crates the app needs; the registry checks it like any
+other GitHub token (§6.6), and GitHub creates, expires and revokes it. It reaches `cargo build` as `cargo:token`,
+through a BuildKit secret mount where the platform has one (Render), or a build `ARG` declared only in a build stage
+the final image does not inherit (Railway, which offers only `ARG`s). `/docs/deploy` has the Dockerfiles.
 
 Support for other CI (GitLab, Buildkite and CircleCI all issue OIDC tokens) can be added later by mapping their
 claims to a GitHub repository; it is not a launch requirement.

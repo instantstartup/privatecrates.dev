@@ -94,6 +94,8 @@ ${indent(fence(doctorCommands()))}
 
 An app that uses the crates needs them wherever its image is built. Find out how it deploys (look for \`railway.json\`, \`render.yaml\`, \`fly.toml\`, \`app.yaml\`, or a deploy workflow in \`.github/workflows\`), then:
 
+This section overrides the general advice to vendor in Actions and build offline: that advice is for builds you run in Actions, not for platforms that build from Git.
+
 - **Deployed from GitHub Actions** (Fly.io, Cloud Run, AWS, Azure): no token is needed. Vendor the crates in the job (\`cargo vendor\`) and build offline, as ${SITE_URL}/docs/ci#elsewhere shows.
 - **Built by the platform from Git** (Railway, Render, Heroku, DigitalOcean App Platform): the build needs a fine-grained GitHub token. **Ask the admin whether they want to set one up**, explaining that it is read-only, sees only the repositories they choose, and is managed and revoked on GitHub. If they agree, **a person creates it**, ideally on a service account: resource owner the organisation (if it is not offered, an owner first allows fine-grained tokens in the organisation's settings), only the repositories whose crates the app uses, the single permission "Metadata: Read-only" added explicitly (without it the token sees nothing), and an expiry. **They store it on the platform themselves** (Render: a secret file \`privatecrates-token\`; Railway: a sealed variable \`PRIVATECRATES_TOKEN\`). You only change the Dockerfile, as ${SITE_URL}/docs/deploy shows: \`cargo:token\` for the registry during \`cargo build\`, from a build secret or a build argument declared in the build stage alone. Never ask for the token's value, and never put it in the repository.
 

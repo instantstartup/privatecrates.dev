@@ -101,15 +101,14 @@ RUN cargo build --release --locked --offline`;
 	The same <code>vendor</code> directory and configuration can be uploaded as an artifact for an external build,
 	which then needs no registry access at all.
 </p>
-<p>
-	If a build outside Actions must ever receive a registry token, pass it through a BuildKit secret mount (<code
-		>RUN --mount=type=secret</code
-	>), never a build argument: build arguments can be recorded in the image history.
-</p>
-
-<Callout tone="warn" title="Platforms that only offer build arguments">
+<Callout title="A platform that builds your image itself">
 	<p>
-		Some hosting platforms expose build-time variables only as Docker build arguments. Never give such a build
-		a registry token; use one of the two routes above instead.
+		Railway, Render and similar platforms build from your Git repository, outside Actions. They use a
+		fine-grained GitHub token with <em>Metadata: Read-only</em> on chosen repositories, never a registry
+		token: see <a href="/docs/deploy">Deploying apps</a>. Pass it through a BuildKit secret mount (<code
+			>RUN --mount=type=secret</code
+		>) where the platform has one. Where it offers only build arguments, as Railway does, declare the argument
+		in a build stage that the final image does not inherit: a build argument can be recorded in the history of
+		the stage that declares it.
 	</p>
 </Callout>
