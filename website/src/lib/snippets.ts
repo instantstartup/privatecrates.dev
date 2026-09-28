@@ -400,3 +400,49 @@ Rules:
 - Never approve a GitHub sign-in or enter a device code yourself, and never paste tokens anywhere.
 - Never publish crates from this machine: publishing happens in GitHub Actions.`;
 }
+
+/** Cargo's environment variable prefix for a registry: `acme-corp` → `CARGO_REGISTRIES_ACME_CORP`. */
+export function registryEnv(name: string): string {
+	return `CARGO_REGISTRIES_${name.toUpperCase().replace(/-/g, '_')}`;
+}
+
+/**
+ * A Dockerfile for a platform that mounts build secrets (Render's secret files): the token is a file only while
+ * `cargo build` runs, and never part of an image layer.
+ */
+export function dockerfileWithSecret(name: string): string {
+	const env = registryEnv(name);
+	return `# syntax=docker/dockerfile:1
+FROM rust:1 AS build
+WORKDIR /src
+COPY . .
+# The token exists only while this step runs; cargo:token makes Cargo send it as it is.
+RUN --mount=type=secret,id=privatecrates-token,dst=/run/secrets/privatecrates-token \\
+    ${env}_CREDENTIAL_PROVIDER=cargo:token \\
+    ${env}_TOKEN="$(cat /run/secrets/privatecrates-token)" \\
+    cargo build --release --locked
+
+FROM debian:bookworm-slim
+COPY --from=build /src/target/release/story-app /usr/local/bin/story-app
+CMD ["story-app"]`;
+}
+
+/**
+ * A Dockerfile for Railway, which passes variables to builds only as build arguments: the argument is declared in
+ * the build stage alone, so the image that runs never contains it.
+ */
+export function dockerfileWithArg(name: string): string {
+	const env = registryEnv(name);
+	return `FROM rust:1 AS build
+# A sealed Railway variable. Declared in this stage only: the final image below has no trace of it.
+ARG PRIVATECRATES_TOKEN
+WORKDIR /src
+COPY . .
+RUN ${env}_CREDENTIAL_PROVIDER=cargo:token \\
+    ${env}_TOKEN="$PRIVATECRATES_TOKEN" \\
+    cargo build --release --locked
+
+FROM debian:bookworm-slim
+COPY --from=build /src/target/release/story-app /usr/local/bin/story-app
+CMD ["story-app"]`;
+}

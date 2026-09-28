@@ -217,8 +217,11 @@
 <h2 id="security">Security</h2>
 <ul>
 	<li>
-		<strong>No broad tokens.</strong> Nothing in this flow needs a personal access token. If an agent asks for one,
-		or offers to create one, say no.
+		<strong>No broad tokens.</strong> Setting up and publishing need no personal access token. If an agent
+		asks for one, or offers to create one, say no. The one exception is deploying an app from a platform that
+		builds from Git, such as Railway: there the agent may ask whether you want a
+		<a href="/docs/deploy#token">fine-grained, read-only token</a>, which you create and store on the platform
+		yourself. The agent never sees it.
 	</li>
 	<li>
 		<strong>Administration stays with you.</strong> Creating the storage repository and turning on immutable

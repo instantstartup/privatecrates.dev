@@ -81,8 +81,10 @@ RUN cargo build --release --locked --offline`;
 
 <h2 id="elsewhere">Docker builds and CI outside GitHub Actions</h2>
 <p>
-	At launch only GitHub Actions can read the registry, so that no long-lived credential exists anywhere. Other
-	environments get their dependencies from an Actions job, in one of two ways.
+	GitHub Actions reads the registry with no secret at all, so the safest way to build elsewhere is to let an
+	Actions job fetch the dependencies, in one of two ways. For a platform that builds your image itself from
+	Git, such as Railway or Render, see <a href="/docs/deploy">Deploying apps</a>: it needs a narrow, read-only
+	GitHub token.
 </p>
 
 <h3>Build the image in GitHub Actions</h3>

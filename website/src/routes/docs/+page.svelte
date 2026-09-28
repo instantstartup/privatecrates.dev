@@ -38,6 +38,10 @@
 		images or use other CI safely.
 	</li>
 	<li>
+		<a href="/docs/deploy">Deploying apps</a>: Railway, Render, Fly.io, Cloud Run and others, from GitHub
+		Actions with no secrets or with a narrow, read-only GitHub token.
+	</li>
+	<li>
 		<a href="/docs/publishing">Publishing</a>: trusted publishing from Actions, the owners file, first
 		publishes, yanking and publishing from a laptop.
 	</li>

@@ -45,6 +45,7 @@ export const docsNav: NavLink[] = [
 	{ href: '/docs/joining', label: 'Joining a team' },
 	{ href: '/docs/agents', label: 'Set up with an AI agent' },
 	{ href: '/docs/ci', label: 'CI without secrets' },
+	{ href: '/docs/deploy', label: 'Deploying apps' },
 	{ href: '/docs/publishing', label: 'Publishing' },
 	{ href: '/docs/verify', label: 'Verify the registry' },
 	{ href: '/docs/security', label: 'Security model' },

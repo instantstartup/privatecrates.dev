@@ -90,6 +90,13 @@ ${indent(fence(storageRepoCommands(ORG)))}
 4. Check each repository:
 ${indent(fence(doctorCommands()))}
 
+## Apps that depend on the crates
+
+An app that uses the crates needs them wherever its image is built. Find out how it deploys (look for \`railway.json\`, \`render.yaml\`, \`fly.toml\`, \`app.yaml\`, or a deploy workflow in \`.github/workflows\`), then:
+
+- **Deployed from GitHub Actions** (Fly.io, Cloud Run, AWS, Azure): no token is needed. Vendor the crates in the job (\`cargo vendor\`) and build offline, as ${SITE_URL}/docs/ci#elsewhere shows.
+- **Built by the platform from Git** (Railway, Render, Heroku, DigitalOcean App Platform): the build needs a fine-grained GitHub token. **Ask the admin whether they want to set one up**, explaining that it is read-only, sees only the repositories they choose, and is managed and revoked on GitHub. If they agree, **a person creates it**, ideally on a service account: resource owner the organisation, only the repositories whose crates the app uses, no permissions beyond the mandatory "Metadata: read", and an expiry. **They store it on the platform themselves** (Render: a secret file \`privatecrates-token\`; Railway: a sealed variable \`PRIVATECRATES_TOKEN\`). You only change the Dockerfile, as ${SITE_URL}/docs/deploy shows: \`cargo:token\` for the registry during \`cargo build\`, from a build secret or a build argument declared in the build stage alone. Never ask for the token's value, and never put it in the repository.
+
 Developers who depend on the crates install the credential provider once (\`cargo binstall cargo-credential-privatecrates\`, or \`cargo install cargo-credential-privatecrates --locked\` without cargo-binstall); the first build signs them in with GitHub.
 
 ## Where a person is needed
@@ -99,6 +106,7 @@ Developers who depend on the crates install the credential provider once (\`carg
 - Installing the reader App, and installing the storage App on the storage repository.
 - Accepting the terms on behalf of the organisation: the admin reads them and accepts; the agent never does.
 ${PREVIEW ? '' : '- Subscribing with a card, only for an organisation that has already had its trial.\n'}- Merging the pull requests.
+- Creating a fine-grained token for a platform that builds from Git, and storing it there, if the admin wants one.
 
 At each of these, stop. Give the admin the exact link, say what to choose there, and wait until they say it is done; do not poll GitHub in a loop. Then re-run \`${cli(`setup ${ORG} --json`)}\` to confirm the step is \`done\` before going on.
 
@@ -108,7 +116,7 @@ At each of these, stop. Give the admin the exact link, say what to choose there,
 
 ## Security
 
-- Never ask for, create or store a personal access token (classic or fine-grained) or any other broad GitHub token. Nothing in this flow needs one.
+- Never create a GitHub token, never ask for one to be pasted to you, and never store one. Setting up a registry and publishing need none. The one exception is a fine-grained token for a platform that builds images from Git (see "Apps that depend on the crates"): a person creates it, with metadata access only to chosen repositories, and stores it on the platform; you never see its value.
 - Repository administration (creating the storage repository, turning on immutable releases) is done with the admin's own \`gh\` login, so the PrivateCrates Apps never need administration rights.
 - The token from \`cargo privatecrates login\` is a reader App user token: it can read repository metadata and nothing else. It expires after 8 hours and is refreshed from the keyring.
 - CI needs no secrets: the publish and build workflows use \`permissions: id-token: write\`. Do not add registry tokens to repository secrets.
@@ -121,6 +129,7 @@ At each of these, stop. Give the admin the exact link, say what to choose there,
 - [Set up a registry](${SITE_URL}/docs/setup): the Apps, the storage repository, the settings file and developer set-up
 - [Joining a team](${SITE_URL}/docs/joining): for a developer on a project that already uses a registry: install, sign in, editors, "not found", and the prompt for their coding agent
 - [CI without secrets](${SITE_URL}/docs/ci): reading crates from GitHub Actions with OIDC
+- [Deploying apps](${SITE_URL}/docs/deploy): Railway, Render, Fly.io, Cloud Run and others; the fine-grained token for platforms that build from Git
 - [Publishing](${SITE_URL}/docs/publishing): trusted publishing, the owners file, first publishes and yanking
 - [Security model](${SITE_URL}/docs/security): what PrivateCrates can see and store, and what a compromise could do
 
