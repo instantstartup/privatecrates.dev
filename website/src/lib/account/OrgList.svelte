@@ -14,8 +14,8 @@
 	let { orgs, selected, isLive, preview = false }: Props = $props();
 </script>
 
-<nav aria-label="Your organisations">
-	<h2 class="title">Organisations</h2>
+<nav aria-label="Your accounts">
+	<h2 class="title">{orgs.some((o) => o.personal) ? 'Accounts' : 'Organisations'}</h2>
 	{#if preview}
 		<!-- One line for all of them, in place of a plan badge on each. -->
 		<p class="preview">Free during the private preview</p>
@@ -32,7 +32,11 @@
 						href="?org={encodeURIComponent(org.login)}"
 						aria-current={org.login === selected ? 'true' : undefined}>{org.login}</a
 					>
-					<span class="meta">{org.role === 'admin' ? 'Admin' : 'Member'}{members ? `, ${members}` : ''}</span>
+					<span class="meta"
+						>{#if org.personal}Your personal account, always free{:else}{org.role === 'admin'
+								? 'Admin'
+								: 'Member'}{members ? `, ${members}` : ''}{/if}</span
+					>
 					<span class="badges">
 						<span class={['badge', setup === 'Live' ? 'live' : 'idle']}>{setup}</span>
 						{#if badge}

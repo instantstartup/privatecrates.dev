@@ -19,7 +19,7 @@ Decided 27 September 2026. There is no legal entity yet, so PrivateCrates runs a
   enforcement. `/trial`, `/checkout`, `/portal` and `/billing-email` answer `409 billing::preview` ("PrivateCrates is
   free during the preview").
 - Every organisation's `plan` is `"free"`, with `members` still reported. The onboarding `plan` step is `done`, with
-  detail "Free during the preview."
+  detail "Free during the private preview."
 - `GET /api/session` gains a top-level `"preview": true` and `"terms": { "version": "preview-2026-09-27", "url":
   "https://{apex}/legal/terms" }`.
 - Publish warnings (trial reminders) are off.

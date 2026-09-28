@@ -98,6 +98,8 @@ pub struct Org {
     pub reader_installation: u64,
     pub storage_installation: u64,
     pub storage_repo: u64,
+    /// A user's personal account rather than an organisation: its ID and login are the user's.
+    pub personal: bool,
 }
 
 #[derive(Default)]
@@ -247,6 +249,7 @@ impl FakeGitHub {
             reader_installation,
             storage_installation,
             storage_repo,
+            personal: false,
         };
         w.orgs.push(org.clone());
         drop(w);
@@ -714,6 +717,7 @@ impl FakeGitHub {
             reader_installation: w.id(),
             storage_installation: w.id(),
             storage_repo: w.id(),
+            personal: false,
         };
         w.repos.insert(
             org.storage_repo,
@@ -726,6 +730,44 @@ impl FakeGitHub {
                 ..Repo::default()
             },
         );
+        w.web.uninstalled.insert(org.reader_installation);
+        w.web.uninstalled.insert(org.storage_installation);
+        w.orgs.push(org.clone());
+        org
+    }
+
+    /// The personal account of the user holding `token`, with a `crates-store` repository they own and push to.
+    /// Neither App is installed yet (see [`Self::install_app`]).
+    pub fn add_personal_account(&self, token: &str) -> Org {
+        let mut w = self.world();
+        let (id, login) = {
+            let user = &w.users[token];
+            (user.id, user.login.clone())
+        };
+        let org = Org {
+            id,
+            login: login.clone(),
+            reader_installation: w.id(),
+            storage_installation: w.id(),
+            storage_repo: w.id(),
+            personal: true,
+        };
+        w.repos.insert(
+            org.storage_repo,
+            Repo {
+                id: org.storage_repo,
+                owner_id: id,
+                owner: login,
+                name: "crates-store".into(),
+                immutable_releases: true,
+                ..Repo::default()
+            },
+        );
+        w.users
+            .get_mut(token)
+            .expect("the user exists")
+            .repos
+            .insert(org.storage_repo, true);
         w.web.uninstalled.insert(org.reader_installation);
         w.web.uninstalled.insert(org.storage_installation);
         w.orgs.push(org.clone());
@@ -780,6 +822,7 @@ fn web_routes() -> Router<FakeGitHub> {
         .route("/user/orgs", get(user_orgs))
         .route("/user/memberships/orgs/{org}", get(user_membership))
         .route("/orgs/{org}/installation", get(org_installation))
+        .route("/users/{login}/installation", get(user_installation))
         .route("/orgs/{org}/members", get(org_members))
 }
 
@@ -894,8 +937,30 @@ async fn org_installation(
     headers: HeaderMap,
     Path(org): Path<String>,
 ) -> Response {
+    account_installation(&fake, &headers, &org, false)
+}
+
+async fn user_installation(
+    State(fake): State<FakeGitHub>,
+    headers: HeaderMap,
+    Path(login): Path<String>,
+) -> Response {
+    account_installation(&fake, &headers, &login, true)
+}
+
+fn account_json(o: &Org) -> Value {
+    json!({ "login": o.login, "id": o.id, "type": if o.personal { "User" } else { "Organization" } })
+}
+
+/// `/orgs/{org}/installation` finds organisations only, and `/users/{login}/installation` personal accounts.
+fn account_installation(
+    fake: &FakeGitHub,
+    headers: &HeaderMap,
+    org: &str,
+    personal: bool,
+) -> Response {
     let w = fake.world();
-    let app = match principal(&w, &headers) {
+    let app = match principal(&w, headers) {
         Ok(Principal::App(app)) => app,
         Ok(_) => return error(StatusCode::FORBIDDEN, "needs an App JWT"),
         Err(e) => return e,
@@ -903,7 +968,7 @@ async fn org_installation(
     let installation = w
         .orgs
         .iter()
-        .find(|o| o.login.eq_ignore_ascii_case(&org))
+        .find(|o| o.personal == personal && o.login.eq_ignore_ascii_case(org))
         .map(|o| {
             let id = if app == READER_APP_ID {
                 o.reader_installation
@@ -914,7 +979,7 @@ async fn org_installation(
         });
     match installation {
         Some((id, o)) if !w.web.uninstalled.contains(&id) => {
-            Json(json!({ "id": id, "account": { "login": o.login, "id": o.id } })).into_response()
+            Json(json!({ "id": id, "account": account_json(o) })).into_response()
         }
         _ => error(StatusCode::NOT_FOUND, "Not Found"),
     }
@@ -1177,7 +1242,7 @@ async fn app_installations(
             (id, o)
         })
         .filter(|(id, _)| !w.web.uninstalled.contains(id))
-        .map(|(id, o)| json!({ "id": id, "account": { "login": o.login, "id": o.id } }))
+        .map(|(id, o)| json!({ "id": id, "account": account_json(o) }))
         .collect();
     Json(paginate(&all, &page)).into_response()
 }

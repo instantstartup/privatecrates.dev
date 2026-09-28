@@ -42,6 +42,8 @@ export interface Org {
 	terms_accepted?: boolean;
 	/** The private preview: whether this organisation is invited. Absent (true) when anyone may join. */
 	invited?: boolean;
+	/** The user's own GitHub account rather than an organisation: they alone administer it, and it is always free. */
+	personal?: boolean;
 	tenant: Tenant | null;
 }
 
@@ -91,6 +93,8 @@ export interface Onboarding {
 	org: { id: number; login: string };
 	/** The private preview: whether this organisation is invited. */
 	invited?: boolean;
+	/** A personal account rather than an organisation. */
+	personal?: boolean;
 	steps: Step[];
 	/** The current terms and whether this organisation has accepted them. */
 	terms?: { version: string; url: string; accepted: boolean };

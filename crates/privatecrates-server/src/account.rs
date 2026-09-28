@@ -28,7 +28,9 @@ use crate::{
     billing::{self, OrgPlan, Plan, Subscription, trial_length},
     compliance,
     error::ApiError,
-    github::{AppKind, Conditional, FileWrite, GitHubError, Membership, Organization, Repo},
+    github::{
+        Account, AppKind, Conditional, FileWrite, GitHubError, Membership, Organization, Repo, User,
+    },
     records::{self, Acceptance, InvitationRequest, Via},
     session::{self, Session, clear_session_cookie},
     tenant::{SETTINGS_PATH, Tenant, is_reserved, slug_is_valid},
@@ -111,6 +113,7 @@ fn org_json(
         "tenant": tenant_json(state, org.id, plan),
         "terms_accepted": terms_accepted,
         "invited": state.config.is_invited(&org.login),
+        "personal": membership.personal,
     })
 }
 
@@ -164,7 +167,7 @@ async fn session_info(
                 Ok(_) => return Ok(None),
                 Err(e) => return Err(e),
             };
-            let plan = state.plan(org.id, &org.login).await;
+            let plan = state.plan(org.id, &org.login, membership.personal).await;
             let terms_accepted = state.terms.accepted(org.id).await;
             Ok(Some((
                 org.login.clone(),
@@ -177,6 +180,26 @@ async fn session_info(
         orgs.extend(joined.map_err(|e| ApiError::internal(e.to_string()))??);
     }
     orgs.sort_by_key(|(login, _)| login.to_ascii_lowercase());
+    // Their own account comes first, once it has installed the reader App or has a registry.
+    let installed = state.tenants.by_org(user.id).is_some()
+        || state
+            .gh
+            .user_installation(AppKind::Reader, &user.login)
+            .await?
+            .is_some();
+    if installed {
+        let membership = personal_membership(user.clone());
+        let plan = state.billing.personal_plan();
+        let terms_accepted = state.terms.accepted(user.id).await;
+        let account = org_json(
+            &state,
+            &membership.organization,
+            &membership,
+            &plan,
+            terms_accepted,
+        );
+        orgs.insert(0, (user.login.clone(), account));
+    }
     // Organisations this person has asked an invitation for; not worth failing the page over.
     let invitations_requested = if state.config.invited_orgs.is_some() {
         state
@@ -217,9 +240,35 @@ pub(crate) async fn member(
     }
     match state.gh.org_membership(&session.token, org).await {
         Ok(Some(membership)) if membership.state == "active" => Ok(membership),
-        Ok(_) => Err(not_found()),
+        Ok(Some(_)) => Err(not_found()),
+        // Not an organisation of theirs: it may be their own account.
+        Ok(None) => match state.gh.user(&session.token).await {
+            Ok(user) if user.login.eq_ignore_ascii_case(org) => Ok(personal_membership(user)),
+            Ok(_) => Err(not_found()),
+            Err(GitHubError::Unauthorized) => Err(ApiError::SignInRequired),
+            Err(e) => Err(e.into()),
+        },
         Err(GitHubError::Unauthorized) => Err(ApiError::SignInRequired),
         Err(e) => Err(e.into()),
+    }
+}
+
+/// A person's own account, as if it were an organisation they alone administer.
+fn personal_membership(user: User) -> Membership {
+    Membership {
+        state: "active".into(),
+        role: "admin".into(),
+        organization: Organization {
+            id: user.id,
+            login: user.login.clone(),
+            avatar_url: user.avatar_url,
+        },
+        user: Account {
+            login: user.login,
+            id: user.id,
+            kind: Some("User".into()),
+        },
+        personal: true,
     }
 }
 
@@ -233,10 +282,18 @@ async fn admin(state: &AppState, session: &Session, org: &str) -> Result<Members
     Ok(membership)
 }
 
-/// The storage App's installation token for an organisation and the repositories it is installed on, if it is
-/// installed there.
-async fn storage(state: &AppState, org: &str) -> Result<Option<(String, Vec<Repo>)>, ApiError> {
-    let Some(installation) = state.gh.org_installation(AppKind::Storage, org).await? else {
+/// The storage App's installation token for an organisation or personal account, and the repositories it is
+/// installed on, if it is installed there.
+async fn storage(
+    state: &AppState,
+    org: &str,
+    personal: bool,
+) -> Result<Option<(String, Vec<Repo>)>, ApiError> {
+    let Some(installation) = state
+        .gh
+        .account_installation(AppKind::Storage, org, personal)
+        .await?
+    else {
         return Ok(None);
     };
     let token = state
@@ -325,9 +382,9 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
         None => {
             let reader = state
                 .gh
-                .org_installation(AppKind::Reader, &org.login)
+                .account_installation(AppKind::Reader, &org.login, membership.personal)
                 .await?;
-            let storage = storage(state, &org.login).await?;
+            let storage = storage(state, &org.login, membership.personal).await?;
             let settings_file = match &storage {
                 Some((token, repos)) if repos.len() == 1 => {
                     has_settings(state, token, &repos[0]).await?
@@ -382,7 +439,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
         ),
         None => Step::new("settings", false, "Choose your registry name."),
     };
-    let plan = state.plan(org.id, &org.login).await;
+    let plan = state.plan(org.id, &org.login, membership.personal).await;
     let mut steps = vec![
         Step::new("reader_app", reader, "Install the reader App on the organisation.")
             .action(install(&config.reader_app_slug)),
@@ -396,7 +453,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
             None => install(&config.storage_app_slug),
         }),
         settings,
-        plan_step(state, &plan),
+        plan_step(state, &plan, membership.personal),
     ];
     let invited = config.is_invited(&org.login);
     if !invited {
@@ -430,6 +487,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
     };
     Ok(json!({
         "org": { "id": org.id, "login": org.login },
+        "personal": membership.personal,
         "invited": invited,
         "steps": steps,
         "suggested_slug": suggested_slug(state, org, tenant.as_deref()),
@@ -465,7 +523,7 @@ async fn verifier_json(state: &AppState, tenant: &Tenant) -> Result<Value, ApiEr
 }
 
 /// Paying, or not: done while the organisation is free or its subscription is active, trialing or past due.
-fn plan_step(state: &AppState, plan: &OrgPlan) -> Step {
+fn plan_step(state: &AppState, plan: &OrgPlan, personal: bool) -> Step {
     let billing = &state.billing;
     let limit = billing.free_member_limit();
     let subscription = plan.subscription.as_ref();
@@ -474,7 +532,8 @@ fn plan_step(state: &AppState, plan: &OrgPlan) -> Step {
             .map_or_else(|| "its end".to_owned(), |t| t.date().to_string())
     };
     let (done, detail) = match plan.plan {
-        Plan::Free if billing.preview() => (true, "Free during the preview.".to_owned()),
+        Plan::Free if personal => (true, "Personal accounts are always free.".to_owned()),
+        Plan::Free if billing.preview() => (true, "Free during the private preview.".to_owned()),
         Plan::Free => (
             true,
             match plan.members {
@@ -679,7 +738,7 @@ async fn settings(
     let storage_not_ready = || ApiError::StorageNotReady {
         org: org.login.clone(),
     };
-    let (token, repos) = storage(&state, &org.login)
+    let (token, repos) = storage(&state, &org.login, membership.personal)
         .await?
         .ok_or_else(storage_not_ready)?;
     let [repo]: [Repo; 1] = repos.try_into().map_err(|_| storage_not_ready())?;
@@ -826,6 +885,17 @@ fn billing_on(state: &AppState) -> Result<(), ApiError> {
     }
 }
 
+/// Personal accounts are always free: there is nothing to pay for.
+fn not_personal(membership: &Membership) -> Result<(), ApiError> {
+    if membership.personal {
+        Err(ApiError::PersonalAccountFree {
+            account: membership.organization.login.clone(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
 fn account_url(state: &AppState, org: &Organization) -> String {
     format!("{}?org={}", state.config.account_url(), org.login)
 }
@@ -837,6 +907,7 @@ async fn checkout(
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
     billing_on(&state)?;
+    not_personal(&membership)?;
     let org = &membership.organization;
     let back = account_url(&state, org);
     let url = state
@@ -877,6 +948,7 @@ async fn trial(
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
     billing_on(&state)?;
+    not_personal(&membership)?;
     let org = &membership.organization;
     let email = billing_email(&body)?;
     state
@@ -902,6 +974,7 @@ async fn set_billing_email(
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
     billing_on(&state)?;
+    not_personal(&membership)?;
     let org = &membership.organization;
     let email = billing_email(&body)?;
     state
@@ -919,6 +992,7 @@ async fn portal(
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
     billing_on(&state)?;
+    not_personal(&membership)?;
     let org = &membership.organization;
     let url = state
         .billing

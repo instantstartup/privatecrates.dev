@@ -496,6 +496,16 @@ impl Billing {
         members.is_none_or(|n| n <= self.free_member_limit)
     }
 
+    /// A personal account's plan: always free, whatever the limit or Stripe says.
+    pub fn personal_plan(&self) -> OrgPlan {
+        OrgPlan {
+            plan: Plan::Free,
+            members: Some(1),
+            subscription: None,
+            trial_available: false,
+        }
+    }
+
     /// The organisation's plan, given its member count.
     pub fn plan(&self, org_id: u64, members: Option<u64>) -> OrgPlan {
         if self.preview {

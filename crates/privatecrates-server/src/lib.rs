@@ -160,14 +160,18 @@ impl AppState {
             .await
     }
 
-    pub async fn plan(&self, org_id: u64, org_login: &str) -> OrgPlan {
+    /// The plan of an organisation, or of a personal account, which is always free.
+    pub async fn plan(&self, org_id: u64, org_login: &str, personal: bool) -> OrgPlan {
+        if personal {
+            return self.billing.personal_plan();
+        }
         self.billing
             .plan(org_id, self.members(org_id, org_login).await)
     }
 
     /// What a tenant may do: everything while it is free or subscribed.
     pub async fn standing(&self, tenant: &Tenant) -> Standing {
-        if tenant.is_phantom {
+        if tenant.is_phantom || tenant.personal {
             return Standing::Active;
         }
         let members = self.members(tenant.org_id, &tenant.org_login).await;
@@ -178,7 +182,9 @@ impl AppState {
     /// subscription, so that growing past the limit never breaks its registry. Called from webhooks and the periodic
     /// refresh, never while serving a request: a failure is logged, and the next refresh tries again.
     pub async fn start_trial_if_grown(&self, tenant: &Tenant) {
-        let plan = self.plan(tenant.org_id, &tenant.org_login).await;
+        let plan = self
+            .plan(tenant.org_id, &tenant.org_login, tenant.personal)
+            .await;
         if !plan.trial_available {
             return;
         }

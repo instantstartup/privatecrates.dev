@@ -38,6 +38,10 @@
 	walks through these steps and ticks each one off as GitHub reports it done. Only organisation admins can complete
 	them.
 </p>
+<p>
+	A personal GitHub account can have a registry too: it appears on the account page once the reader App is
+	installed on it, you are its only admin, and it is always free.
+</p>
 {#if PREVIEW}
 	<p>
 		PrivateCrates is in private preview: only organisations we have invited can set up a registry. If yours is

@@ -118,6 +118,15 @@ pub struct GitHub {
 pub struct Account {
     pub login: String,
     pub id: u64,
+    /// `Organization`, or `User` for a personal account.
+    #[serde(rename = "type", default)]
+    pub kind: Option<String>,
+}
+
+impl Account {
+    pub fn is_personal(&self) -> bool {
+        self.kind.as_deref() == Some("User")
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -175,6 +184,9 @@ pub struct Membership {
     pub role: String,
     pub organization: Organization,
     pub user: Account,
+    /// A person's own account, which they administer alone: GitHub has no membership for it.
+    #[serde(skip)]
+    pub personal: bool,
 }
 
 impl Membership {
@@ -400,9 +412,42 @@ impl GitHub {
         kind: AppKind,
         org: &str,
     ) -> Result<Option<Installation>, GitHubError> {
+        self.installation_at(kind, &format!("/orgs/{org}/installation"))
+            .await
+    }
+
+    /// An App's installation on a personal account, if it is installed there.
+    pub async fn user_installation(
+        &self,
+        kind: AppKind,
+        login: &str,
+    ) -> Result<Option<Installation>, GitHubError> {
+        self.installation_at(kind, &format!("/users/{login}/installation"))
+            .await
+    }
+
+    /// An App's installation on an organisation or a personal account.
+    pub async fn account_installation(
+        &self,
+        kind: AppKind,
+        login: &str,
+        personal: bool,
+    ) -> Result<Option<Installation>, GitHubError> {
+        if personal {
+            self.user_installation(kind, login).await
+        } else {
+            self.org_installation(kind, login).await
+        }
+    }
+
+    async fn installation_at(
+        &self,
+        kind: AppKind,
+        path: &str,
+    ) -> Result<Option<Installation>, GitHubError> {
         let jwt = self.app(kind).jwt()?;
         match json(
-            self.request(Method::GET, &format!("/orgs/{org}/installation"), &jwt)
+            self.request(Method::GET, path, &jwt)
                 .send_recorded(&self.metrics)
                 .await?,
         )

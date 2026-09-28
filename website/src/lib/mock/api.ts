@@ -14,6 +14,8 @@
 // (e.g. ?mock=trial&preview=0); &preview=1 turns the preview back on. Both are remembered with the scenario.
 //   ?mock=terms-pending         acme is live but no admin has accepted the terms: the banner, as an admin
 //   ?mock=terms-pending-member  the same, as a member (told an admin must accept)
+//   ?mock=not-invited   an admin of acme, which is not invited to the private preview
+//   ?mock=personal      the signed-in user's personal account, reader App installed
 // Billing scenarios, each with the single organisation acme (add &preview=0: in the preview they are all free):
 //   ?mock=free           3 members: free, live
 //   ?mock=free-again     4 members, with a paid subscription still running (the "you can cancel" note)
@@ -72,7 +74,8 @@ const BILLING = [
 	'auto-trial',
 	'terms-pending',
 	'terms-pending-member',
-	'not-invited'
+	'not-invited',
+	'personal'
 ] as const;
 type Scenario = (typeof SIGNED_IN)[number] | (typeof BILLING)[number];
 
@@ -111,6 +114,8 @@ interface OrgModel {
 	termsAccepted?: boolean;
 	/** Invited to the private preview. Absent: invited. */
 	invited?: boolean;
+	/** The signed-in user's own account: always free, and they alone administer it. */
+	personal?: boolean;
 }
 
 interface State {
@@ -212,6 +217,8 @@ function orgsFor(scenario: Scenario): OrgModel[] {
 			return acme({ members: 12, termsAccepted: false });
 		case 'terms-pending-member':
 			return acme({ members: 12, termsAccepted: false, role: 'member' });
+		case 'personal':
+			return [model(99, 'alice', { members: 1, personal: true, done: ['reader_app'], slug: null })];
 		case 'not-invited':
 			return acme({ members: 12, done: ['reader_app'], slug: null, invited: false });
 		case 'compliance':
@@ -351,6 +358,7 @@ function toOrg(o: OrgModel): Org {
 		billing_email_missing: !previewOn && !!o.sub && o.billingEmail === '',
 		terms_accepted: o.termsAccepted ?? true,
 		invited: o.invited ?? true,
+		personal: o.personal ?? false,
 		current_period_end: iso(o.sub?.periodEnd ?? null),
 		trial_available: trialAvailable(o),
 		tenant: tenantOf(o)
@@ -385,6 +393,7 @@ function session(state: State): Session {
 }
 
 function planStep(o: OrgModel, status: (done: boolean) => Step['status']): Step {
+	if (o.personal) return { id: 'plan', status: 'done', detail: 'Personal accounts are always free.' };
 	if (previewOn) return { id: 'plan', status: 'done', detail: 'Free during the private preview.' };
 	const plan = planOf(o);
 	if (plan === 'free') return { id: 'plan', status: 'done' };
@@ -434,6 +443,7 @@ function onboarding(o: OrgModel): Onboarding {
 				};
 	return {
 		org: { id: o.id, login: o.login },
+		personal: o.personal ?? false,
 		invited,
 		steps: [
 			gh('reader_app'),

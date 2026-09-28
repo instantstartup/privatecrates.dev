@@ -109,6 +109,8 @@ pub struct Tenant {
     pub write_lock: Mutex<()>,
     /// A stand-in for a name with no registry: no organisation, no crates, and nobody can use it (SPEC §6.7).
     pub is_phantom: bool,
+    /// A person's own account rather than an organisation: they are its only admin, and it is always free.
+    pub personal: bool,
 }
 
 /// Blobs by sha, shared by all tenants. A blob sha is a hash of the content, so entries never go stale.
@@ -165,6 +167,7 @@ impl Tenant {
             snapshot: RwLock::new(Snapshot::default()),
             write_lock: Mutex::new(()),
             is_phantom: true,
+            personal: false,
         }
     }
 
@@ -430,6 +433,7 @@ async fn load(
         snapshot: RwLock::new(Snapshot::default()),
         write_lock: Mutex::new(()),
         is_phantom: false,
+        personal: org.is_personal(),
     };
     // Keep what the previous instance of this tenant already knew, so a rediscovery costs a conditional request.
     if let Some(existing) = existing.filter(|t| t.storage_repo_id == repo.id) {
@@ -496,6 +500,7 @@ pub(crate) mod tests {
             snapshot: RwLock::new(Snapshot::default()),
             write_lock: Mutex::new(()),
             is_phantom: false,
+            personal: false,
         }
     }
 

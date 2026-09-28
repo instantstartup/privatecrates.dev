@@ -278,8 +278,9 @@
 			<div class="empty panel">
 				<h2>Set up your first organisation</h2>
 				<p>
-					A registry belongs to a GitHub organisation. Organisations appear here once they have installed the
-					PrivateCrates reader App, which only reads repository metadata and membership.
+					A registry belongs to a GitHub organisation or to your personal account, which is always free. Each
+					appears here once it has installed the PrivateCrates reader App, which only reads repository
+					metadata and membership.
 				</p>
 				{#if installUrl}
 					<div>
@@ -326,7 +327,9 @@
 									(opens in a new tab)</span
 								></a
 							>
-							<p class="fine">Installs the reader App on another organisation, in a new tab.</p>
+							<p class="fine">
+								Installs the reader App on another organisation, or on your personal account, in a new tab.
+							</p>
 						</div>
 					{/if}
 					{#if inviteOnly}
@@ -347,7 +350,11 @@
 						<div class="panel detail-panel">
 							<h2 class="org-name">{selected.login}</h2>
 							<p class="role">
-								You are {selected.role === 'admin' ? 'an admin' : 'a member'} of this organisation on GitHub.
+								{#if selected.personal}
+									Your personal GitHub account: you are its only admin, and it is always free.
+								{:else}
+									You are {selected.role === 'admin' ? 'an admin' : 'a member'} of this organisation on GitHub.
+								{/if}
 							</p>
 
 							{#if checkoutSuccess}

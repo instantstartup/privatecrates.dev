@@ -189,7 +189,7 @@ pub async fn publish(
 /// In the last days of a trial with no card, a reminder for whoever publishes.
 async fn trial_reminder(state: &AppState, tenant: &Tenant) -> Option<String> {
     let ends = state
-        .plan(tenant.org_id, &tenant.org_login)
+        .plan(tenant.org_id, &tenant.org_login, tenant.personal)
         .await
         .trial_ending(now_secs())?;
     let date = OffsetDateTime::from_unix_timestamp(i64::try_from(ends).ok()?)

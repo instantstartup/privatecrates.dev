@@ -399,9 +399,17 @@ impl Resolver<'_> {
         if let Some(cached) = self.cache.org_admins.get(&key).await {
             return cached.map_err(Into::into);
         }
-        let value = match self.gh.org_membership(token, &self.tenant.org_login).await {
-            Ok(membership) => Ok(membership.is_some_and(|m| m.is_admin())),
-            Err(e) => Err(denial(e)?),
+        let value = if self.tenant.personal {
+            // A personal account's only owner is the person it belongs to.
+            match self.gh.user(token).await {
+                Ok(user) => Ok(user.id == self.tenant.org_id),
+                Err(e) => Err(denial(e)?),
+            }
+        } else {
+            match self.gh.org_membership(token, &self.tenant.org_login).await {
+                Ok(membership) => Ok(membership.is_some_and(|m| m.is_admin())),
+                Err(e) => Err(denial(e)?),
+            }
         };
         self.cache.org_admins.insert(key, value.clone()).await;
         value.map_err(Into::into)

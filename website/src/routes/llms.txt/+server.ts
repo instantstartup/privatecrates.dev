@@ -49,6 +49,7 @@ const body = `# PrivateCrates
 - Two GitHub Apps with narrow permissions: the **reader App** (repository metadata and organisation membership, read-only) and the **storage App** (contents write on the storage repository only).
 - Developers use \`cargo-credential-privatecrates\`, a Cargo credential provider that signs in with GitHub. CI uses GitHub Actions' OIDC token: no secrets anywhere.
 ${pricing}
+- Personal GitHub accounts can have a registry too, and are always free: use the account's login where these steps say \`<org>\`. The owner is its only admin.
 - Other environments: add \`--domain <domain>\` to every \`cargo privatecrates\` command. Production (${PROD_APEX}) needs no flag.
 
 ## The CLI

@@ -190,6 +190,7 @@
 				</div>
 			</dl>
 			<ul class="includes">
+				<li>Always free for personal GitHub accounts</li>
 				<li>Unlimited CI jobs, and unlimited users on the paid plan</li>
 				<li>
 					{TRIAL_MONTHS} months free for larger organisations, no card to start{PREVIEW

@@ -20,7 +20,7 @@ configuration is present: every organisation's `plan` is `free` (with `members` 
 `false`, nothing is enforced, no trial reminders are added to publishes, Stripe is never called (no subscription
 loading, trials, Checkout or portal, and `/webhooks/stripe` answers 404), and `/trial`, `/checkout`, `/portal` and
 `/billing-email` answer `409 billing::preview` for admins. The onboarding `plan` step is `done`, with the detail
-"Free during the preview." The billing model below applies with `PREVIEW=false`.
+"Free during the private preview." The billing model below applies with `PREVIEW=false`.
 
 ## Billing model
 
@@ -117,10 +117,12 @@ Clears the cookie. `204`.
       "billing_email_missing": false, "current_period_end": null, "trial_available": false,
       "tenant": { "slug": "acme", "registry_url": "https://acme.privatecrates.dev", "status": "trialing",
                   "trial_ends_at": "2026-12-26T00:00:00Z", "current_period_end": null },
-      "terms_accepted": true }
+      "terms_accepted": true, "invited": true, "personal": false }
   ],
   "install_url": "https://github.com/apps/privatecrates-reader/installations/new",
   "preview": false,
+  "invite_only": false,
+  "invitations_requested": [],
   "terms": { "version": "private-preview-2026-09-28", "url": "https://privatecrates.dev/legal/terms" }
 }
 ```
@@ -138,6 +140,9 @@ status, or `null`.
 organisations that have installed the App, so a new organisation appears in `orgs` only after that.
 `user` is `null` when signed out (then `orgs` is `[]`). `orgs` lists organisations the user belongs to (from the user
 token); `tenant` is `null` when the org is not set up. `role` is `admin` or `member`.
+The user's own account is listed first, with `"personal": true`, once the reader App is installed on it or it has a
+registry (SPEC §6.8): its `role` is `admin`, its `plan` is always `free`, and every `/api/orgs/{org}/…` endpoint
+accepts its login. `invited`, `invite_only` and `invitations_requested` are the private preview's (docs/preview.md §5).
 
 ### `GET /api/orgs/{org}/onboarding`
 For an org the user belongs to. Each step is `done`, `todo` or `blocked`, with a URL for the action where there is one.

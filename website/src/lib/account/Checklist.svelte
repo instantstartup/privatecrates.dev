@@ -97,6 +97,11 @@
 	);
 
 	function planCopy(step: Step): StepCopy {
+		if (org.personal)
+			return {
+				title: 'Plan: free, always',
+				body: 'Personal accounts are always free: nothing to choose, now or after general availability.'
+			};
 		if (preview)
 			return {
 				title: 'Plan: free during the private preview',
@@ -172,6 +177,7 @@
 				action_url: s.action_url ? new URL(s.action_url, location.origin).href : undefined
 			})),
 			plan: planAction === 'trial' ? 'trial' : planAction === 'checkout' ? 'subscribe' : null,
+			personal: org.personal ?? false,
 			terms,
 			preview
 		})

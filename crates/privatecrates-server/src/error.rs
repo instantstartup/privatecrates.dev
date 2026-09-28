@@ -400,6 +400,13 @@ pub enum ApiError {
     #[http_status(409)]
     TrialUsed { org: String },
 
+    #[error(
+        "{account} is a personal account, and PrivateCrates is always free for personal accounts; nothing to pay"
+    )]
+    #[diagnostic(code(billing::personal_account))]
+    #[http_status(409)]
+    PersonalAccountFree { account: String },
+
     #[error("{org} has at most {limit} members, so PrivateCrates is free for it; nothing to pay")]
     #[diagnostic(code(billing::free_plan))]
     #[http_status(409)]

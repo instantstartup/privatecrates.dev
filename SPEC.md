@@ -67,6 +67,8 @@ The set of tenants is derived at start-up and kept current by webhooks (§7). Th
 
 ### 2.2 Pricing and billing
 
+- **Always free for personal GitHub accounts** (§6.8), whatever the member limit or Stripe says, now and after
+  general availability.
 - **Free for organisations with 5 or fewer members**, with every feature and no card. Growth-led: developers adopt it
   on small teams and bring it to the companies that pay.
 - **Larger organisations: $100 per month per GitHub organisation, no user limit**, after a **3-month free trial that
@@ -576,6 +578,22 @@ organisations use PrivateCrates, or which organisation a registry belongs to, to
 
 Response times still differ slightly (a real registry makes more GitHub lookups for some callers); this reveals less
 than the above did, and is accepted.
+
+### 6.8 Personal accounts
+
+A personal GitHub account can have a registry, as an organisation does. GitHub reports each installation's account
+type; the tenant records it (`personal`).
+
+- **Its only admin is its owner.** The account API treats the signed-in user's own login as an organisation they
+  administer (GitHub has no membership for a personal account), and lists it first once the reader App is installed
+  on it or it has a registry. Installations are looked up at `/users/{login}/installation` instead of
+  `/orgs/{org}/installation`.
+- **Reads** follow the reader App's installation as for an organisation: the owner and each repository's
+  collaborators can read the crates of repositories they can read. The owner stands in for organisation owners where
+  those may read a crate whose repository was deleted (§6.2).
+- **Publishing** from Actions works unchanged: a personal repository's `repository_owner_id` is the account's ID.
+- **Always free:** no member count is taken; the plan is `free`; the trial, Checkout, the billing portal and the
+  billing email are refused with `409 billing::personal_account`.
 
 ## 7. Webhooks
 

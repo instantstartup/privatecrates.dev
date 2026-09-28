@@ -253,6 +253,8 @@ export interface SetupPromptInput {
 	terms?: { version: string; url: string };
 	/** The preview (session.preview): billing is off, so the prompt has no trial or billing step. */
 	preview?: boolean;
+	/** The user's own GitHub account rather than an organisation. */
+	personal?: boolean;
 }
 
 const doneNames: Record<string, string> = {
@@ -289,7 +291,8 @@ export function setupPrompt({
 	steps,
 	plan,
 	terms = CURRENT_TERMS,
-	preview = false
+	preview = false,
+	personal = false
 }: SetupPromptInput): string {
 	const step = (id: string) => steps.find((s) => s.id === id || (id === 'plan' && s.id === 'subscription'));
 	const todo = (id: string) => {
@@ -331,7 +334,7 @@ export function setupPrompt({
 		`Confirm: ${cli(`setup ${org} --json`, apex)} must report every step as done. Then tell me the registry URL.`
 	);
 
-	return `Set up PrivateCrates, our private Cargo registry, for the GitHub organisation ${org}.
+	return `Set up PrivateCrates, ${personal ? 'a private Cargo registry' : 'our private Cargo registry'}, for ${personal ? 'my personal GitHub account' : 'the GitHub organisation'} ${org}.
 
 First read https://${apex}/llms.txt: it describes the set-up flow and the cargo privatecrates CLI.${environmentNote(apex)}
 

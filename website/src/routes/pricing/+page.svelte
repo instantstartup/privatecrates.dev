@@ -34,8 +34,8 @@
 	];
 
 	const description = PREVIEW
-		? `PrivateCrates is free during the private preview. Planned pricing from general availability: free for GitHub organisations with up to ${FREE_MEMBER_LIMIT} members, $${PRICE_USD} per organisation per month for larger ones, with unlimited users and SSO included.`
-		: `PrivateCrates is free for GitHub organisations with up to ${FREE_MEMBER_LIMIT} members. Larger organisations pay $${PRICE_USD} per month, with unlimited users, SSO included and a ${TRIAL_MONTHS}-month free trial that needs no card.`;
+		? `PrivateCrates is free during the private preview. Planned pricing from general availability: always free for personal GitHub accounts, free for organisations with up to ${FREE_MEMBER_LIMIT} members, $${PRICE_USD} per organisation per month for larger ones, with unlimited users and SSO included.`
+		: `PrivateCrates is always free for personal GitHub accounts, and free for organisations with up to ${FREE_MEMBER_LIMIT} members. Larger organisations pay $${PRICE_USD} per month, with unlimited users, SSO included and a ${TRIAL_MONTHS}-month free trial that needs no card.`;
 </script>
 
 <Seo title="Pricing" {description} path="/pricing" />
@@ -79,7 +79,9 @@
 				</h2>
 				<p class="price">
 					<span class="figure">$0</span>
-					<span class="per">for organisations with up to {FREE_MEMBER_LIMIT} members</span>
+					<span class="per"
+						>for personal GitHub accounts, always, and for organisations with up to {FREE_MEMBER_LIMIT} members</span
+					>
 				</p>
 				<a class="btn btn-quiet" href="/account">Set up a free registry</a>
 				<p class="small">No card, no time limit. Outside collaborators do not count as members.</p>
