@@ -570,3 +570,54 @@ async fn an_admin_accepts_the_terms_for_an_existing_registry() {
     assert!(output.status.success(), "{:?}", output);
     assert_eq!(json(&output)["performed"], json!([]));
 }
+
+/// For coding agents, whose shells show output only when a command ends: the code comes back at once, and
+/// `--finish` waits for the approval.
+#[tokio::test]
+async fn login_can_return_before_the_person_approves() {
+    let h = Harness::start().await;
+    let token = h.fake.add_user("alice", "ghu_", &[]);
+    h.fake.set_device_flow_user(&token);
+    let config = tempfile::tempdir().unwrap();
+    let domain = h.apex("");
+
+    let output = cli(
+        config.path(),
+        &["login", "--no-wait", "--json", "--domain", &domain],
+    )
+    .await;
+    assert!(output.status.success(), "{output:?}");
+    let started = json(&output);
+    assert_eq!(started["user_code"], "WDJB-MJHT");
+    assert!(
+        started["verification_uri"]
+            .as_str()
+            .unwrap()
+            .contains("/login/device")
+    );
+    assert!(started["expires_in_seconds"].as_i64().unwrap() > 0);
+    assert_eq!(
+        started["next"],
+        format!("cargo privatecrates login --finish --domain {domain}")
+    );
+    // The device code stays in the pending file, readable only by its owner.
+    assert!(started.get("device_code").is_none());
+    let pending = config.path().join("pending-login.json");
+    let mode = std::os::unix::fs::PermissionsExt::mode(
+        &std::fs::metadata(&pending).unwrap().permissions(),
+    );
+    assert_eq!(mode & 0o777, 0o600);
+
+    let output = cli(
+        config.path(),
+        &["login", "--finish", "--json", "--domain", &domain],
+    )
+    .await;
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(json(&output)["user"], "alice");
+
+    // Nothing is waiting any more.
+    let output = cli(config.path(), &["login", "--finish", "--domain", &domain]).await;
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("login --no-wait"));
+}

@@ -109,7 +109,8 @@ fn json_error(e: serde_json::Error) -> Error {
     format!("cannot serialise the PrivateCrates token: {e}").into()
 }
 
-fn config_dir() -> Result<PathBuf, Error> {
+/// Where PrivateCrates keeps its files: `PRIVATECRATES_CONFIG_DIR`, or the platform's configuration directory.
+pub fn config_dir() -> Result<PathBuf, Error> {
     if let Some(dir) = std::env::var_os("PRIVATECRATES_CONFIG_DIR") {
         return Ok(PathBuf::from(dir));
     }

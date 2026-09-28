@@ -62,7 +62,15 @@ struct Cli {
 enum Command {
     /// Sign in with GitHub. Prints a code and a link to approve it; the token is kept in the system keyring, shared
     /// with cargo-credential-privatecrates.
-    Login,
+    Login {
+        /// Print the code and link, and exit without waiting: for coding agents, whose shells show output only
+        /// when a command ends. Then run `login --finish` once the person has approved it.
+        #[arg(long)]
+        no_wait: bool,
+        /// Finish a sign-in started with --no-wait: waits until it is approved, then stores the token.
+        #[arg(long, conflicts_with = "no_wait")]
+        finish: bool,
+    },
     /// Forget the stored token.
     Logout,
     /// Show an organisation's set-up checklist, and do the steps the account API can: choose the registry name and
@@ -179,8 +187,31 @@ fn run(cli: &Cli) -> Result<Outcome, Error> {
     let domain = cli.domain()?;
     let cwd = std::env::current_dir().map_err(Error::io("read", PathBuf::from(".")))?;
     Ok(match &cli.command {
-        Command::Login => {
-            let login = account::login(&domain)?;
+        Command::Login { no_wait: true, .. } => {
+            let started = account::start_login(&domain)?;
+            Outcome {
+                text: format!(
+                    "To sign in to {}, open {} and enter the code {} (it expires in {} minutes). Once it is \
+                     approved, run: cargo privatecrates login --finish{}",
+                    started.apex,
+                    started.verification_uri,
+                    started.user_code,
+                    started.expires_in_seconds / 60,
+                    domain.flag()
+                ),
+                json: serde_json::to_value(&started).expect("serialisable"),
+                ok: true,
+            }
+        }
+        Command::Login {
+            no_wait: false,
+            finish,
+        } => {
+            let login = if *finish {
+                account::finish_login(&domain)?
+            } else {
+                account::login(&domain)?
+            };
             let text = match &login.user {
                 Some(user) => format!("Signed in to {} as {user}.", login.apex),
                 None => format!("Signed in to {}.", login.apex),

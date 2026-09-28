@@ -58,7 +58,7 @@ ${fence(installCli)}
 
 ${fence(cliUsage)}
 
-- \`login\` / \`logout\`: GitHub's device flow for the reader App. The token is stored in the operating system's keyring, shared with the credential provider.
+- \`login\` / \`logout\`: GitHub's device flow for the reader App. The token is stored in the operating system's keyring, shared with the credential provider. \`login --no-wait\` prints the link and code and exits; \`login --finish\` then waits for the approval.
 - \`setup <org>\`: prints the organisation's set-up checklist, each step's status (\`done\`, \`todo\` or \`blocked\`) and, where a person must act, the link. \`--slug <name> --accept-terms <version>\` saves the registry name, once an admin has accepted the terms (without \`--accept-terms\` it prints the terms URL and the flag to add, and exits non-zero)${trialFlag}; \`--json\` prints the checklist as JSON.
 - \`terms <org> --accept <version>\`: records an admin's acceptance of the current terms for a registry created before them.
 - \`init --registry <name>\`: run in a crate repository or workspace. Adds the registry to \`.cargo/config.toml\`, sets \`package.repository\` from the git remote where missing, and writes \`.github/workflows/publish.yml\` (unless \`--no-workflow\`). It shows the plan and asks before writing; without a terminal it only prints the plan and exits non-zero. \`--dry-run\` prints the plan; \`--yes\` applies it without asking. Idempotent.
@@ -69,7 +69,7 @@ ${fence(cliUsage)}
 Run the steps in order, skipping those \`${cli(`setup ${ORG} --json`)}\` reports as \`done\`. Only an admin of the organisation can complete them, so work with an admin at the keyboard.
 
 1. Install the CLI (above).
-2. Sign in: \`${cli('login')}\`. It prints a code and a GitHub link. **A person is needed:** give the admin both and wait while they approve.
+2. Sign in: \`${cli('login --no-wait --json')}\` prints a GitHub link and a code and exits at once (plain \`login\` waits for the approval, and a shell that shows output only when a command ends would show nothing until then). **A person is needed:** give the admin the link and the code, wait until they say they approved it, then run \`${cli('login --finish')}\`. The code expires after about 15 minutes.
 3. Read the checklist: \`${cli(`setup ${ORG} --json`)}\`. If the organisation is not listed, the reader App is not installed on it yet. If the steps are \`blocked\` because the organisation is not invited to the private preview, **stop: a person is needed.** Tell the admin to ask for an invitation at ${SITE_URL}/account, and go no further until it is granted.
 4. Reader App. **A person is needed:** GitHub has no API to install an App. Give the admin the \`reader_app\` step's link (or https://${PROD_APEX}/account), ask them to install it on the organisation, on all repositories or on those that own crates, and wait.
 5. Storage repository, with the admin's own \`gh\` login (check \`gh auth status\`; it needs rights to create repositories in the organisation):

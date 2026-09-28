@@ -21,6 +21,99 @@ pub fn login(domain: &Domain) -> Result<Login, Error> {
     let apex = domain.apex();
     let http = crate::target::http(&apex)?;
     let stored = device::sign_in(&http, &apex, &Store::open()?)?;
+    signed_in(http, apex, stored)
+}
+
+/// A sign-in started with `login --no-wait`: what the person opens and enters. The device code stays in the
+/// pending file.
+#[derive(Serialize)]
+pub struct StartedLogin {
+    pub apex: String,
+    pub verification_uri: String,
+    pub user_code: String,
+    /// How long the code stays valid.
+    pub expires_in_seconds: i64,
+    /// The command that finishes it.
+    pub next: String,
+}
+
+/// Where a started sign-in waits for `login --finish`, by domain. Written only by this user (mode 0600 on Unix).
+fn pending_path() -> Result<std::path::PathBuf, Error> {
+    Ok(privatecrates_auth::store::config_dir()
+        .map_err(|e| Error::Invalid(e.to_string()))?
+        .join("pending-login.json"))
+}
+
+fn read_pending() -> Result<std::collections::BTreeMap<String, device::Started>, Error> {
+    let path = pending_path()?;
+    match std::fs::read_to_string(&path) {
+        Ok(text) => Ok(serde_json::from_str(&text).unwrap_or_default()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Default::default()),
+        Err(e) => Err(Error::io("read", path)(e)),
+    }
+}
+
+fn write_pending(
+    pending: &std::collections::BTreeMap<String, device::Started>,
+) -> Result<(), Error> {
+    let path = pending_path()?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(Error::io("create", dir.to_owned()))?;
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut file = options
+        .open(&path)
+        .map_err(Error::io("write", path.clone()))?;
+    std::io::Write::write_all(
+        &mut file,
+        serde_json::to_string(pending)
+            .expect("serialisable")
+            .as_bytes(),
+    )
+    .map_err(Error::io("write", path))
+}
+
+/// Starts signing in and returns at once: `login --no-wait`.
+pub fn start_login(domain: &Domain) -> Result<StartedLogin, Error> {
+    let apex = domain.apex();
+    let http = crate::target::http(&apex)?;
+    let started = device::start(&http, &apex)?;
+    let mut pending = read_pending()?;
+    pending.insert(apex.clone(), started.clone());
+    write_pending(&pending)?;
+    Ok(StartedLogin {
+        verification_uri: started.verification_uri,
+        user_code: started.user_code,
+        expires_in_seconds: (started.expires_at - privatecrates_auth::now()).max(0),
+        next: format!("cargo privatecrates login --finish{}", domain.flag()),
+        apex,
+    })
+}
+
+/// Finishes a sign-in `login --no-wait` started: `login --finish`.
+pub fn finish_login(domain: &Domain) -> Result<Login, Error> {
+    let apex = domain.apex();
+    let mut pending = read_pending()?;
+    let started = pending.remove(&apex).ok_or_else(|| {
+        Error::Invalid(format!(
+            "no sign-in to {apex} is waiting; start one with: cargo privatecrates login --no-wait{}",
+            domain.flag()
+        ))
+    })?;
+    write_pending(&pending)?;
+    let http = crate::target::http(&apex)?;
+    let stored = device::finish(&http, &apex, &Store::open()?, &started)?;
+    signed_in(http, apex, stored)
+}
+
+fn signed_in(
+    http: Client,
+    apex: String,
+    stored: privatecrates_auth::store::Stored,
+) -> Result<Login, Error> {
     let api = Api {
         http,
         apex: apex.clone(),

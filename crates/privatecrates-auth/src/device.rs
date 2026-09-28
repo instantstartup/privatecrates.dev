@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use reqwest::blocking::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     Error, now,
@@ -86,8 +86,35 @@ pub fn current(http: &Client, base: &str, store: &Store) -> Result<Option<Stored
     Ok(None)
 }
 
+/// A device-flow sign-in waiting for the person to approve it on GitHub.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Started {
+    pub verification_uri: String,
+    pub user_code: String,
+    /// Unix seconds: after this, the code no longer works.
+    pub expires_at: i64,
+    /// What [`finish`] polls GitHub with. Keep it private: with it, a sign-in the person approves can be finished.
+    pub device_code: String,
+    pub interval: u64,
+}
+
 /// Runs the device flow and stores the result.
 pub fn sign_in(http: &Client, base: &str, store: &Store) -> Result<Stored, Error> {
+    let started = start(http, base)?;
+    eprintln!(
+        "To use {base}, sign in with GitHub: open {} and enter the code {}\nWaiting for you to approve it (the code \
+         expires in {} minutes)…",
+        started.verification_uri,
+        started.user_code,
+        (started.expires_at - now()).max(0) / 60
+    );
+    let stored = finish(http, base, store, &started)?;
+    eprintln!("Signed in.");
+    Ok(stored)
+}
+
+/// Asks GitHub for a sign-in code, without waiting for the person to approve it.
+pub fn start(http: &Client, base: &str) -> Result<Started, Error> {
     #[derive(Deserialize)]
     struct DeviceCode {
         device_code: String,
@@ -105,12 +132,26 @@ pub fn sign_in(http: &Client, base: &str, store: &Store) -> Result<Stored, Error
         .and_then(|r| r.error_for_status())
         .and_then(|r| r.json())
         .map_err(|e| format!("could not start signing in with GitHub: {e}"))?;
-    eprintln!(
-        "To use {base}, sign in with GitHub: open {} and enter the code {}",
-        code.verification_uri, code.user_code
-    );
+    Ok(Started {
+        verification_uri: code.verification_uri,
+        user_code: code.user_code,
+        expires_at: now() + code.expires_in as i64,
+        device_code: code.device_code,
+        interval: code.interval,
+    })
+}
+
+/// Waits until the person approves a sign-in [`start`]ed, or declines it or it expires, and stores the token.
+pub fn finish(
+    http: &Client,
+    base: &str,
+    store: &Store,
+    started: &Started,
+) -> Result<Stored, Error> {
+    let info = auth_info(http, base)?;
+    let code = started;
     let mut interval = code.interval;
-    let deadline = now() + code.expires_in as i64;
+    let deadline = code.expires_at;
     while now() < deadline {
         std::thread::sleep(Duration::from_secs(interval));
         match grant(
@@ -123,34 +164,29 @@ pub fn sign_in(http: &Client, base: &str, store: &Store) -> Result<Stored, Error
         ) {
             Ok(Some(stored)) => {
                 store.save(base, &stored)?;
-                eprintln!("Signed in.");
                 return Ok(stored);
             }
             Ok(None) => {}
-            Err(Pending::SlowDown) => interval += 5,
-            Err(Pending::Failed(e)) => return Err(e),
+            Err(Poll::SlowDown) => interval += 5,
+            Err(Poll::Failed(e)) => return Err(e),
         }
     }
     Err("the GitHub sign-in code expired; run the command again".into())
 }
 
-enum Pending {
+enum Poll {
     SlowDown,
     Failed(Error),
 }
 
-impl From<Error> for Pending {
+impl From<Error> for Poll {
     fn from(e: Error) -> Self {
         Self::Failed(e)
     }
 }
 
 /// Asks GitHub for a token. `Ok(None)` while the user has not yet approved.
-fn grant(
-    http: &Client,
-    info: &AuthInfo,
-    params: &[(&str, &str)],
-) -> Result<Option<Stored>, Pending> {
+fn grant(http: &Client, info: &AuthInfo, params: &[(&str, &str)]) -> Result<Option<Stored>, Poll> {
     #[derive(Deserialize)]
     struct Response {
         access_token: Option<String>,
@@ -181,14 +217,14 @@ fn grant(
             }))
         }
         (None, Some("authorization_pending")) => Ok(None),
-        (None, Some("slow_down")) => Err(Pending::SlowDown),
+        (None, Some("slow_down")) => Err(Poll::SlowDown),
         (None, Some("access_denied")) => {
-            Err(Pending::Failed("the GitHub sign-in was declined".into()))
+            Err(Poll::Failed("the GitHub sign-in was declined".into()))
         }
-        (None, Some("expired_token")) => Err(Pending::Failed(
+        (None, Some("expired_token")) => Err(Poll::Failed(
             "the GitHub sign-in code expired; run the command again".into(),
         )),
-        (None, error) => Err(Pending::Failed(
+        (None, error) => Err(Poll::Failed(
             format!(
                 "GitHub refused the sign-in: {}",
                 error.unwrap_or("no reason given")
