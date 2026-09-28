@@ -234,8 +234,65 @@ pub fn run(dir: &Path, options: &Options<'_>) -> Report {
     for package in publishable(publishing) {
         checks.push(repository(package, remote.as_deref(), &init(registry)));
     }
+    if let Some(project) = publishing {
+        checks.extend(lockfile(&project.root, &project.packages));
+    }
     let ok = checks.iter().all(|c| c.status != Status::Fail);
     Report { checks, ok }
+}
+
+/// A committed `Cargo.lock` must list every crate of the workspace at its current version. Otherwise `cargo publish`
+/// in CI updates it, finds the checkout dirty and refuses: the usual cause is bumping a version without committing
+/// the lockfile. Read from the file, without resolving anything, so it needs no network and no sign-in.
+pub fn lockfile(root: &Path, packages: &[Package]) -> Option<Check> {
+    let text = std::fs::read_to_string(root.join("Cargo.lock")).ok()?;
+    if !project::is_tracked(root, "Cargo.lock") {
+        return None;
+    }
+    let lock: DocumentMut = text.parse().ok()?;
+    let locked: Vec<(&str, &str)> = lock
+        .get("package")
+        .and_then(|p| p.as_array_of_tables())
+        .map(|packages| {
+            packages
+                .iter()
+                .filter_map(|p| Some((p.get("name")?.as_str()?, p.get("version")?.as_str()?)))
+                .collect()
+        })
+        .unwrap_or_default();
+    let stale: Vec<String> = packages
+        .iter()
+        .filter(|p| !locked.contains(&(p.name.as_str(), p.version.as_str())))
+        .map(|p| format!("{} {}", p.name, p.version))
+        .collect();
+    Some(if !stale.is_empty() {
+        Check::new(
+            "lockfile",
+            Some("Cargo.lock"),
+            Status::Fail,
+            format!(
+                "Cargo.lock is committed but does not list {}: `cargo publish` in CI would update it and refuse the \
+                 changed checkout",
+                stale.join(", ")
+            ),
+        )
+        .fix("cargo update --workspace, then commit Cargo.lock before pushing the tag")
+    } else if project::is_modified(root, "Cargo.lock") {
+        Check::new(
+            "lockfile",
+            Some("Cargo.lock"),
+            Status::Warn,
+            "Cargo.lock has changes that are not committed; CI publishes what is committed".into(),
+        )
+        .fix("commit Cargo.lock before pushing the tag")
+    } else {
+        Check::new(
+            "lockfile",
+            Some("Cargo.lock"),
+            Status::Pass,
+            "Cargo.lock lists every crate at its current version".into(),
+        )
+    })
 }
 
 /// The project's packages, except those with `publish = false`.
@@ -654,6 +711,56 @@ impl fmt::Display for Report {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_committed_lockfile_must_list_the_current_versions() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let git = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(["-c", "user.name=t", "-c", "user.email=t@example.com"])
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap();
+            assert!(status.success(), "git {args:?}");
+        };
+        let lock = |version: &str| {
+            std::fs::write(
+                root.join("Cargo.lock"),
+                format!("version = 4\n\n[[package]]\nname = \"hello\"\nversion = \"{version}\"\n"),
+            )
+            .unwrap();
+        };
+        let package = |version: &str| Package {
+            name: "hello".into(),
+            version: version.into(),
+            manifest_path: root.join("Cargo.toml"),
+            repository: None,
+            publish: None,
+        };
+        git(&["init", "-q"]);
+        lock("0.1.0");
+        // Not committed: nothing to say (CI generates its own).
+        assert!(lockfile(root, &[package("0.1.0")]).is_none());
+        git(&["add", "Cargo.lock"]);
+        git(&["commit", "-qm", "lock"]);
+
+        assert_eq!(
+            lockfile(root, &[package("0.1.0")]).unwrap().status,
+            Status::Pass
+        );
+        // The version bumped without the lockfile.
+        let stale = lockfile(root, &[package("0.1.1")]).unwrap();
+        assert_eq!(stale.status, Status::Fail);
+        assert!(stale.detail.contains("hello 0.1.1"), "{}", stale.detail);
+        // Updated, but not committed.
+        lock("0.1.1");
+        assert_eq!(
+            lockfile(root, &[package("0.1.1")]).unwrap().status,
+            Status::Warn
+        );
+    }
 
     #[test]
     fn finds_the_registries_using_the_provider() {

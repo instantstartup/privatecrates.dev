@@ -54,6 +54,18 @@ cargo yank --registry acme --version 0.2.0 --undo story_engine`;
 </ol>
 <p>Because the token names one version and one checksum, it cannot be replayed to publish anything else.</p>
 
+<h3 id="releasing">Releasing a version</h3>
+<p>
+	Bump <code>version</code> in <code>Cargo.toml</code>, let Cargo update <code>Cargo.lock</code> (any build
+	does, or <code>cargo update --workspace</code>), and commit both before pushing the tag. If
+	<code>Cargo.lock</code>
+	is committed but still names the old version, <code>cargo publish</code> in CI updates it, finds the
+	checkout changed and stops with
+	<em>1 files in the working directory contain changes that were not yet committed into git: Cargo.lock</em>.
+	<code>cargo privatecrates doctor</code> catches this before you tag. A failed run publishes nothing, so commit
+	the lockfile and push a tag for the next version.
+</p>
+
 <h2 id="workspaces">Workspaces and monorepos</h2>
 <p>
 	Many crates can live in one repository: each crate’s <code>package.repository</code> names that repository

@@ -145,6 +145,26 @@ pub fn repository_matches(repository: &str, remote: &str) -> bool {
 }
 
 /// Runs a command and returns its standard output.
+/// Whether git tracks `file` (relative to `dir`).
+pub fn is_tracked(dir: &Path, file: &str) -> bool {
+    Command::new("git")
+        .args(["ls-files", "--error-unmatch", "--", file])
+        .current_dir(dir)
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
+/// Whether `file` (relative to `dir`) has changes that are not committed.
+pub fn is_modified(dir: &Path, file: &str) -> bool {
+    run(
+        Command::new("git")
+            .args(["status", "--porcelain", "--", file])
+            .current_dir(dir),
+        "git status",
+    )
+    .is_ok_and(|out| !out.trim().is_empty())
+}
+
 fn run(command: &mut Command, name: &str) -> Result<String, Error> {
     let output = command.output().map_err(|e| Error::Command {
         command: name.into(),

@@ -62,7 +62,7 @@ ${fence(cliUsage)}
 - \`setup <org>\`: prints the organisation's set-up checklist, each step's status (\`done\`, \`todo\` or \`blocked\`) and, where a person must act, the link. \`--slug <name> --accept-terms <version>\` saves the registry name, once an admin has accepted the terms (without \`--accept-terms\` it prints the terms URL and the flag to add, and exits non-zero)${trialFlag}; \`--json\` prints the checklist as JSON.
 - \`terms <org> --accept <version>\`: records an admin's acceptance of the current terms for a registry created before them.
 - \`init --registry <name>\`: run in a crate repository or workspace. Adds the registry to \`.cargo/config.toml\`, sets \`package.repository\` from the git remote where missing, and writes \`.github/workflows/publish.yml\` (unless \`--no-workflow\`). It shows the plan and asks before writing; without a terminal it only prints the plan and exits non-zero. \`--dry-run\` prints the plan; \`--yes\` applies it without asking. Idempotent.
-- \`doctor\`: checks the credential provider, the registry, \`package.repository\`, the publish workflow's \`id-token: write\` permission, that \`publish\` is restricted to the registry and, once a version is published, that it is in the registry's index. Immutable releases and provenance are checked by \`privatecrates-verify\`, run on the storage repository.
+- \`doctor\`: checks the credential provider, the registry, \`package.repository\`, the publish workflow's \`id-token: write\` permission, that \`publish\` is restricted to the registry, that a committed \`Cargo.lock\` lists every crate at its current version and, once a version is published, that it is in the registry's index. Immutable releases and provenance are checked by \`privatecrates-verify\`, run on the storage repository.
 
 ## Set up a registry
 
@@ -86,7 +86,7 @@ ${indent(fence(storageRepoCommands(ORG)))}
 
 1. List the organisation's repositories with Rust crates (\`gh repo list ${ORG}\`, then look for \`Cargo.toml\`), and ask the admin which crates to publish.
 2. In each chosen repository, on a new branch, run \`${cli(`init --registry ${SLUG} --dry-run`)}\` and show the admin the plan, then \`${cli(`init --registry ${SLUG} --yes`)}\`. Check that each crate to publish has \`publish = ["<name>"]\` in its \`Cargo.toml\`, so it can never go to crates.io by accident. Commit and open a pull request with \`gh pr create\`. The admin reviews and merges.
-3. Publish a first version by pushing a tag that matches the crate's version, e.g. \`git tag v0.1.0 && git push origin v0.1.0\`. In a workspace, \`<crate>-v<version>\` (e.g. \`story_engine-v0.1.0\`) publishes that one crate and \`v<version>\` publishes every crate. The workflow publishes with GitHub Actions' OIDC token and records provenance. Publishing from a laptop is refused by default.
+3. Publish a first version by pushing a tag that matches the crate's version, e.g. \`git tag v0.1.0 && git push origin v0.1.0\`. For later versions, commit the updated \`Cargo.lock\` with the version bump before tagging, or \`cargo publish\` in CI refuses the changed checkout; \`doctor\` checks this. In a workspace, \`<crate>-v<version>\` (e.g. \`story_engine-v0.1.0\`) publishes that one crate and \`v<version>\` publishes every crate. The workflow publishes with GitHub Actions' OIDC token and records provenance. Publishing from a laptop is refused by default.
 4. Check each repository:
 ${indent(fence(doctorCommands()))}
 

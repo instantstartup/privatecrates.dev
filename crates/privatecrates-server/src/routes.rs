@@ -399,6 +399,9 @@ published from; the registry does not say which, so private names stay private. 
 access to that repository. <code>cargo privatecrates doctor --crate NAME</code> checks your setup and sign-in.</li>
 <li><strong>"no matching package" right after someone published.</strong> Retry after a minute, or run
 <code>cargo update</code>.</li>
+<li><strong>A publish fails with "changes that were not yet committed into git: Cargo.lock".</strong> The version was
+bumped without committing the updated <code>Cargo.lock</code>. Commit it, and push a tag for the next version;
+<code>cargo privatecrates doctor</code> checks this before you tag.</li>
 <li><strong>Signed in as the wrong GitHub account.</strong> <code>cargo logout --registry {slug}</code>, then
 <code>cargo login --registry {slug}</code>.</li>
 <li><strong>Signed in, but every crate is "not found".</strong> Your GitHub account must be a member of the organisation
