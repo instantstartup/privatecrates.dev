@@ -1006,7 +1006,9 @@ async fn the_login_page_guides_a_developer_joining_the_team() {
     assert_eq!(response.status(), 200);
     let page = response.text().await.unwrap();
     for expected in [
+        "cargo binstall cargo-credential-privatecrates",
         "cargo install cargo-credential-privatecrates --locked",
+        "gh attestation verify",
         "cargo login --registry acme",
         "id=\"editors\"",
         "id=\"troubleshooting\"",

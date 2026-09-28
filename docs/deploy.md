@@ -561,12 +561,14 @@ Each release:
 
 ```sh
 # bump version = "X.Y.Z" in crates/privatecrates-common, privatecrates-auth, cargo-credential-privatecrates,
-# cargo-privatecrates and privatecrates-verify (and the shared crates' versions in the others' [dependencies]);
-# commit on main; CI green
+# cargo-privatecrates and privatecrates-verify (and the shared crates' versions in the others' [dependencies]),
+# and RELEASE_VERSION in website/src/lib/snippets.ts; commit on main; CI green
 git tag -s vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
 ```
 
-The workflow refuses a tag that does not match the five crate versions. Verify an artefact with
+The workflows the server and website hand out (publish, CI, verifier) install the binaries of their own version
+from its release, so tag the release as soon as the bump reaches `main`: until its binaries are published, those
+workflows fail at the install step. The workflow refuses a tag that does not match the five crate versions. Verify an artefact with
 `gh attestation verify <file> --repo worldbuilding-dev/privatecrates.dev`.
 
 ## 14. Status page

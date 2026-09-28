@@ -2,6 +2,7 @@
 
 pub mod audience;
 pub mod index;
+pub mod install;
 pub mod name;
 pub mod storage;
 pub mod trigger;

@@ -25,7 +25,34 @@ repository = "https://github.com/${org}/story-engine"
 publish = ["${name}"]`;
 }
 
-export const installProvider = `cargo install cargo-credential-privatecrates --locked`;
+export const installProvider = `cargo binstall cargo-credential-privatecrates   # prebuilt, checksummed and attested
+# without cargo-binstall, it builds from source:
+cargo install cargo-credential-privatecrates --locked`;
+
+/** The client tools' release, pinned in workflows: privatecrates-common's version. */
+export const RELEASE_VERSION = '0.2.5';
+const RELEASE_REPO = 'worldbuilding-dev/privatecrates.dev';
+
+/**
+ * The same step as privatecrates-common's \`install::ci_step\`: the prebuilt binary from the release, checked
+ * against its checksums and GitHub's build attestation, with no third-party action.
+ */
+export function ciInstall(binary: string): string {
+	return `      - name: Install ${binary} ${RELEASE_VERSION} (checksummed and attested)
+        env: { GH_TOKEN: "\${{ github.token }}", VERSION: "${RELEASE_VERSION}" }
+        run: |
+          cd "$(mktemp -d)"
+          name=${binary}-$(uname -m)-unknown-linux-gnu
+          base=https://github.com/${RELEASE_REPO}/releases/download/v$VERSION
+          curl -fsSL --remote-name-all "$base/$name.tgz" "$base/SHA256SUMS"
+          sha256sum --check --ignore-missing SHA256SUMS
+          gh attestation verify "$name.tgz" --repo ${RELEASE_REPO}
+          tar -xzf "$name.tgz"
+          install -D "$name/${binary}" ~/.cargo/bin/${binary}
+`;
+}
+
+const PROVIDER_STEP = ciInstall('cargo-credential-privatecrates');
 
 /** Publishing is tag-triggered (see ciPublish). */
 export const pushTag = `git tag v0.2.0
@@ -48,8 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: cargo install cargo-credential-privatecrates --locked
-      - run: cargo build --locked`;
+${PROVIDER_STEP}      - run: cargo build --locked`;
 
 export function ciPublish(name: string): string {
 	return `name: publish
@@ -64,8 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: cargo install cargo-credential-privatecrates --locked
-      - run: cargo publish --registry ${name}`;
+${PROVIDER_STEP}      - run: cargo publish --registry ${name}`;
 }
 
 /** The workflow `cargo privatecrates init` writes for a workspace: one crate per `<crate>-v<version>` tag. */
@@ -82,8 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: cargo install cargo-credential-privatecrates --locked
-      - name: cargo publish
+${PROVIDER_STEP}      - name: cargo publish
         env:
           TAG: \${{ github.ref_name }}
         run: |
@@ -93,9 +117,6 @@ jobs:
             *) echo "::error::$TAG is neither v<version> nor <crate>-v<version>"; exit 1 ;;
           esac`;
 }
-
-/** The verifier's version, pinned in its workflow: the client tools' release (privatecrates-common's verifier.rs). */
-export const VERIFIER_VERSION = '0.2.5';
 
 /** The same workflow as privatecrates-common's `verifier::workflow`, which the account page offers. */
 export function verifyWorkflow(registryUrl: string): string {
@@ -117,12 +138,7 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/cache@v4
         with: { path: .privatecrates-verify.json, key: "verify-\${{ github.run_id }}", restore-keys: verify- }
-      - uses: actions/cache@v4
-        id: verifier
-        with: { path: ~/.privatecrates-verify, key: "privatecrates-verify-${VERIFIER_VERSION}-\${{ runner.os }}" }
-      - if: steps.verifier.outputs.cache-hit != 'true'
-        run: cargo install privatecrates-verify --version ${VERIFIER_VERSION} --locked --root ~/.privatecrates-verify
-      - run: ~/.privatecrates-verify/bin/privatecrates-verify --registry ${registryUrl}
+${ciInstall('privatecrates-verify')}      - run: privatecrates-verify --registry ${registryUrl}
         env: { GITHUB_TOKEN: "\${{ github.token }}" }
 `;
 }
@@ -159,11 +175,12 @@ export const PROD_APEX = 'privatecrates.dev';
 /** The storage repository name the docs and prompts suggest. */
 export const STORAGE_REPO = 'crates-store';
 
-const INSTALL_CLI = 'cargo install cargo-privatecrates --locked';
+const INSTALL_CLI =
+	'cargo binstall cargo-privatecrates (or, without cargo-binstall, cargo install cargo-privatecrates --locked)';
 
-export const installCli = `${INSTALL_CLI}
-# or, prebuilt and checksummed:
-cargo binstall cargo-privatecrates`;
+export const installCli = `cargo binstall cargo-privatecrates   # prebuilt, checksummed and attested
+# without cargo-binstall, it builds from source:
+cargo install cargo-privatecrates --locked`;
 
 /** A `cargo privatecrates` command, with `--domain` added outside production. */
 export function cli(args: string, apex = PROD_APEX): string {

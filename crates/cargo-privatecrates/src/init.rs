@@ -362,8 +362,8 @@ pub fn add_registry(
         .or_insert_with(|| {
             let mut table = Table::new();
             table.decor_mut().set_prefix(format!(
-                "{blank_line}# Needs `cargo install cargo-credential-privatecrates`; the first build signs you in on \
-                 GitHub.\n# Joining the team, editors and troubleshooting: {}\n",
+                "{blank_line}# Needs cargo-credential-privatecrates (cargo binstall or cargo install it); the first \
+                 build signs you in on GitHub.\n# Joining the team, editors and troubleshooting: {}\n",
                 login_url(index)
             ));
             Item::Table(table)
@@ -607,6 +607,7 @@ pub fn workflow(slug: &str, workspace: bool, working_directory: Option<&str>) ->
             format!("      - run: cargo publish --registry {slug}\n"),
         )
     };
+    let install = privatecrates_common::install::ci_step(PROVIDER);
     format!(
         "{about} The job's OIDC token
 # is the credential and the provenance: no secrets. Written by `cargo privatecrates init`.
@@ -622,8 +623,7 @@ jobs:
     runs-on: ubuntu-latest
 {defaults}    steps:
       - uses: actions/checkout@v5
-      - run: cargo install {PROVIDER} --locked
-{publish}"
+{install}{publish}"
     )
 }
 
@@ -706,7 +706,7 @@ mod tests {
              [registries.other]\n\
              index = \"sparse+https://other.example/index/\"\n\
              \n\
-             # Needs `cargo install cargo-credential-privatecrates`; the first build signs you in on GitHub.\n\
+             # Needs cargo-credential-privatecrates (cargo binstall or cargo install it); the first build signs you in on GitHub.\n\
              # Joining the team, editors and troubleshooting: https://acme.privatecrates.dev/login\n\
              [registries.acme]\n\
              index = \"sparse+https://acme.privatecrates.dev/index/\"\n\
@@ -724,7 +724,7 @@ mod tests {
         assert_eq!(add_registry(&mut config, "acme", INDEX, false), Ok(true));
         assert_eq!(
             config.to_string(),
-            "# Needs `cargo install cargo-credential-privatecrates`; the first build signs you in on GitHub.\n\
+            "# Needs cargo-credential-privatecrates (cargo binstall or cargo install it); the first build signs you in on GitHub.\n\
              # Joining the team, editors and troubleshooting: https://acme.privatecrates.dev/login\n\
              [registries.acme]\n\
              index = \"sparse+https://acme.privatecrates.dev/index/\"\n\
@@ -879,7 +879,7 @@ mod tests {
     fn the_workflow_matches_the_websites() {
         assert_eq!(
             workflow("acme", false, None),
-            "# Publishes to the PrivateCrates registry `acme` when a tag such as v1.2.3 is pushed. The job's OIDC token
+            format!("# Publishes to the PrivateCrates registry `acme` when a tag such as v1.2.3 is pushed. The job's OIDC token
 # is the credential and the provenance: no secrets. Written by `cargo privatecrates init`.
 name: publish
 on:
@@ -893,9 +893,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: cargo install cargo-credential-privatecrates --locked
-      - run: cargo publish --registry acme
-"
+{}      - run: cargo publish --registry acme
+",
+                privatecrates_common::install::ci_step(PROVIDER)
+            )
         );
         let workspace = workflow("acme", true, Some("rust"));
         assert!(

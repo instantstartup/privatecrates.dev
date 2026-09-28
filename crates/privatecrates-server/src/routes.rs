@@ -361,6 +361,7 @@ pub async fn login_page(
     let apex = state.config.apex_url();
     // The same page for every name, registry or not, and without the organisation's name (SPEC §6.7).
     let slug = &tenant.slug;
+    let install = privatecrates_common::install::ci_step("cargo-credential-privatecrates");
     Html(format!(
         r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -373,7 +374,9 @@ read its repository on GitHub. There is no separate account.</p>
 
 <h2 id="setup">Joining the team</h2>
 <p>If a project already uses this registry, you need one thing: the credential provider.</p>
-<pre>cargo install cargo-credential-privatecrates --locked</pre>
+<pre>cargo binstall cargo-credential-privatecrates
+# without cargo-binstall, it builds from source:
+cargo install cargo-credential-privatecrates --locked</pre>
 <p>Then build as usual. The first time, Cargo shows a code: approve it on GitHub, and you are signed in for every
 project using this registry. To sign in before building (for example, before opening the project in an editor):</p>
 <pre>cargo login --registry {slug}</pre>
@@ -404,7 +407,8 @@ organisation when asked.</li>
 </ul>
 
 <h2 id="ci">GitHub Actions</h2>
-<p>Add <code>permissions: id-token: write</code> to the job and install the credential provider. No secrets are needed.</p>
+<p>Add <code>permissions: id-token: write</code> to the job and install the credential provider with the step in the
+workflow below, which downloads the prebuilt binary and checks it. No secrets are needed.</p>
 
 <h2 id="publish">Publishing</h2>
 <p>Crates are published from GitHub Actions, so every version has verifiable provenance. Only people who can create
@@ -420,8 +424,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: cargo install cargo-credential-privatecrates --locked
-      - run: cargo publish --registry {slug}</pre>
+{install}      - run: cargo publish --registry {slug}</pre>
 <p>The crate's <code>package.repository</code> must be the repository the workflow runs in.
 <code>cargo privatecrates init</code> sets all of this up.</p>
 <p>More: <a href="{apex}/docs/joining">joining a team</a>, <a href="{apex}/docs">all documentation</a>.</p>

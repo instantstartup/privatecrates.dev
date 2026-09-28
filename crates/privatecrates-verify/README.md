@@ -10,24 +10,15 @@ trust the service: "don't trust us, verify us". It reports:
   workflow or environment the owners file did not allow;
 - crate names that clash with crates.io.
 
-Run it on a schedule in the storage repository itself:
+Run it in the storage repository itself, on every push and daily. The simplest way to add the workflow is from
+the PrivateCrates account page, or with `cargo privatecrates add-verifier <org>`: an admin commits it with their own
+GitHub account, so the service never writes what checks it. The workflow is at
+<https://privatecrates.dev/docs/verify>. Its install step downloads this release's binary for the runner and checks
+it against the release's `SHA256SUMS` and GitHub's build attestation before it runs. Anywhere else:
 
-```yaml
-on:
-  schedule: [{ cron: "17 * * * *" }]
-permissions:
-  contents: read
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with: { fetch-depth: 0 }
-      - uses: actions/cache@v4
-        with: { path: .privatecrates-verify.json, key: "verify-${{ github.run_id }}", restore-keys: verify- }
-      - run: cargo binstall --no-confirm privatecrates-verify
-      - run: privatecrates-verify --registry https://acme.privatecrates.dev
-        env: { GITHUB_TOKEN: "${{ github.token }}" }
+```sh
+cargo binstall privatecrates-verify   # or: cargo install privatecrates-verify --locked
+privatecrates-verify --registry https://acme.privatecrates.dev   # in a clone of the storage repository
 ```
 
 `privatecrates-verify --help` lists every option. Release binaries carry GitHub build provenance; check one with

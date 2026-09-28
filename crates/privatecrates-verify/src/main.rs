@@ -1,24 +1,7 @@
 //! `privatecrates-verify`: check a PrivateCrates storage repository for anything the service should not have done.
 //!
-//! Run it on a schedule in the storage repository itself:
-//!
-//! ```yaml
-//! on:
-//!   schedule: [{ cron: "17 * * * *" }]
-//! permissions:
-//!   contents: read
-//! jobs:
-//!   verify:
-//!     runs-on: ubuntu-latest
-//!     steps:
-//!       - uses: actions/checkout@v5
-//!         with: { fetch-depth: 0 }
-//!       - uses: actions/cache@v4
-//!         with: { path: .privatecrates-verify.json, key: verify-${{ github.run_id }}, restore-keys: verify- }
-//!       - run: cargo binstall --no-confirm privatecrates-verify
-//!       - run: privatecrates-verify --registry https://acme.privatecrates.dev
-//!         env: { GITHUB_TOKEN: "${{ github.token }}" }
-//! ```
+//! Run it in the storage repository itself, on every push and daily: `cargo privatecrates add-verifier <org>` commits
+//! the workflow, which is at <https://privatecrates.dev/docs/verify>.
 
 use std::{path::PathBuf, process::ExitCode};
 

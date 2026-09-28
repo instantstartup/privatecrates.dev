@@ -147,10 +147,12 @@ allowed to do, which is read repository metadata. It expires after 8 hours and i
 `cargo login --registry acme` runs the device flow on demand; `cargo logout --registry acme` deletes the stored
 tokens.
 
-Installing it: `cargo install cargo-credential-privatecrates` on a developer's machine. In CI, prebuilt, checksummed
-binaries are published with every release so that `cargo binstall` (or a download step) takes seconds rather than a
-compile. The binaries are built by a trusted-publishing workflow with GitHub artifact attestations, so they can be
-verified with `gh attestation verify`.
+Installing it: `cargo binstall cargo-credential-privatecrates` on a developer's machine, or `cargo install
+cargo-credential-privatecrates --locked` without cargo-binstall. Prebuilt, checksummed binaries are published with
+every release (`SHA256SUMS`), built by the release workflow with GitHub artifact attestations. In CI, the workflows
+we write download the binary for the runner, pinned to a version, and check it against `SHA256SUMS` and with
+`gh attestation verify` before installing it (`privatecrates_common::install::ci_step`): seconds rather than a
+compile, and no third-party action.
 
 Other GitHub tokens (`gh auth token`, classic and fine-grained personal access tokens) are still accepted through
 `cargo:token-from-stdout` for compatibility, but documentation steers towards the credential provider, because those
@@ -158,8 +160,8 @@ tokens are usually far broader than we need.
 
 ### 3.2 CI on GitHub Actions
 
-No App to create, no secret to store, and no action of ours. `cargo install cargo-credential-privatecrates --locked`
-works too, but compiles for about a minute unless cached:
+No App to create, no secret to store, and no action of ours: the install step is plain shell (§3.1).
+`cargo install cargo-credential-privatecrates --locked` works too, but compiles for minutes unless cached:
 
 ```yaml
 permissions:
@@ -167,8 +169,10 @@ permissions:
   contents: read
 steps:
   - uses: actions/checkout@v5
-  - uses: cargo-bins/cargo-binstall@<commit sha>   # pinned; not preinstalled on GitHub runners
-  - run: cargo binstall --no-confirm cargo-credential-privatecrates
+  - name: Install cargo-credential-privatecrates (checksummed and attested)
+    env: { GH_TOKEN: "${{ github.token }}", VERSION: "0.2.5" }
+    run: |   # the release's archive for this runner, checked against SHA256SUMS and its build attestation
+      …
   - run: cargo build --locked
 ```
 
@@ -214,8 +218,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: cargo-bins/cargo-binstall@<commit sha>
-      - run: cargo binstall --no-confirm cargo-credential-privatecrates
+      - …   # install the credential provider (§3.2)
       - run: cargo publish --registry acme
 ```
 

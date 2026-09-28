@@ -231,3 +231,22 @@ async fn without_a_website_the_apex_serves_only_the_api() {
     let response = h.client.get(h.apex("/api/session")).send().await.unwrap();
     assert_eq!(response.status(), 200);
 }
+
+/// The website's workflows pin the same release as the server's (privatecrates_common::install).
+#[test]
+fn the_website_pins_this_release() {
+    let snippets = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../website/src/lib/snippets.ts"),
+    )
+    .unwrap();
+    let version = privatecrates_common::install::ci_step("x")
+        .lines()
+        .find_map(|line| line.split("VERSION: \"").nth(1))
+        .and_then(|rest| rest.split('"').next())
+        .unwrap()
+        .to_owned();
+    assert!(
+        snippets.contains(&format!("export const RELEASE_VERSION = '{version}';")),
+        "website/src/lib/snippets.ts must pin RELEASE_VERSION = '{version}'"
+    );
+}

@@ -2,14 +2,13 @@
 	import Callout from '$lib/components/Callout.svelte';
 	import CodeBlock from '$lib/components/CodeBlock.svelte';
 	import Seo from '$lib/components/Seo.svelte';
-	import { ciBuild } from '$lib/snippets';
+	import { ciBuild, ciInstall } from '$lib/snippets';
 
 	const missingPermission = `permissions:
   id-token: write`;
 
 	const dockerJob = `      - uses: actions/checkout@v5
-      - run: cargo install cargo-credential-privatecrates --locked
-      # Fetch private and public dependencies here, where the OIDC token is available.
+${ciInstall('cargo-credential-privatecrates')}      # Fetch private and public dependencies here, where the OIDC token is available.
       - run: mkdir -p .cargo && cargo vendor --locked vendor >> .cargo/config.toml
       # The build context now holds every dependency; the image build needs no registry access.
       - run: docker build -t ghcr.io/acme/story-app:\${{ github.sha }} .`;
@@ -34,9 +33,10 @@ RUN cargo build --release --locked --offline`;
 
 <h2 id="workflow">The workflow</h2>
 <p>
-	Add <code>id-token: write</code> to the job’s permissions and install the credential provider from crates.io
-	with <code>cargo install --locked</code>. It compiles in about a minute; cache <code>~/.cargo/bin</code> to skip
-	that on later runs.
+	Add <code>id-token: write</code> to the job’s permissions and install the credential provider. The step
+	below downloads the prebuilt binary from our GitHub release, pinned to a version, and checks it against the
+	release’s checksums and GitHub’s build attestation before it runs: a few seconds, and no third-party action.
+	On a runner other than Linux, <code>cargo install cargo-credential-privatecrates --locked</code> builds it instead.
 </p>
 <CodeBlock caption=".github/workflows/build.yml" code={ciBuild} />
 <p>

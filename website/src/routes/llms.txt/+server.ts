@@ -90,7 +90,7 @@ ${indent(fence(storageRepoCommands(ORG)))}
 4. Check each repository:
 ${indent(fence(doctorCommands()))}
 
-Developers who depend on the crates install the credential provider once (\`cargo install cargo-credential-privatecrates --locked\`); the first build signs them in with GitHub.
+Developers who depend on the crates install the credential provider once (\`cargo binstall cargo-credential-privatecrates\`, or \`cargo install cargo-credential-privatecrates --locked\` without cargo-binstall); the first build signs them in with GitHub.
 
 ## Where a person is needed
 
