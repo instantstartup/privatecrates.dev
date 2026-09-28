@@ -79,6 +79,20 @@ cargo yank --registry acme --version 0.2.0 --undo story_engine`;
 	publishes just <code>story_engine</code>, and <code>v0.2.0</code> publishes every crate in the workspace, each
 	of which needs a new version.
 </p>
+<p>
+	When crates depend on each other, one <code>v0.2.0</code> tag is simplest: Cargo publishes them in
+	dependency order, waiting until each is in the registry before publishing the crates that need it. With
+	per-crate tags, push the tag of a crate others depend on first, and wait for its run to finish. A dependency
+	on another crate of the workspace needs a <code>version</code> and the <code>registry</code> besides its
+	<code>path</code>, because Cargo drops the path when it publishes; <code>cargo privatecrates init</code> adds
+	them.
+</p>
+<p>
+	A tag can be used only once. If the repository already has a <code>v0.2.0</code> tag, for example from when
+	its crates were git dependencies, use per-crate tags or a new version;
+	<code>cargo privatecrates doctor</code>
+	suggests a tag that is free.
+</p>
 <CodeBlock caption=".github/workflows/publish.yml" code={ciPublishWorkspace('acme')} />
 <p>
 	The tag reaches the script through an environment variable rather than being pasted into it, so a crafted
