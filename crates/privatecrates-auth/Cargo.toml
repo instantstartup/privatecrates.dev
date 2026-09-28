@@ -1,6 +1,6 @@
 [package]
 name = "privatecrates-auth"
-version = "0.2.5"
+version = "0.2.6"
 description = "Signing in to PrivateCrates with GitHub's device flow, and keeping the token in the system keyring."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
