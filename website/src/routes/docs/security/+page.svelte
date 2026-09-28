@@ -36,11 +36,18 @@
 	<li><strong>What we see:</strong> callers’ tokens, and crate bytes in transit while they are published.</li>
 	<li>
 		<strong>What we store durably:</strong> no registry data and no code. Caches only, keyed by hashes of
-		tokens, never tokens. The one durable record is each organisation’s acceptance of the
-		<a href="/legal/terms">terms</a>: who accepted, for which organisation, when.
+		tokens, never tokens. The durable records are each organisation’s acceptance of the
+		<a href="/legal/terms">terms</a> (who accepted, for which organisation, when) and requests to join the private
+		preview.
 	</li>
 	<li>
 		<strong>What we can do:</strong> write to each organisation’s storage repository, through the storage App.
+	</li>
+	<li>
+		<strong>What we depend on:</strong> GitHub for storage, identity and permissions, and Railway and
+		Cloudflare to run the service. When one of them fails, PrivateCrates may too; we are not responsible for
+		them (<a href="/legal/terms#dependencies">terms, section 9</a>), and the
+		<a href="/trust#dependencies">trust centre</a> explains how the status page tells their problems from ours.
 	</li>
 </ul>
 

@@ -8,7 +8,7 @@ export const SITE_NAME = 'PrivateCrates';
  */
 export const PREVIEW = true;
 /** The current private preview terms: the version an admin accepts, and when it was published. */
-export const TERMS_VERSION = 'private-preview-2026-09-28';
+export const TERMS_VERSION = 'private-preview-2026-09-28-2';
 export const TERMS_DATE = '28 September 2026';
 export const TERMS_PATH = '/legal/terms';
 /** The operator during the private preview. */

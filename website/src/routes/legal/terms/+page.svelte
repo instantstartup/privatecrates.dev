@@ -15,13 +15,14 @@
 		['acceptable-use', '6. Acceptable use'],
 		['as-is', '7. As is: no warranty or guarantee'],
 		['availability', '8. Availability and support'],
-		['liability', '9. Liability'],
-		['changes', '10. Changes, suspension and the end'],
-		['stopping', '11. Stopping'],
-		['new-versions', '12. New versions of these terms'],
-		['privacy', '13. Privacy and data processing'],
-		['law', '14. Law and courts'],
-		['contact', '15. Contact']
+		['dependencies', '9. Services we depend on'],
+		['liability', '10. Liability'],
+		['changes', '11. Changes, suspension and the end'],
+		['stopping', '12. Stopping'],
+		['new-versions', '13. New versions of these terms'],
+		['privacy', '14. Privacy and data processing'],
+		['law', '15. Law and courts'],
+		['contact', '16. Contact']
 	];
 </script>
 
@@ -69,6 +70,10 @@
 					and no liability beyond what the law does not let us exclude.
 				</li>
 				<li>
+					<strong>Built on GitHub and others.</strong> When a service we depend on fails, PrivateCrates may too,
+					and we are not responsible for it.
+				</li>
+				<li>
 					<strong>Your crates stay yours,</strong> in a repository your GitHub organisation owns, not with us.
 				</li>
 				<li>
@@ -85,7 +90,7 @@
 					PrivateCrates is operated by <strong>{OPERATOR}, an individual</strong> (“we” and “us” in these terms).
 					There is no company yet. A company will be formed before general availability, and its name, number and
 					address will be published here. Moving the service to that company will come with new terms, which you
-					can accept or decline (section 12).
+					can accept or decline (section 13).
 				</p>
 				<p>
 					“You” means the GitHub organisation that uses PrivateCrates, and the people who use its registry.
@@ -100,7 +105,7 @@
 				</p>
 				<p>
 					An invitation is permission to try the service, not a promise to provide it. We may withdraw it at
-					any time, which ends your organisation’s use of the service (section 10).
+					any time, which ends your organisation’s use of the service (section 11).
 				</p>
 
 				<h2 id="accepting">3. Accepting these terms</h2>
@@ -113,7 +118,7 @@
 				<p>
 					We keep a record of the acceptance, as evidence of the agreement: the organisation, the admin’s
 					GitHub account, this version, the time, whether it was accepted on the website or with the CLI, and
-					the exact statement accepted. It is the one thing we store durably; the
+					the exact statement accepted. It is what we store durably about your organisation; the
 					<a href="/trust#what-we-hold">trust centre</a> says where and for how long.
 				</p>
 				<p>
@@ -201,22 +206,44 @@
 				</p>
 				<p>
 					Support is best effort. Security problems go to
-					<a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a> (section 15).
+					<a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a> (section 16).
 				</p>
 
-				<h2 id="liability">9. Liability</h2>
+				<h2 id="dependencies">9. Services we depend on</h2>
+				<p>
+					PrivateCrates is built on services run by other companies, which we do not control. Chief among them
+					is GitHub: it stores your registry, signs people in, decides who may read and publish each crate,
+					and runs the workflows that publish them. We also depend on Railway, which hosts the service;
+					Cloudflare, for DNS and the status page; crates.io, for checking crate names; and, from general
+					availability, Stripe, for billing.
+				</p>
+				<p>
+					We are not responsible for these services: for their availability, performance, security or
+					correctness, for changes they make, or for anything they do or fail to do. When one of them is down,
+					degraded or changed, parts of PrivateCrates, or all of it, may stop working, and there may be
+					nothing we can do until it recovers. The <a href={STATUS_URL}>status page</a> shows when a problem is
+					theirs.
+				</p>
+				<p>
+					Your use of GitHub, including your storage repository, is under your own agreement with GitHub, not
+					these terms.
+				</p>
+
+				<h2 id="liability">10. Liability</h2>
 				<p>
 					To the extent the law allows, we are not liable for any loss or damage arising from the private
 					preview or from your use of it, whether direct or indirect, and however it arises, including in
 					negligence: including lost profits, revenue, data, or time, the exposure of code or data, harm from
-					a crate built or published through the service, and the cost of replacing the service.
+					a crate built or published through the service, and the cost of replacing the service. That includes
+					loss or damage caused by a service we depend on (section 9) being unavailable, degraded, changed or
+					compromised, or by anything it does or fails to do.
 				</p>
 				<p>
 					Nothing in these terms limits liability that the law does not allow to be limited, such as liability
 					for death or personal injury caused by negligence, or for fraud.
 				</p>
 
-				<h2 id="changes">10. Changes, suspension and the end of the service</h2>
+				<h2 id="changes">11. Changes, suspension and the end of the service</h2>
 				<p>
 					The private preview may change as we build towards general availability: features may be added,
 					changed or removed. We may also end the private preview, withdraw an invitation, or end the service
@@ -229,21 +256,21 @@
 					is untouched either way.
 				</p>
 
-				<h2 id="stopping">11. Stopping</h2>
+				<h2 id="stopping">12. Stopping</h2>
 				<p>
 					You can stop at any time: uninstall the PrivateCrates GitHub Apps from your organisation. Your
 					storage repository, with your index and every crate file, stays where it is.
 				</p>
 
-				<h2 id="new-versions">12. New versions of these terms</h2>
+				<h2 id="new-versions">13. New versions of these terms</h2>
 				<p>
 					When these terms change, we publish a new version here with a new version name. A new version
 					applies to your organisation once an admin accepts it; the account page asks them to. Until then,
 					the version your organisation accepted continues to apply. If you do not want to accept a new
-					version, you can stop (section 11).
+					version, you can stop (section 12).
 				</p>
 
-				<h2 id="privacy">13. Privacy and data processing</h2>
+				<h2 id="privacy">14. Privacy and data processing</h2>
 				<p>
 					The <a href="/legal/privacy">privacy notice</a> explains how we handle personal data. The
 					<a href="/legal/dpa">data processing agreement</a> is a draft, and is
@@ -252,14 +279,14 @@
 					lawyer before general availability.
 				</p>
 
-				<h2 id="law">14. Law and courts</h2>
+				<h2 id="law">15. Law and courts</h2>
 				<p>
 					These terms, and any dispute or claim arising out of or in connection with them or with
 					PrivateCrates, including non-contractual ones, are governed by the law of England and Wales. The
 					courts of England and Wales have exclusive jurisdiction over them.
 				</p>
 
-				<h2 id="contact">15. Contact</h2>
+				<h2 id="contact">16. Contact</h2>
 				<ul>
 					<li>
 						Security problems: <a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a>, as described in the

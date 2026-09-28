@@ -18,7 +18,7 @@ pub const CRATES_IO_SPARSE_INDEX: &str = "sparse+https://index.crates.io/";
 
 /// The version of the PrivateCrates terms an organisation admin accepts now (docs/preview.md §2). The account API
 /// publishes it with the terms' URL; nothing accepts it on anyone's behalf.
-pub const TERMS_VERSION: &str = "private-preview-2026-09-28";
+pub const TERMS_VERSION: &str = "private-preview-2026-09-28-2";
 
 /// Whether a dependency's `registry` value refers to crates.io.
 pub fn is_crates_io(registry: &str) -> bool {

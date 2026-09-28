@@ -49,7 +49,7 @@ export interface Org {
 
 /** The terms an admin accepts before a registry is created (docs/preview.md §2). */
 export interface Terms {
-	/** e.g. `private-preview-2026-09-28`: sent back as `accept_terms`. */
+	/** e.g. `private-preview-2026-09-28-2`: sent back as `accept_terms`. */
 	version: string;
 	url: string;
 }

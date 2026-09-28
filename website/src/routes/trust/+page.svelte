@@ -239,6 +239,16 @@
 					</tbody>
 				</table>
 			</div>
+			<h3 id="dependencies">When a service we depend on fails</h3>
+			<p>
+				PrivateCrates runs on these services and cannot work without them, GitHub above all: it stores every
+				registry, signs everyone in and decides who may read and publish. When one of them is down or
+				degraded, parts of PrivateCrates, or all of it, may stop working, and there may be nothing we can do
+				until it recovers. We do not control them and are not responsible for them; the
+				<a href="{TERMS_PATH}#dependencies">terms</a> say so formally. The
+				<a href={STATUS_URL}>status page</a>
+				checks their public status every minute and says when a problem is theirs rather than ours.
+			</p>
 
 			<h2 id="security">Security controls</h2>
 			<p>

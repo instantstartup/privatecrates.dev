@@ -83,7 +83,7 @@ const GITHUB_STEPS = ['reader_app', 'storage_repo', 'storage_app'];
 const LIMIT = 5;
 const TRIAL_DAYS = 90;
 const PRICE_USD = 100;
-const TERMS_VERSION = 'private-preview-2026-09-28';
+const TERMS_VERSION = 'private-preview-2026-09-28-2';
 
 /** A Stripe subscription; dates are offsets in days from now. */
 interface Sub {
