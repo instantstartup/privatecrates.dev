@@ -25,13 +25,30 @@
 	const crateLabel = $derived(tenant.slug.length <= 7 ? tenant.slug : undefined);
 
 	const agentPrompt = $derived(publishPrompt({ org, slug: tenant.slug, apex: baseDomain() }));
+
+	// The URL may wrap only after the scheme and before each dot, never inside a name: "worldbuilding-dev" /
+	// ".privatecrates.dev", not "worldbuilding-dev.privatecrat" / "es.dev".
+	const urlParts = $derived.by(() => {
+		const url = tenant.registry_url ?? '';
+		const [scheme, host] = url.includes('://') ? url.split('://', 2) : ['', url];
+		const labels = host.split('.');
+		return {
+			scheme: scheme ? `${scheme}://` : '',
+			labels: labels.map((label, i) => (i === 0 ? label : `.${label}`))
+		};
+	});
 </script>
 
 <section class="ready" aria-labelledby="ready-{org}">
 	<div class="welcome">
 		<div>
 			<h3 id="ready-{org}">Your registry is ready</h3>
-			<p class="url"><a href={tenant.registry_url}>{tenant.registry_url}</a></p>
+			<p class="url">
+				<a href={tenant.registry_url}
+					>{urlParts.scheme}<wbr />{#each urlParts.labels as label, i (i)}{#if i > 0}<wbr
+							/>{/if}{label}{/each}</a
+				>
+			</p>
 			<p class="intro">
 				Five steps take a crate from a repository in <strong>{org}</strong> to a build that depends on it.
 				Each snippet below is already filled in for <code>{tenant.slug}</code>.
@@ -125,7 +142,8 @@
 	.url {
 		font-family: var(--font-mono);
 		font-size: var(--text-base);
-		overflow-wrap: anywhere;
+		/* Breaks only at the <wbr>s; a single name longer than the column still wraps rather than overflowing. */
+		overflow-wrap: break-word;
 		margin-top: 0.5rem;
 	}
 	.intro {

@@ -16,6 +16,7 @@
 //   ?mock=terms-pending-member  the same, as a member (told an admin must accept)
 //   ?mock=not-invited   an admin of acme, which is not invited to the private preview
 //   ?mock=personal      the signed-in user's personal account, reader App installed
+//   ?mock=long-name     a live registry with a long name (worldbuilding-dev), for checking wrapping
 // Billing scenarios, each with the single organisation acme (add &preview=0: in the preview they are all free):
 //   ?mock=free           3 members: free, live
 //   ?mock=free-again     4 members, with a paid subscription still running (the "you can cancel" note)
@@ -75,7 +76,8 @@ const BILLING = [
 	'terms-pending',
 	'terms-pending-member',
 	'not-invited',
-	'personal'
+	'personal',
+	'long-name'
 ] as const;
 type Scenario = (typeof SIGNED_IN)[number] | (typeof BILLING)[number];
 
@@ -217,6 +219,9 @@ function orgsFor(scenario: Scenario): OrgModel[] {
 			return acme({ members: 12, termsAccepted: false });
 		case 'terms-pending-member':
 			return acme({ members: 12, termsAccepted: false, role: 'member' });
+		case 'long-name':
+			// A live registry with a long name, for checking how URLs and headings wrap.
+			return [model(100, 'worldbuilding-dev', { members: 3 })];
 		case 'personal':
 			return [model(99, 'alice', { members: 1, personal: true, done: ['reader_app'], slug: null })];
 		case 'not-invited':
