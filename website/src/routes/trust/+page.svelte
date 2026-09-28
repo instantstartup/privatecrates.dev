@@ -10,7 +10,7 @@
 	const roadmap: [string, string][] = [
 		['Form a company; publish its name, number and address', 'The operator for terms, DPA and billing'],
 		[
-			'Legal review of the terms, privacy notice and DPA; choose governing law and jurisdiction',
+			'Legal review of the terms, privacy notice and DPA (governed by the law of England and Wales)',
 			'Terms fit for paying customers'
 		],
 		[

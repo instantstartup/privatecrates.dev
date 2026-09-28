@@ -73,7 +73,7 @@ contents stay in the customer's organisation.
 | # | Item | Why |
 |---|---|---|
 | 1 | Form a company; publish its name, number and address | The operator for terms, DPA and billing |
-| 2 | Legal review of the terms, privacy notice and DPA; choose governing law and jurisdiction | Terms fit for paying customers |
+| 2 | Legal review of the terms, privacy notice and DPA (governing law: England and Wales, decided 28 September 2026) | Terms fit for paying customers |
 | 3 | International transfer mechanism (EU SCCs and the UK addendum) | EU customers' data processed in the US |
 | 4 | Turn on billing (Stripe live mode), with at least 30 days' notice to existing organisations | Revenue |
 | 5 | Incident commitments: time to first status update, breach notification deadline (72 hours) | Enterprise reviews ask |

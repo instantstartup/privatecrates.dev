@@ -20,7 +20,8 @@
 		['stopping', '11. Stopping'],
 		['new-versions', '12. New versions of these terms'],
 		['privacy', '13. Privacy and data processing'],
-		['contact', '14. Contact']
+		['law', '14. Law and courts'],
+		['contact', '15. Contact']
 	];
 </script>
 
@@ -200,7 +201,7 @@
 				</p>
 				<p>
 					Support is best effort. Security problems go to
-					<a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a> (section 14).
+					<a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a> (section 15).
 				</p>
 
 				<h2 id="liability">9. Liability</h2>
@@ -251,7 +252,14 @@
 					lawyer before general availability.
 				</p>
 
-				<h2 id="contact">14. Contact</h2>
+				<h2 id="law">14. Law and courts</h2>
+				<p>
+					These terms, and any dispute or claim arising out of or in connection with them or with
+					PrivateCrates, including non-contractual ones, are governed by the law of England and Wales. The
+					courts of England and Wales have exclusive jurisdiction over them.
+				</p>
+
+				<h2 id="contact">15. Contact</h2>
 				<ul>
 					<li>
 						Security problems: <a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a>, as described in the
