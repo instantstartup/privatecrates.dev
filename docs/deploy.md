@@ -419,7 +419,10 @@ Notes:
   (Let's Encrypt at the time of writing [R5]), or wildcard issuance fails.
 
 Railway shows each domain as verified, then issues its certificate; wildcard certificates can take a few minutes
-after the `_acme-challenge` record resolves. Check:
+after the `_acme-challenge` record resolves. Until then Railway serves its own `*.up.railway.app` certificate and
+every registry host fails TLS. If the domain shows "Failed to issue TLS certificate" (seen on production's first
+deploy, 28 September 2026), press **Try Again** in *Settings → Networking*; the new certificate reaches all of
+Railway's edge servers within a minute or two. Check:
 
 ```sh
 dig +short CNAME _acme-challenge.dev.privatecrates.dev
@@ -439,7 +442,9 @@ curl -fsS $A/api/session                                     # {"user":null,"org
 curl -sS -o /dev/null -w '%{http_code}\n' $A/                # 200, the website
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST $A/webhooks/github -d '{}'   # 4xx: unsigned delivery refused
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST $A/webhooks/stripe -d '{}'   # 4xx: unsigned delivery refused
-curl -sS -o /dev/null -w '%{http_code}\n' https://nosuchtenant.dev.privatecrates.dev/index/config.json  # 404
+curl -sS -o /dev/null -w '%{http_code}\n' https://nosuchtenant.dev.privatecrates.dev/index/config.json  # 401, as for a real registry (SPEC §6.7)
+echo | openssl s_client -connect dev.privatecrates.dev:443 -servername probe.dev.privatecrates.dev 2>/dev/null \
+  | openssl x509 -noout -subject                             # CN=*.dev.privatecrates.dev, not *.up.railway.app
 curl -sSI https://www.privatecrates.dev | grep -i '^location'  # production only: redirect to the apex
 railway logs -e dev -s privatecrates                         # JSON logs; "tenants discovered", no errors
 ```
