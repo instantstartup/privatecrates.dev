@@ -46,7 +46,7 @@
 			how: 'The agent gives you the link, pre-selected for your organisation; you choose that one repository.'
 		},
 		{
-			step: 'Accept the preview terms',
+			step: 'Accept the private preview terms',
 			who: 'you',
 			how: 'The agent gives you the link to the terms and waits. You read them and tell it you accept, on behalf of your organisation. It never accepts for you.'
 		},
@@ -121,7 +121,7 @@
 	You need to be an admin of the GitHub organisation, with the GitHub CLI signed in (<code
 		>gh auth status</code
 	>). Four moments need you: approving the agent’s sign-in, installing each of the two GitHub Apps, and
-	accepting the <a href={TERMS_PATH}>preview terms</a> on behalf of your organisation.
+	accepting the <a href={TERMS_PATH}>private preview terms</a> on behalf of your organisation.
 </p>
 <div class="table-scroll">
 	<table>
@@ -246,7 +246,9 @@
 		then tell the agent you are done; it confirms the step before going on.
 	</p>
 	<p>
-		The terms are yours to accept. The agent shows you the link to the <a href={TERMS_PATH}>preview terms</a>
+		The terms are yours to accept. The agent shows you the link to the <a href={TERMS_PATH}
+			>private preview terms</a
+		>
 		and passes <code>--accept-terms</code> only after you say you accept. It must never accept them for you.
 	</p>
 </Callout>

@@ -23,14 +23,19 @@
 			can push to it can publish them. No new accounts, no keys to hand out, no access lists to keep in sync.
 		</p>
 		<div class="actions">
-			<a class="btn btn-primary" href="/account">Set up your registry</a>
-			<a class="btn btn-quiet" href="/docs/setup">How to set up a registry</a>
+			{#if PREVIEW}
+				<a class="btn btn-primary" href="/account">Ask for an invitation</a>
+				<a class="btn btn-quiet" href="/docs/setup">How to set up a registry</a>
+			{:else}
+				<a class="btn btn-primary" href="/account">Set up your registry</a>
+				<a class="btn btn-quiet" href="/docs/setup">How to set up a registry</a>
+			{/if}
 		</div>
 		<p class="terms">
 			{#if PREVIEW}
-				Free during the preview, and provided as is: <a href={TERMS_PATH}>read the preview terms</a>. From
-				general availability, free for organisations with up to {FREE_MEMBER_LIMIT} members, then ${PRICE_USD}
-				per organisation per month. SSO included.
+				In private preview, by invitation only. Free, and provided as is with no warranty:
+				<a href={TERMS_PATH}>read the terms</a>. From general availability, free for organisations with up to
+				{FREE_MEMBER_LIMIT} members, then ${PRICE_USD} per organisation per month. SSO included.
 			{:else}
 				Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months free
 				with no card, then ${PRICE_USD} per organisation per month. SSO included.
@@ -169,7 +174,7 @@
 		</div>
 		<div>
 			{#if PREVIEW}
-				<h2 id="price">Free during the preview</h2>
+				<h2 id="price">Free during the private preview</h2>
 				<p class="planned">Planned pricing from general availability ({GA_TARGET})</p>
 			{:else}
 				<h2 id="price">Free for small teams, one price for the rest</h2>
@@ -196,7 +201,11 @@
 				<li>Search across your crates and crates.io</li>
 			</ul>
 			<div class="actions">
-				<a class="btn btn-primary" href="/account">Set up your registry</a>
+				{#if PREVIEW}
+					<a class="btn btn-primary" href="/account">Ask for an invitation</a>
+				{:else}
+					<a class="btn btn-primary" href="/account">Set up your registry</a>
+				{/if}
 				<a class="btn btn-quiet" href="/pricing">Pricing details</a>
 			</div>
 		</div>
@@ -247,11 +256,19 @@
 			</p>
 		</FaqItem>
 		{#if PREVIEW}
-			<FaqItem question="What if the preview ends?">
+			<FaqItem question="How do we join the private preview?">
 				<p>
-					Nothing you store is lost: your crates and index are in your own repository. We give notice where we
-					can, and billing starts only after general availability, with at least 30 days’ notice. The
-					<a href={TERMS_PATH}>preview terms</a> have the details.
+					<a href="/account">Sign in and ask</a>, naming your GitHub organisation. Once it is invited, an
+					admin sets the registry up from the <a href="/account">account page</a>. The private preview is
+					free, provided as is with no warranty or guarantee, and at your own risk: the
+					<a href={TERMS_PATH}>terms</a> have the details.
+				</p>
+			</FaqItem>
+			<FaqItem question="What if the private preview ends?">
+				<p>
+					Your crates and index are in your own repository, not with us, so they stay there. We give notice
+					where we can, and billing starts only after general availability, with at least 30 days’ notice. The
+					<a href={TERMS_PATH}>private preview terms</a> have the details.
 				</p>
 			</FaqItem>
 		{:else}

@@ -6,7 +6,7 @@
 
 <Seo
 	title="Privacy notice"
-	description="What personal data PrivateCrates processes during the preview, why, for how long, who else handles it, and your rights."
+	description="What personal data PrivateCrates processes during the private preview, why, for how long, who else handles it, and your rights."
 	path="/legal/privacy"
 />
 
@@ -14,15 +14,15 @@
 	<article class="prose legal">
 		<h1>Privacy notice</h1>
 		<p class="lede">
-			For the preview. It will be reviewed by a lawyer and reissued by the company that runs PrivateCrates
-			before general availability.
+			For the private preview. It will be reviewed by a lawyer and reissued by the company that runs
+			PrivateCrates before general availability.
 		</p>
 
 		<h2>1. Controller</h2>
 		<p>
-			During the preview, PrivateCrates is run by {OPERATOR}, as an individual, who decides how the personal
-			data below is used. A company will take this over before general availability. For anything about your
-			data, email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.
+			During the private preview, PrivateCrates is run by {OPERATOR}, as an individual, who decides how the
+			personal data below is used. A company will take this over before general availability. For anything
+			about your data, email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.
 		</p>
 
 		<h2>2. What we process</h2>
@@ -42,8 +42,13 @@
 			<li>
 				<strong>Terms acceptance:</strong> when an admin accepts the terms for an organisation, we record the organisation’s
 				GitHub ID and login, the admin’s GitHub ID and login, the terms version, the time, whether they accepted
-				on the website or with the CLI, and the exact statement accepted. This is the only record we store durably,
-				in a Postgres database at Railway (US East), with Railway’s backups. It is never shared.
+				on the website or with the CLI, and the exact statement accepted. It is stored in a Postgres database at
+				Railway (US East), with Railway’s backups, and is never shared.
+			</li>
+			<li>
+				<strong>Invitation requests:</strong> when you ask to join the private preview, we record your GitHub ID
+				and login, the organisation you named, the email address you gave and your note, in the same database. We
+				use them only to decide on the invitation and to reply to you. They are never shared.
 			</li>
 			<li>
 				<strong>Billing:</strong> we count your organisation’s active members through GitHub, to tell whether it
@@ -71,16 +76,20 @@
 		<h2>4. Processors</h2>
 		<ul>
 			<li>GitHub, which stores your crates and provides identity.</li>
-			<li>Stripe, for payments, from general availability; not used during the preview.</li>
-			<li>Railway, which hosts the service, its logs and the database of terms acceptances.</li>
+			<li>Stripe, for payments, from general availability; not used during the private preview.</li>
+			<li>
+				Railway, which hosts the service, its logs and the database of terms acceptances and invitation
+				requests.
+			</li>
 			<li>Cloudflare, for DNS and the status page.</li>
 		</ul>
 
 		<h2>5. Retention</h2>
 		<p>
 			Service logs are deleted after 30 days. Terms acceptances are kept for as long as the organisation uses
-			PrivateCrates, then for 6 years, as evidence of the agreement. Nothing else about you is stored by us:
-			caches live in memory and expire within minutes. No billing records exist during the preview.
+			PrivateCrates, then for 6 years, as evidence of the agreement. Invitation requests are deleted once we
+			have replied, and at the latest 12 months after you asked. Nothing else about you is stored by us:
+			caches live in memory and expire within minutes. No billing records exist during the private preview.
 		</p>
 
 		<h2>6. Your rights</h2>
@@ -89,9 +98,10 @@
 			personal data we hold about you, have it corrected or deleted, restrict or object to its use, and
 			receive it in a portable form. Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a> from, or naming,
 			your GitHub account; we answer within one month. We use your data because it is needed to run the service
-			you or your organisation asked for, and, for terms acceptances, to keep evidence of the agreement. A terms
-			acceptance made on behalf of an organisation is kept for its retention period even after a deletion request,
-			because it is the record of that agreement.
+			you or your organisation asked for, and, for terms acceptances, to keep evidence of the agreement. For an
+			invitation request, we use your data because you asked us to consider an invitation. A terms acceptance made
+			on behalf of an organisation is kept for its retention period even after a deletion request, because it is
+			the record of that agreement.
 		</p>
 		<p>
 			You can also complain to a data protection authority: in the UK, the Information Commissioner’s Office (<a

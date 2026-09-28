@@ -71,7 +71,8 @@ const BILLING = [
 	'compliance-empty',
 	'auto-trial',
 	'terms-pending',
-	'terms-pending-member'
+	'terms-pending-member',
+	'not-invited'
 ] as const;
 type Scenario = (typeof SIGNED_IN)[number] | (typeof BILLING)[number];
 
@@ -79,7 +80,7 @@ const GITHUB_STEPS = ['reader_app', 'storage_repo', 'storage_app'];
 const LIMIT = 5;
 const TRIAL_DAYS = 90;
 const PRICE_USD = 100;
-const TERMS_VERSION = 'preview-2026-09-27';
+const TERMS_VERSION = 'private-preview-2026-09-28';
 
 /** A Stripe subscription; dates are offsets in days from now. */
 interface Sub {
@@ -108,6 +109,8 @@ interface OrgModel {
 	billingEmail?: string;
 	/** A terms file for the current version exists. Absent in state saved before the terms: accepted. */
 	termsAccepted?: boolean;
+	/** Invited to the private preview. Absent: invited. */
+	invited?: boolean;
 }
 
 interface State {
@@ -116,6 +119,8 @@ interface State {
 	appliedSearch?: string;
 	/** PREVIEW on the server: billing off, everyone free. Absent in state saved before the preview: on. */
 	preview?: boolean;
+	/** Organisations this person asked an invitation for. */
+	invitationsRequested?: string[];
 }
 
 const KEY = 'pc-mock';
@@ -207,6 +212,8 @@ function orgsFor(scenario: Scenario): OrgModel[] {
 			return acme({ members: 12, termsAccepted: false });
 		case 'terms-pending-member':
 			return acme({ members: 12, termsAccepted: false, role: 'member' });
+		case 'not-invited':
+			return acme({ members: 12, done: ['reader_app'], slug: null, invited: false });
 		case 'compliance':
 		case 'compliance-problems':
 		case 'compliance-empty':
@@ -226,7 +233,8 @@ function orgsFor(scenario: Scenario): OrgModel[] {
 					members: 30,
 					sub: { status: 'canceled', trialEnd: -3, periodEnd: -3, card: false },
 					trialUsed: true
-				})
+				}),
+				model(107, 'soylent', { role, members: 6, done: ['reader_app'], slug: null, invited: false })
 			];
 		}
 	}
@@ -322,7 +330,7 @@ function tenantOf(o: OrgModel): Tenant | null {
 	return {
 		slug: o.slug,
 		registry_url: `https://${o.slug}.${base}`,
-		// No subscriptions are loaded during the preview.
+		// No subscriptions are loaded during the private preview.
 		status: previewOn ? null : (o.sub?.status ?? null),
 		trial_ends_at: iso(o.sub?.trialEnd ?? null),
 		current_period_end: iso(o.sub?.periodEnd ?? null)
@@ -342,6 +350,7 @@ function toOrg(o: OrgModel): Org {
 		has_payment_method: o.sub?.card ?? false,
 		billing_email_missing: !previewOn && !!o.sub && o.billingEmail === '',
 		terms_accepted: o.termsAccepted ?? true,
+		invited: o.invited ?? true,
 		current_period_end: iso(o.sub?.periodEnd ?? null),
 		trial_available: trialAvailable(o),
 		tenant: tenantOf(o)
@@ -353,7 +362,12 @@ function termsOf() {
 }
 
 function session(state: State): Session {
-	const preview = { preview: previewOn, terms: termsOf() };
+	const preview = {
+		preview: previewOn,
+		terms: termsOf(),
+		invite_only: previewOn,
+		invitations_requested: state.invitationsRequested ?? []
+	};
 	if (state.scenario === 'signed-out') return { user: null, orgs: [], ...preview };
 	const user = { login: 'alice', avatar_url: 'https://avatars.example.invalid/alice', name: 'Alice Moreau' };
 	if (state.scenario === 'no-orgs') return { user, orgs: [], install_url: INSTALL_URL, ...preview };
@@ -371,7 +385,7 @@ function session(state: State): Session {
 }
 
 function planStep(o: OrgModel, status: (done: boolean) => Step['status']): Step {
-	if (previewOn) return { id: 'plan', status: 'done', detail: 'Free during the preview.' };
+	if (previewOn) return { id: 'plan', status: 'done', detail: 'Free during the private preview.' };
 	const plan = planOf(o);
 	if (plan === 'free') return { id: 'plan', status: 'done' };
 	if (!o.billing)
@@ -409,8 +423,18 @@ function onboarding(o: OrgModel): Onboarding {
 		...ask
 	});
 	const plan = planStep(o, (d) => status(d));
+	const invited = o.invited ?? true;
+	const uninvited = (step: Step): Step =>
+		invited || step.status === 'done'
+			? step
+			: {
+					...step,
+					status: 'blocked',
+					detail: `PrivateCrates is in private preview, by invitation only. Ask for an invitation for ${o.login} at ${location.origin}/account.`
+				};
 	return {
 		org: { id: o.id, login: o.login },
+		invited,
 		steps: [
 			gh('reader_app'),
 			gh('storage_repo', {
@@ -427,7 +451,7 @@ function onboarding(o: OrgModel): Onboarding {
 						: 'Install both Apps first: the storage App writes privatecrates.toml.'
 			},
 			member && plan.status !== 'done' ? { ...plan, ...ask } : plan
-		],
+		].map(uninvited),
 		suggested_slug: o.login,
 		verifier: o.slug
 			? {
@@ -496,7 +520,7 @@ const catalog: CatalogEntry[] = [
 		'an admin must accept the PrivateCrates terms ({version}) on behalf of the organisation: {url}',
 		400
 	],
-	['billing::preview', 'PrivateCrates is free during the preview', 409],
+	['billing::preview', 'PrivateCrates is free during the private preview', 409],
 	['github::rate_limited', 'GitHub’s rate limit was reached; please try again in a few minutes', 503]
 ].map(([code, message, http_status]) => ({ code, message, http_status }) as CatalogEntry);
 
@@ -673,12 +697,29 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	if (path === '/api/session') return delay(json(session(state)));
 
 	const m = path.match(
-		/^\/api\/orgs\/([^/]+)\/(onboarding|settings|terms|trial|checkout|portal|compliance|billing-email)$/
+		/^\/api\/orgs\/([^/]+)\/(onboarding|settings|terms|trial|checkout|portal|compliance|billing-email|invitation)$/
 	);
 	if (!m) return delay(error(404, 'not found', 'registry::not_found'));
-	if (state.scenario === 'signed-out' || state.scenario === 'no-orgs')
-		return delay(error(401, 'Sign in to continue.', 'session::required'));
+	if (state.scenario === 'signed-out') return delay(error(401, 'Sign in to continue.', 'session::required'));
 	const [, login, action] = m;
+	// Any organisation, installed or not: GitHub does not show us the ones that have not installed the App.
+	if (action === 'invitation' && method === 'POST') {
+		const body = JSON.parse(String(init?.body ?? '{}')) as { email?: string; note?: string };
+		const email = (body.email ?? '').trim();
+		if (!/^[A-Za-z0-9-]{1,39}$/.test(login))
+			return delay(error(400, 'that is not a GitHub organisation name', 'account::invitation_invalid'));
+		if (state.orgs.find((x) => x.login === login && (x.invited ?? true)))
+			return delay(
+				error(409, `${login} is already invited to the private preview`, 'account::already_invited')
+			);
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+			return delay(error(400, 'that is not an email address', 'account::invitation_invalid'));
+		const org = login.toLowerCase();
+		state.invitationsRequested = [...new Set([...(state.invitationsRequested ?? []), org])].sort();
+		save(state);
+		return delay(json({ requested: true, org }), 500);
+	}
+	if (state.scenario === 'no-orgs') return delay(error(401, 'Sign in to continue.', 'session::required'));
 	const o = state.orgs.find((x) => x.login === login);
 	if (!o) return delay(error(404, `You are not a member of ${login}.`, 'account::org_not_found'));
 
@@ -708,7 +749,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
 		return delay(json(onboarding(o)), 600);
 	}
 	if (previewOn && ['trial', 'checkout', 'portal', 'billing-email'].includes(action))
-		return delay(error(409, 'PrivateCrates is free during the preview.', 'billing::preview'));
+		return delay(error(409, 'PrivateCrates is free during the private preview.', 'billing::preview'));
 
 	if (action === 'settings') {
 		const body = JSON.parse(String(init?.body ?? '{}')) as { slug?: string; accept_terms?: string };

@@ -1,10 +1,11 @@
-//! Our own records (docs/preview.md §2): which organisation admin accepted which version of the terms, and when.
+//! Our own records (docs/preview.md §2): which organisation admin accepted which version of the terms, and when;
+//! and requests to join the private preview (§5).
 //!
 //! Everything else PrivateCrates knows comes from GitHub or Stripe. Acceptances are the exception: they are our
 //! evidence, so they are kept in our own Postgres rather than in the customer's storage repository, which the
 //! customer can delete or stop us reading.
 //!
-//! The table is append-only: nothing here updates or deletes a row. The first acceptance of a version by an
+//! The acceptances are append-only: nothing here updates or deletes one. The first acceptance of a version by an
 //! organisation is kept, and a later one is a no-op.
 
 use std::time::Duration;
@@ -78,10 +79,20 @@ pub struct Accepted {
     pub statement: String,
 }
 
+/// A request to join the private preview. The organisation is as the person typed it, lowercased.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvitationRequest {
+    pub org_login: String,
+    pub user_id: u64,
+    pub user_login: String,
+    pub email: String,
+    pub note: String,
+}
+
 /// The words an admin accepts, recorded with the acceptance.
 pub fn statement(version: &str, org_login: &str) -> String {
     format!(
-        "I have read and accept the PrivateCrates preview terms ({version}) on behalf of {org_login}"
+        "I have read and accept the PrivateCrates private preview terms ({version}) on behalf of {org_login}"
     )
 }
 
@@ -100,6 +111,13 @@ pub trait Records: Send + Sync {
         org_id: u64,
         version: &str,
     ) -> Result<Option<Accepted>, RecordsError>;
+
+    /// Records a request to join the private preview; the same person asking again for the same organisation
+    /// replaces their earlier request.
+    async fn request_invitation(&self, request: &InvitationRequest) -> Result<(), RecordsError>;
+
+    /// The organisations a person has asked an invitation for.
+    async fn invitations_requested(&self, user_id: u64) -> Result<Vec<String>, RecordsError>;
 }
 
 /// Postgres (`DATABASE_URL`).
@@ -172,12 +190,44 @@ impl Records for Postgres {
             statement: row.try_get("statement")?,
         }))
     }
+
+    async fn request_invitation(&self, r: &InvitationRequest) -> Result<(), RecordsError> {
+        sqlx::query(
+            "insert into invitation_requests (org_login, user_id, user_login, email, note) \
+             values ($1, $2, $3, $4, $5) \
+             on conflict (org_login, user_id) do update \
+             set user_login = excluded.user_login, email = excluded.email, note = excluded.note, \
+             requested_at = now()",
+        )
+        .bind(&r.org_login)
+        .bind(r.user_id.cast_signed())
+        .bind(&r.user_login)
+        .bind(&r.email)
+        .bind(&r.note)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn invitations_requested(&self, user_id: u64) -> Result<Vec<String>, RecordsError> {
+        let rows = sqlx::query(
+            "select org_login from invitation_requests where user_id = $1 order by org_login",
+        )
+        .bind(user_id.cast_signed())
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .iter()
+            .map(|row| row.try_get("org_login"))
+            .collect::<Result<_, _>>()?)
+    }
 }
 
 /// In memory, for tests and local development without `DATABASE_URL`. Lost at every restart.
 #[derive(Default)]
 pub struct Memory {
     rows: Mutex<Vec<Accepted>>,
+    invitations: Mutex<Vec<InvitationRequest>>,
 }
 
 #[async_trait]
@@ -219,6 +269,26 @@ impl Records for Memory {
             .iter()
             .find(|r| r.org_id == org_id && r.version == version)
             .cloned())
+    }
+
+    async fn request_invitation(&self, request: &InvitationRequest) -> Result<(), RecordsError> {
+        let mut invitations = self.invitations.lock().await;
+        invitations.retain(|r| !(r.org_login == request.org_login && r.user_id == request.user_id));
+        invitations.push(request.clone());
+        Ok(())
+    }
+
+    async fn invitations_requested(&self, user_id: u64) -> Result<Vec<String>, RecordsError> {
+        let mut orgs: Vec<String> = self
+            .invitations
+            .lock()
+            .await
+            .iter()
+            .filter(|r| r.user_id == user_id)
+            .map(|r| r.org_login.clone())
+            .collect();
+        orgs.sort();
+        Ok(orgs)
     }
 }
 

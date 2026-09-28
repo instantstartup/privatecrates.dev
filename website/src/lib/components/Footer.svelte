@@ -34,7 +34,7 @@
 			<ul>
 				<li><a href="/trust">Trust centre</a></li>
 				<li><a href="/security">Report a vulnerability</a></li>
-				<li><a href="/legal/terms">Preview terms</a></li>
+				<li><a href="/legal/terms">Private preview terms</a></li>
 				<li><a href="/legal/privacy">Privacy</a></li>
 				<li><a href="/legal/dpa">DPA (draft)</a></li>
 			</ul>

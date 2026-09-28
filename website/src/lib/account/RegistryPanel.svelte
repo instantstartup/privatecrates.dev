@@ -207,7 +207,7 @@
 				<div>
 					<dt>Plan</dt>
 					<dd>
-						<strong>Free during the preview.</strong>
+						<strong>Free during the private preview.</strong>
 						<span class="detail"
 							>Billing is off until general availability, and starts only after at least 30 days’ notice. See
 							the

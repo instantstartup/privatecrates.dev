@@ -57,12 +57,12 @@ loading, trials, Checkout or portal, and `/webhooks/stripe` answers 404), and `/
 
 ## Terms
 
-An organisation admin accepts the current PrivateCrates terms (version `preview-2026-09-27`, published at
+An organisation admin accepts the current PrivateCrates terms (version `private-preview-2026-09-28`, published at
 `https://{BASE_DOMAIN}/legal/terms`) before its registry is created, and an admin of a registry set up earlier is
 asked to. Each acceptance is recorded in our own Postgres (`DATABASE_URL`), not in the customer's repository: the
 organisation (id, login), the admin (GitHub id, login), the version, the time, `via` (`website` for the session
-cookie, `cli` for a bearer token) and the exact statement accepted, "I have read and accept the PrivateCrates preview
-terms (preview-2026-09-27) on behalf of {org}". The table is append-only; the first acceptance of each version is kept
+cookie, `cli` for a bearer token) and the exact statement accepted, "I have read and accept the PrivateCrates private preview
+terms (private-preview-2026-09-28) on behalf of {org}". The table is append-only; the first acceptance of each version is kept
 and a repeat is a no-op. A registry without an acceptance keeps working.
 
 `accept_terms` must be the current version as a string; anything else (missing, another version, another type) is
@@ -121,7 +121,7 @@ Clears the cookie. `204`.
   ],
   "install_url": "https://github.com/apps/privatecrates-reader/installations/new",
   "preview": false,
-  "terms": { "version": "preview-2026-09-27", "url": "https://privatecrates.dev/legal/terms" }
+  "terms": { "version": "private-preview-2026-09-28", "url": "https://privatecrates.dev/legal/terms" }
 }
 ```
 `preview` is `true` during the preview (then every `plan` is `free`). `terms` (also when signed out) is the version an
@@ -152,19 +152,19 @@ For an org the user belongs to. Each step is `done`, `todo` or `blocked`, with a
     { "id": "plan", "status": "todo", "detail": "12 members: start your 3-month free trial, no card needed." }
   ],
   "suggested_slug": "acme",
-  "terms": { "version": "preview-2026-09-27", "url": "https://privatecrates.dev/legal/terms", "accepted": false }
+  "terms": { "version": "private-preview-2026-09-28", "url": "https://privatecrates.dev/legal/terms", "accepted": false }
 }
 ```
 Only org admins can act; members see the same checklist with `blocked` steps and a note to ask an admin.
 
-### `POST /api/orgs/{org}/settings` `{"slug": "acme", "accept_terms": "preview-2026-09-27", "allow_manual_publish": false}`
+### `POST /api/orgs/{org}/settings` `{"slug": "acme", "accept_terms": "private-preview-2026-09-28", "allow_manual_publish": false}`
 Admin only. `allow_manual_publish` (optional, default `false`) is the admin's choice of whether crates may also be
 published from developers' machines; it is written to `privatecrates.toml` as the default for every repository. Validates the slug (format, reserved), then `accept_terms` (`account::terms_not_accepted` 400), then that
 the organisation has no registry and the slug is not taken. It records the admin's acceptance of the terms first (if
 that fails, `records::unavailable` 503 and nothing is created), then has the storage App **create**
 `privatecrates.toml` in the storage repository (creation only; refused if it exists). Returns the onboarding document.
 
-### `POST /api/orgs/{org}/terms` `{"accept_terms": "preview-2026-09-27"}`
+### `POST /api/orgs/{org}/terms` `{"accept_terms": "private-preview-2026-09-28"}`
 Admin only. For a registry set up before the terms, or before their current version: records the admin's acceptance.
 Accepting again succeeds and records nothing new. Refused with `account::terms_not_accepted` 400 for anything but the
 current version, and `account::not_set_up` 409 if the organisation has no registry (its terms are accepted at set-up).

@@ -34,7 +34,7 @@
 	];
 
 	const description = PREVIEW
-		? `PrivateCrates is free during the preview. Planned pricing from general availability: free for GitHub organisations with up to ${FREE_MEMBER_LIMIT} members, $${PRICE_USD} per organisation per month for larger ones, with unlimited users and SSO included.`
+		? `PrivateCrates is free during the private preview. Planned pricing from general availability: free for GitHub organisations with up to ${FREE_MEMBER_LIMIT} members, $${PRICE_USD} per organisation per month for larger ones, with unlimited users and SSO included.`
 		: `PrivateCrates is free for GitHub organisations with up to ${FREE_MEMBER_LIMIT} members. Larger organisations pay $${PRICE_USD} per month, with unlimited users, SSO included and a ${TRIAL_MONTHS}-month free trial that needs no card.`;
 </script>
 
@@ -43,7 +43,7 @@
 <div class="page">
 	<header class="intro">
 		{#if PREVIEW}
-			<h1>Free during the preview</h1>
+			<h1>Free during the private preview</h1>
 			<p class="lede">
 				PrivateCrates takes no payments until general availability, planned for {GA_TARGET}. Below is what we
 				plan to charge then, so you can judge it now. Billing starts only after at least 30 days’ notice.
@@ -61,8 +61,8 @@
 		<div class="planned-head">
 			<h2 id="planned">Planned pricing, from general availability</h2>
 			<p class="note">
-				Free during the preview, whatever your size. No per-seat maths and no enterprise tier to unlock SSO:
-				both plans will have every feature.
+				Free during the private preview, whatever your size. No per-seat maths and no enterprise tier to
+				unlock SSO: both plans will have every feature.
 			</p>
 		</div>
 	{/if}
@@ -103,9 +103,10 @@
 					>
 				</p>
 				{#if PREVIEW}
-					<a class="btn btn-primary" href="/account">Set up your registry</a>
+					<a class="btn btn-primary" href="/account">Ask for an invitation</a>
 					<p class="small">
-						Free during the preview. From general availability, {TRIAL_MONTHS} months free with no card, then ${PRICE_USD}
+						Free during the private preview. From general availability, {TRIAL_MONTHS} months free with no card,
+						then ${PRICE_USD}
 						per month.
 					</p>
 				{:else}
@@ -140,11 +141,11 @@
 		<h2 id="pricing-faq">Billing questions</h2>
 		<div class="faq-list">
 			{#if PREVIEW}
-				<FaqItem question="Do we pay anything during the preview?">
+				<FaqItem question="Do we pay anything during the private preview?">
 					<p>
 						No. Billing is off: we take no payments and ask for no card, whatever the size of your
 						organisation. The preview is provided as is and at your own risk; the <a href={TERMS_PATH}
-							>preview terms</a
+							>private preview terms</a
 						> say what that means.
 					</p>
 				</FaqItem>

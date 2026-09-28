@@ -30,6 +30,8 @@ pub struct Harness {
 pub struct Options {
     /// The preview (`PREVIEW`), free for everyone, as the server defaults to; billing tests turn it off.
     pub preview: bool,
+    /// The private preview's invitations; `None` lets every organisation in.
+    pub invited_orgs: Option<&'static [&'static str]>,
     /// Bill through a fake Stripe; otherwise every tenant is active.
     pub stripe: bool,
     pub website_dir: Option<PathBuf>,
@@ -39,6 +41,7 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             preview: true,
+            invited_orgs: None,
             stripe: false,
             website_dir: None,
         }
@@ -87,6 +90,9 @@ impl Harness {
             session_secret: b"another test secret, long enough for a key".to_vec(),
             website_dir: options.website_dir,
             preview: options.preview,
+            invited_orgs: options
+                .invited_orgs
+                .map(|orgs| orgs.iter().map(|o| o.to_ascii_lowercase()).collect()),
             // Terms acceptances are kept in memory.
             database_url: None,
             stripe: stripe.as_ref().map(|s| StripeConfig {

@@ -22,8 +22,8 @@ export const subprocessors: Subprocessor[] = [
 	{
 		name: 'Railway',
 		purpose:
-			'Hosts the PrivateCrates service: it runs the server, terminates TLS for our domains, keeps its logs, and runs the Postgres database (with backups) that holds terms acceptances.',
-		data: 'Everything in transit through the service (tokens, crate files during publishing), the in-memory caches, the service’s logs, and the terms acceptance records.',
+			'Hosts the PrivateCrates service: it runs the server, terminates TLS for our domains, keeps its logs, and runs the Postgres database (with backups) that holds terms acceptances and invitation requests.',
+		data: 'Everything in transit through the service (tokens, crate files during publishing), the in-memory caches, the service’s logs, the terms acceptance records, and invitation requests.',
 		location: 'United States, US East (Virginia) region',
 		url: 'https://railway.com/legal/privacy'
 	},
@@ -38,7 +38,7 @@ export const subprocessors: Subprocessor[] = [
 	{
 		name: 'Stripe',
 		purpose:
-			'Subscriptions, invoices, card payments and the trial-ending reminder email, from general availability. Billing is off during the preview, so Stripe receives nothing yet.',
+			'Subscriptions, invoices, card payments and the trial-ending reminder email, from general availability. Billing is off during the private preview, so Stripe receives nothing yet.',
 		data: 'The organisation’s GitHub name and ID, the billing email you give us, and card details (entered on Stripe; we never see them).',
 		location: 'United States and elsewhere, under Stripe’s terms',
 		url: 'https://stripe.com/privacy'

@@ -47,8 +47,8 @@
 				</li>
 				<li>
 					<strong>The processor:</strong>
-					PrivateCrates: during the preview, the operator named in the
-					<a href="/legal/terms">preview terms</a>; from general availability, the company that runs
+					PrivateCrates: during the private preview, the operator named in the
+					<a href="/legal/terms">private preview terms</a>; from general availability, the company that runs
 					PrivateCrates, whose name, number and registered address will be given here.
 				</li>
 			</ul>
@@ -199,7 +199,7 @@
 				</li>
 				<li>
 					<strong>Billing records</strong> at Stripe are kept for as long as tax law requires (6 years in the UK).
-					There are none during the preview.
+					There are none during the private preview.
 				</li>
 			</ul>
 

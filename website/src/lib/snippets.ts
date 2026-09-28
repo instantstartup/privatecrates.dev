@@ -173,7 +173,7 @@ export function cli(args: string, apex = PROD_APEX): string {
 /** The current terms, for pages that are built before any session exists. */
 export const CURRENT_TERMS = { version: TERMS_VERSION, url: `${SITE_URL}${TERMS_PATH}` };
 
-// The trial flags stay in the CLI for later; during the preview the server refuses them (billing::preview).
+// The trial flags stay in the CLI for later; during the private preview the server refuses them (billing::preview).
 export const cliUsage = `cargo privatecrates login
 cargo privatecrates logout
 cargo privatecrates setup <org> [--slug <name> --accept-terms <version> [--allow-manual-publish]]${PREVIEW ? '' : ' [--start-trial --billing-email <address>]'} [--json]

@@ -365,6 +365,7 @@ Leave these unset (the defaults are right for both environments):
 | `GITHUB_API_URL`, `GITHUB_WEB_URL` | `https://api.github.com`, `https://github.com` | Tests point these at a fake. |
 | `STRIPE_API_URL` | Stripe's API | Tests point this at a fake. |
 | `PREVIEW` | `true` | The preview (docs/preview.md): free for everyone, billing off whatever Stripe configuration is set. `false` from general availability. |
+| `INVITED_ORGS` | none | The private preview (docs/preview.md §5): GitHub organisation logins, separated by commas or spaces, that may have a registry while `PREVIEW` is on. Unset: none. Set it in each environment, e.g. `uxlint-net` in both. |
 | `FREE_MEMBER_LIMIT` | 5 | Organisations with at most this many members (active members, from the reader App; not outside collaborators or pending invitations) are free. |
 | `TRIAL_DAYS` | 90 | Length of the no-card trial larger organisations get once. |
 | `OIDC_ISSUER`, `OIDC_JWKS_URL` | GitHub Actions' | |

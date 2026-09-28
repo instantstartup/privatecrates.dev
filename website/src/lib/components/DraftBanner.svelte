@@ -3,10 +3,12 @@
 </script>
 
 <div class="draft" role="note">
-	<p class="title">Draft: not yet in force during the preview</p>
+	<p class="title">Draft: not yet in force during the private preview</p>
 	<p>
 		This page shows the intended structure and has not been reviewed by a lawyer. It is not an agreement, and
-		highlighted items are not decided yet. During the preview, the <a href={TERMS_PATH}>preview terms</a>
+		highlighted items are not decided yet. During the private preview, the <a href={TERMS_PATH}
+			>private preview terms</a
+		>
 		apply, and the <a href="/trust">trust centre</a> describes how the service handles data today.
 	</p>
 </div>

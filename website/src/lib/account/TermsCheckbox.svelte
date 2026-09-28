@@ -37,11 +37,11 @@
 		aria-describedby="{id}-summary{describedby ? ` ${describedby}` : ''}"
 	/>
 	<label for={id}>
-		I have read and accept the {@render newTab(terms.url, 'preview terms')} on behalf of
+		I have read and accept the {@render newTab(terms.url, 'private preview terms')} on behalf of
 		<strong>{org}</strong>
 	</label>
 	<p class="summary" id="{id}-summary">
-		In short: free during the preview, provided {@render newTab(
+		In short: free during the private preview, provided {@render newTab(
 			section('as-is'),
 			'as is and at your own risk'
 		)}, and your crates {@render newTab(section('your-data'), 'stay in your own repository')}. Version

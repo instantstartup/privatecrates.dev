@@ -4,6 +4,7 @@
 	import { untrack } from 'svelte';
 	import Checklist from '$lib/account/Checklist.svelte';
 	import ErrorNotice from '$lib/account/ErrorNotice.svelte';
+	import InvitationForm from '$lib/account/InvitationForm.svelte';
 	import OrgList from '$lib/account/OrgList.svelte';
 	import RegistryPanel from '$lib/account/RegistryPanel.svelte';
 	import {
@@ -39,6 +40,11 @@
 	/** The preview: free for everyone, billing off (docs/preview.md §1). Billing controls return when it ends. */
 	const preview = $derived(session?.preview ?? false);
 	const terms = $derived(session?.terms);
+	/** The private preview: only invited organisations can set a registry up (docs/preview.md §5). */
+	const inviteOnly = $derived(session?.invite_only ?? false);
+	let requestedNow = $state<string[]>([]);
+	const requested = $derived([...(session?.invitations_requested ?? []), ...requestedNow]);
+	const uninvited = $derived(inviteOnly && selected?.invited === false);
 	// Onboarding documents that came back with every step done, by organisation. With billing not configured the
 	// session alone cannot tell that the registry works, so these count too.
 	let finished = $state<Record<string, Onboarding>>({});
@@ -126,7 +132,7 @@
 	let trialStartedFor = $state<string | null>(null);
 
 	// A string, so re-reading the session (which replaces every object) does not reload the checklist.
-	const onboardingFor = $derived(selected && !showRegistry ? selected.login : null);
+	const onboardingFor = $derived(selected && !showRegistry && !uninvited ? selected.login : null);
 	$effect(() => {
 		const login = onboardingFor;
 		untrack(() => {
@@ -204,7 +210,11 @@
 	{:else if !view.session.user}
 		<div class="signed-out">
 			<div>
-				<h1>Sign in with GitHub to set up your registry</h1>
+				<h1>
+					{PREVIEW
+						? 'Sign in with GitHub to ask for an invitation, or to set up your registry'
+						: 'Sign in with GitHub to set up your registry'}
+				</h1>
 				<p class="lede">
 					We ask GitHub who you are and which organisations you belong to. Admins can set up a registry;
 					members can see its status.
@@ -214,7 +224,9 @@
 				</div>
 				<p class="fine">
 					{#if PREVIEW}
-						Free during the preview, and provided as is: read the <a href={TERMS_PATH}>preview terms</a>.
+						Free during the private preview, and provided as is: read the <a href={TERMS_PATH}
+							>private preview terms</a
+						>.
 					{:else}
 						Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months
 						free, no card needed, then ${PRICE_USD} per organisation per month.
@@ -241,7 +253,28 @@
 			<ErrorNotice error={signOutError} title="You are still signed in" />
 		{/if}
 
-		{#if orgs.length === 0}
+		{#if orgs.length === 0 && inviteOnly}
+			<div class="empty panel">
+				<h2>Ask for an invitation</h2>
+				<p>
+					PrivateCrates is in private preview: only organisations we have invited can set up a registry. Tell
+					us which GitHub organisation you want it for, and where to reply.
+				</p>
+				<InvitationForm {requested} onrequested={(org) => (requestedNow = [...requestedNow, org])} />
+				{#if requestedNow.length}
+					<p role="status"><strong>Thank you.</strong> We reply by email once we have looked at it.</p>
+				{/if}
+				{#if installUrl}
+					<p class="fine">
+						Already invited? <a href={installUrl} target="_blank" rel="noopener noreferrer"
+							>Install the reader App on your organisation<span class="visually-hidden">
+								(opens in a new tab)</span
+							></a
+						>, then come back to this tab.
+					</p>
+				{/if}
+			</div>
+		{:else if orgs.length === 0}
 			<div class="empty panel">
 				<h2>Set up your first organisation</h2>
 				<p>
@@ -296,6 +329,12 @@
 							<p class="fine">Installs the reader App on another organisation, in a new tab.</p>
 						</div>
 					{/if}
+					{#if inviteOnly}
+						<details class="add-org">
+							<summary>Ask for an invitation for another organisation</summary>
+							<InvitationForm {requested} onrequested={(org) => (requestedNow = [...requestedNow, org])} />
+						</details>
+					{/if}
 				</div>
 
 				<div class="detail">
@@ -339,7 +378,18 @@
 								</Callout>
 							{/if}
 
-							{#if selected.tenant && showRegistry}
+							{#if uninvited}
+								<h3>Not invited yet</h3>
+								<p>
+									PrivateCrates is in private preview: only organisations we have invited can set up a
+									registry. Ask for an invitation for {selected.login}, and we reply by email.
+								</p>
+								<InvitationForm
+									org={selected.login}
+									{requested}
+									onrequested={(org) => (requestedNow = [...requestedNow, org])}
+								/>
+							{:else if selected.tenant && showRegistry}
 								<RegistryPanel
 									org={selected}
 									tenant={selected.tenant}

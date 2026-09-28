@@ -511,6 +511,28 @@ pub enum ApiError {
     },
 
     #[error(
+        "PrivateCrates is in private preview, by invitation only, and {org} has not been invited. Ask for an \
+         invitation at {account_url}"
+    )]
+    #[diagnostic(code(account::not_invited))]
+    #[http_status(403)]
+    NotInvited {
+        org: String,
+        #[extension]
+        account_url: String,
+    },
+
+    #[error("{reason}")]
+    #[diagnostic(code(account::invitation_invalid))]
+    #[http_status(400)]
+    InvitationInvalid { reason: String },
+
+    #[error("{org} is already invited to the private preview; an admin can set its registry up")]
+    #[diagnostic(code(account::already_invited))]
+    #[http_status(409)]
+    AlreadyInvited { org: String },
+
+    #[error(
         "creating a registry needs an organisation admin to accept the PrivateCrates terms: read them at \
          {terms_url}, then send `accept_terms` with the current version, {version}"
     )]

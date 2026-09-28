@@ -37,15 +37,17 @@ export interface Org {
 	/**
 	 * Whether the organisation has accepted the current terms (recorded in PrivateCrates' own database, not the storage
 	 * repository, so the evidence survives the customer revoking access).
-	 * Absent from servers older than the preview terms: then nothing is asked.
+	 * Absent from servers older than the terms: then nothing is asked.
 	 */
 	terms_accepted?: boolean;
+	/** The private preview: whether this organisation is invited. Absent (true) when anyone may join. */
+	invited?: boolean;
 	tenant: Tenant | null;
 }
 
 /** The terms an admin accepts before a registry is created (docs/preview.md §2). */
 export interface Terms {
-	/** e.g. `preview-2026-09-27`: sent back as `accept_terms`. */
+	/** e.g. `private-preview-2026-09-28`: sent back as `accept_terms`. */
 	version: string;
 	url: string;
 }
@@ -67,8 +69,12 @@ export interface Session {
 	install_url?: string;
 	/** The preview: billing is off and every organisation is free. Absent (false) once billing is on. */
 	preview?: boolean;
-	/** The current terms; absent from servers older than the preview terms. */
+	/** The current terms; absent from servers older than the terms. */
 	terms?: Terms;
+	/** The private preview: only invited organisations can create a registry (docs/preview.md §5). */
+	invite_only?: boolean;
+	/** Organisations (lowercase logins) this person has asked an invitation for. */
+	invitations_requested?: string[];
 }
 
 export type StepStatus = 'done' | 'todo' | 'blocked';
@@ -83,6 +89,8 @@ export interface Step {
 
 export interface Onboarding {
 	org: { id: number; login: string };
+	/** The private preview: whether this organisation is invited. */
+	invited?: boolean;
 	steps: Step[];
 	/** The current terms and whether this organisation has accepted them. */
 	terms?: { version: string; url: string; accepted: boolean };
@@ -273,6 +281,12 @@ export const api = {
 			allow_manual_publish: allowManualPublish,
 			...(acceptTerms ? { accept_terms: acceptTerms } : {})
 		}),
+	/**
+	 * Asks for an invitation to the private preview for an organisation, which need not have installed anything.
+	 * Asking again replaces the earlier request.
+	 */
+	requestInvitation: (login: string, email: string, note: string) =>
+		request<{ requested: true; org: string }>('POST', `${org(login)}/invitation`, { email, note }),
 	/** Accepts the current terms for an existing registry (admin only); returns nothing the page needs. */
 	acceptTerms: (login: string, version: string) =>
 		request<unknown>('POST', `${org(login)}/terms`, { accept_terms: version }),

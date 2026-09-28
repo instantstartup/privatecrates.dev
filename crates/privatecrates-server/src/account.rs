@@ -29,7 +29,7 @@ use crate::{
     compliance,
     error::ApiError,
     github::{AppKind, Conditional, FileWrite, GitHubError, Membership, Organization, Repo},
-    records::{self, Acceptance, Via},
+    records::{self, Acceptance, InvitationRequest, Via},
     session::{self, Session, clear_session_cookie},
     tenant::{SETTINGS_PATH, Tenant, is_reserved, slug_is_valid},
 };
@@ -43,6 +43,7 @@ pub fn routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/orgs/{org}/onboarding", get(onboarding))
         .route("/api/orgs/{org}/settings", post(settings))
         .route("/api/orgs/{org}/terms", post(terms))
+        .route("/api/orgs/{org}/invitation", post(request_invitation))
         .route("/api/orgs/{org}/trial", post(trial))
         .route("/api/orgs/{org}/billing-email", post(set_billing_email))
         .route("/api/orgs/{org}/checkout", post(checkout))
@@ -109,6 +110,7 @@ fn org_json(
         "trial_available": plan.trial_available,
         "tenant": tenant_json(state, org.id, plan),
         "terms_accepted": terms_accepted,
+        "invited": state.config.is_invited(&org.login),
     })
 }
 
@@ -136,7 +138,8 @@ async fn session_info(
     let preview = state.billing.preview();
     let terms = terms_json(&state);
     let signed_out = Json(json!({
-        "user": null, "orgs": [], "install_url": install_url, "preview": preview, "terms": terms,
+        "user": null, "orgs": [], "install_url": install_url, "preview": preview,
+        "invite_only": state.config.invited_orgs.is_some(), "invitations_requested": [], "terms": terms,
     }));
     let Some(session) = Session::from_headers(&state, &headers)? else {
         return Ok(signed_out.into_response());
@@ -174,11 +177,27 @@ async fn session_info(
         orgs.extend(joined.map_err(|e| ApiError::internal(e.to_string()))??);
     }
     orgs.sort_by_key(|(login, _)| login.to_ascii_lowercase());
+    // Organisations this person has asked an invitation for; not worth failing the page over.
+    let invitations_requested = if state.config.invited_orgs.is_some() {
+        state
+            .terms
+            .records()
+            .invitations_requested(user.id)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "looking up invitation requests failed");
+                Vec::new()
+            })
+    } else {
+        Vec::new()
+    };
     Ok(Json(json!({
         "user": { "login": user.login, "avatar_url": user.avatar_url, "name": user.name },
         "orgs": orgs.into_iter().map(|(_, org)| org).collect::<Vec<_>>(),
         "install_url": install_url,
         "preview": preview,
+        "invite_only": state.config.invited_orgs.is_some(),
+        "invitations_requested": invitations_requested,
         "terms": terms,
     }))
     .into_response())
@@ -193,11 +212,7 @@ pub(crate) async fn member(
     let not_found = || ApiError::OrgNotFound {
         org: org.to_owned(),
     };
-    // A GitHub login is letters, digits and hyphens; anything else must not reach a GitHub API path.
-    let valid = !org.is_empty()
-        && org.len() <= 39
-        && org.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
-    if !valid {
+    if !is_github_login(org) {
         return Err(not_found());
     }
     match state.gh.org_membership(&session.token, org).await {
@@ -383,7 +398,21 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
         settings,
         plan_step(state, &plan),
     ];
-    if !membership.is_admin() {
+    let invited = config.is_invited(&org.login);
+    if !invited {
+        let ask = format!(
+            "PrivateCrates is in private preview, by invitation only. Ask for an invitation for {} at {}.",
+            org.login,
+            config.account_url()
+        );
+        steps = steps
+            .into_iter()
+            .map(|step| match step.status {
+                Status::Done => step,
+                _ => step.blocked(ask.clone()),
+            })
+            .collect();
+    } else if !membership.is_admin() {
         let ask = format!("Only admins of {} can do this; ask one of them.", org.login);
         steps = steps
             .into_iter()
@@ -401,6 +430,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
     };
     Ok(json!({
         "org": { "id": org.id, "login": org.login },
+        "invited": invited,
         "steps": steps,
         "suggested_slug": suggested_slug(state, org, tenant.as_deref()),
         "terms": terms,
@@ -622,6 +652,12 @@ async fn settings(
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
     let org = &membership.organization;
+    if !state.config.is_invited(&org.login) {
+        return Err(ApiError::NotInvited {
+            org: org.login.clone(),
+            account_url: state.config.account_url(),
+        });
+    }
     let request =
         serde_json::from_slice::<SettingsRequest>(&body).map_err(|_| ApiError::SlugInvalid)?;
     let slug = request.slug;
@@ -713,6 +749,72 @@ async fn terms(
     }
     record_terms(&state, &session, &membership).await?;
     Ok(Json(onboarding_doc(&state, &membership).await?))
+}
+
+/// A GitHub login is letters, digits and hyphens; anything else must not reach a GitHub API path.
+fn is_github_login(login: &str) -> bool {
+    !login.is_empty()
+        && login.len() <= 39
+        && login
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+}
+
+#[derive(Deserialize)]
+struct InvitationBody {
+    email: String,
+    #[serde(default)]
+    note: String,
+}
+
+const NOTE_LIMIT: usize = 2000;
+
+/// `POST /api/orgs/{org}/invitation`: asks to join the private preview (docs/preview.md §5). Anyone signed in may
+/// ask for any organisation: GitHub does not show us an organisation that has not installed our App, so we check
+/// before inviting, not here.
+async fn request_invitation(
+    State(state): State<Arc<AppState>>,
+    session: Session,
+    Path(org): Path<String>,
+    body: Bytes,
+) -> Result<Json<Value>, ApiError> {
+    let invalid = |reason: &str| ApiError::InvitationInvalid {
+        reason: reason.to_owned(),
+    };
+    if !is_github_login(&org) {
+        return Err(invalid("that is not a GitHub organisation name"));
+    }
+    if state.config.is_invited(&org) {
+        return Err(ApiError::AlreadyInvited { org });
+    }
+    let body = serde_json::from_slice::<InvitationBody>(&body)
+        .map_err(|_| invalid("send an email address, and optionally a note"))?;
+    let email = body.email.trim();
+    let valid_email = email.len() <= 254
+        && !email.chars().any(char::is_whitespace)
+        && email
+            .split_once('@')
+            .is_some_and(|(local, domain)| !local.is_empty() && domain.contains('.'));
+    if !valid_email {
+        return Err(invalid("that is not an email address"));
+    }
+    let note = body.note.trim();
+    if note.chars().count() > NOTE_LIMIT {
+        return Err(invalid(
+            "the note is too long; keep it under 2,000 characters",
+        ));
+    }
+    let user = state.gh.user(&session.token).await?;
+    let request = InvitationRequest {
+        org_login: org.to_ascii_lowercase(),
+        user_id: user.id,
+        user_login: user.login,
+        email: email.to_owned(),
+        note: note.to_owned(),
+    };
+    state.terms.records().request_invitation(&request).await?;
+    tracing::info!(org = %request.org_login, by = %request.user_login, "invitation requested");
+    Ok(Json(json!({ "requested": true, "org": request.org_login })))
 }
 
 /// Billing is off during the preview: there is nothing to pay.

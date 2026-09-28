@@ -7,11 +7,11 @@ export const SITE_NAME = 'PrivateCrates';
  * Static pages read this; the account page follows the server's `session.preview`.
  */
 export const PREVIEW = true;
-/** The current preview terms: the version an admin accepts, and when it was published. */
-export const TERMS_VERSION = 'preview-2026-09-27';
-export const TERMS_DATE = '27 September 2026';
+/** The current private preview terms: the version an admin accepts, and when it was published. */
+export const TERMS_VERSION = 'private-preview-2026-09-28';
+export const TERMS_DATE = '28 September 2026';
 export const TERMS_PATH = '/legal/terms';
-/** The operator during the preview. */
+/** The operator during the private preview. */
 export const OPERATOR = 'Bryn Dyllan Cooke';
 /** When general availability, and so billing, is planned. */
 export const GA_TARGET = '2027, subject to demand';

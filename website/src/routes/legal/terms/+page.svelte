@@ -8,31 +8,32 @@
 	// The ids are stable: the account page and agents link to them.
 	const toc: TocItem[] = [
 		['operator', '1. Who runs PrivateCrates'],
-		['accepting', '2. Accepting these terms'],
-		['free', '3. Free during the preview'],
-		['your-data', '4. Your data'],
-		['acceptable-use', '5. Acceptable use'],
-		['as-is', '6. As is, at your own risk'],
-		['availability', '7. Availability and support'],
-		['liability', '8. Liability'],
-		['changes', '9. Changes, suspension and the end'],
-		['stopping', '10. Stopping'],
-		['new-versions', '11. New versions of these terms'],
-		['privacy', '12. Privacy and data processing'],
-		['contact', '13. Contact']
+		['invitation', '2. By invitation only'],
+		['accepting', '3. Accepting these terms'],
+		['free', '4. Free during the private preview'],
+		['your-data', '5. Your data'],
+		['acceptable-use', '6. Acceptable use'],
+		['as-is', '7. As is: no warranty or guarantee'],
+		['availability', '8. Availability and support'],
+		['liability', '9. Liability'],
+		['changes', '10. Changes, suspension and the end'],
+		['stopping', '11. Stopping'],
+		['new-versions', '12. New versions of these terms'],
+		['privacy', '13. Privacy and data processing'],
+		['contact', '14. Contact']
 	];
 </script>
 
 <Seo
-	title="Preview terms"
-	description="The terms for the PrivateCrates preview: free, provided as is and at your own risk, run by an individual until a company is formed. Your crates stay in your own GitHub organisation."
+	title="Private preview terms"
+	description="The terms for the PrivateCrates private preview: by invitation only, free, provided as is with no warranty or guarantee, and at your own risk, run by an individual until a company is formed."
 	path="/legal/terms"
 />
 
 <div class="page">
 	<div class="legal">
 		<header class="prose intro">
-			<h1>Preview terms</h1>
+			<h1>Private preview terms</h1>
 			<dl class="meta">
 				<div>
 					<dt>Version</dt>
@@ -48,22 +49,26 @@
 				</div>
 			</dl>
 			<p class="lede">
-				PrivateCrates is in preview. These terms apply to every organisation that uses it until general
-				availability. They are short on purpose; the summary below is part of them.
+				PrivateCrates is in private preview, open only to organisations we invite. These terms apply to every
+				organisation that uses it until general availability. They are short on purpose; the summary below is
+				part of them.
 			</p>
 		</header>
 
 		<section class="summary panel" aria-labelledby="summary-title">
 			<h2 id="summary-title">In short</h2>
 			<ul>
-				<li><strong>Free.</strong> No payments are taken during the preview.</li>
 				<li>
-					<strong>As is, at your own risk.</strong> No warranty, no uptime or support commitment, and no liability
-					beyond what the law does not let us exclude.
+					<strong>By invitation only.</strong> An invitation can be withdrawn at any time, and gives no right to
+					the service.
+				</li>
+				<li><strong>Free.</strong> No payments are taken during the private preview.</li>
+				<li>
+					<strong>As is, at your own risk.</strong> No warranty or guarantee of any kind, no uptime or support commitment,
+					and no liability beyond what the law does not let us exclude.
 				</li>
 				<li>
-					<strong>Your crates stay yours,</strong> in a repository your GitHub organisation owns. If the service
-					ends, you lose nothing stored there.
+					<strong>Your crates stay yours,</strong> in a repository your GitHub organisation owns, not with us.
 				</li>
 				<li>
 					<strong>Run by one person</strong> for now. A company takes over before general availability, with new
@@ -79,13 +84,25 @@
 					PrivateCrates is operated by <strong>{OPERATOR}, an individual</strong> (“we” and “us” in these terms).
 					There is no company yet. A company will be formed before general availability, and its name, number and
 					address will be published here. Moving the service to that company will come with new terms, which you
-					can accept or decline (section 11).
+					can accept or decline (section 12).
 				</p>
 				<p>
 					“You” means the GitHub organisation that uses PrivateCrates, and the people who use its registry.
 				</p>
 
-				<h2 id="accepting">2. Accepting these terms</h2>
+				<h2 id="invitation">2. By invitation only</h2>
+				<p>
+					During the private preview, a registry can be created only for a GitHub organisation we have
+					invited. To ask for an invitation, sign in on the <a href="/account">account page</a>, or email
+					<a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>. We invite organisations at our discretion and
+					may decline without giving a reason.
+				</p>
+				<p>
+					An invitation is permission to try the service, not a promise to provide it. We may withdraw it at
+					any time, which ends your organisation’s use of the service (section 10).
+				</p>
+
+				<h2 id="accepting">3. Accepting these terms</h2>
 				<p>
 					An admin of your GitHub organisation accepts these terms on its behalf before a registry is created:
 					on the <a href="/account">account page</a>, or by passing
@@ -103,10 +120,10 @@
 					must never accept on their behalf.
 				</p>
 
-				<h2 id="free">3. Free during the preview</h2>
+				<h2 id="free">4. Free during the private preview</h2>
 				<p>
-					The preview costs nothing. We take no payments and ask for no card, whatever the size of your
-					organisation.
+					The private preview costs nothing. We take no payments and ask for no card, whatever the size of
+					your organisation.
 				</p>
 				<p>
 					The <a href="/pricing">pricing page</a> shows what we plan to charge from general availability,
@@ -115,7 +132,7 @@
 					will need new terms with the company, and no charge is ever taken without a card that an admin has added.
 				</p>
 
-				<h2 id="your-data">4. Your data</h2>
+				<h2 id="your-data">5. Your data</h2>
 				<p>
 					Your registry’s index, settings and every crate file are stored in a private repository in your own
 					GitHub organisation, under your agreement with GitHub. They belong to you. You let us read and write
@@ -123,15 +140,15 @@
 				</p>
 				<p>
 					We keep no copy of your crates, index or code: only caches in memory, service logs kept for 30 days,
-					and the record of your organisation accepting these terms (section 2). The
+					and the record of your organisation accepting these terms (section 3). The
 					<a href="/trust">trust centre</a> lists what we hold, where it runs and who else processes it.
 				</p>
 				<p>
-					Because everything is in your repository, the service ending, or you leaving, loses nothing stored
-					there.
+					Because your data is in your repository, it stays there if you leave or the service ends. Looking
+					after that repository, including any backups you want, is up to you and GitHub.
 				</p>
 
-				<h2 id="acceptable-use">5. Acceptable use</h2>
+				<h2 id="acceptable-use">6. Acceptable use</h2>
 				<p>Use PrivateCrates for your organisation’s own Rust crates. Do not use it to:</p>
 				<ul>
 					<li>break the law, or infringe anyone’s rights;</li>
@@ -150,18 +167,32 @@
 					<a href="/security">vulnerability disclosure policy</a>.
 				</p>
 
-				<h2 id="as-is">6. As is, at your own risk</h2>
+				<h2 id="as-is">7. As is: no warranty or guarantee</h2>
 				<p>
-					PrivateCrates is a preview. It is provided <strong>as is and as available</strong>, and you use it
-					at your own risk. We make no promise, express or implied, that it is fit for any particular purpose,
-					error-free, secure or uninterrupted, to the extent the law allows us to exclude such promises.
+					PrivateCrates is an early, unfinished service. It is provided <strong>as is and as available</strong
+					>, and you use it entirely at your own risk.
 				</p>
 				<p>
-					Keep your own safeguards: run the open-source <a href="/docs/verify">verifier</a> on your storage repository,
-					and do not rely on the preview for anything you could not cope with losing access to for a while.
+					To the fullest extent the law allows, we give <strong
+						>no warranty, guarantee, condition or promise of any kind</strong
+					>, whether express, implied or statutory. In particular, we do not promise that the service is of
+					satisfactory quality, fit for any purpose, accurate, secure, free of errors or vulnerabilities,
+					compatible with your tools, or available without interruption, or that it will keep your crates
+					private or intact.
+				</p>
+				<p>
+					This website, its documentation, the trust centre and the security pages describe how PrivateCrates
+					is designed to work. They are descriptions, not promises, and nothing in them, or anything we say to
+					you, creates a warranty or guarantee.
+				</p>
+				<p>
+					You are responsible for deciding whether PrivateCrates is suitable for you, for checking what you
+					build and publish with it, and for your own safeguards: run the open-source
+					<a href="/docs/verify">verifier</a> on your storage repository, and do not rely on the private preview
+					for anything you could not cope with losing access to, or with being exposed.
 				</p>
 
-				<h2 id="availability">7. Availability and support</h2>
+				<h2 id="availability">8. Availability and support</h2>
 				<p>
 					There is no availability commitment and no service level. We post incidents on the
 					<a href={STATUS_URL}>status page</a> and fix problems as quickly as we reasonably can, but we promise
@@ -169,57 +200,58 @@
 				</p>
 				<p>
 					Support is best effort. Security problems go to
-					<a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a> (section 13).
+					<a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a> (section 14).
 				</p>
 
-				<h2 id="liability">8. Liability</h2>
+				<h2 id="liability">9. Liability</h2>
 				<p>
-					To the extent the law allows, we are not liable for any loss or damage arising from the preview or
-					from your use of it, whether direct or indirect: including lost profits, revenue, data, or time, and
-					the cost of replacing the service.
+					To the extent the law allows, we are not liable for any loss or damage arising from the private
+					preview or from your use of it, whether direct or indirect, and however it arises, including in
+					negligence: including lost profits, revenue, data, or time, the exposure of code or data, harm from
+					a crate built or published through the service, and the cost of replacing the service.
 				</p>
 				<p>
 					Nothing in these terms limits liability that the law does not allow to be limited, such as liability
 					for death or personal injury caused by negligence, or for fraud.
 				</p>
 
-				<h2 id="changes">9. Changes, suspension and the end of the service</h2>
+				<h2 id="changes">10. Changes, suspension and the end of the service</h2>
 				<p>
-					The preview may change as we build towards general availability: features may be added, changed or
-					removed. We may also end the preview, or the service altogether. Where we can, we give notice first,
-					on this site and on the status page; an emergency, such as a security problem or GitHub withdrawing
-					access, may not allow it.
+					The private preview may change as we build towards general availability: features may be added,
+					changed or removed. We may also end the private preview, withdraw an invitation, or end the service
+					altogether. Where we can, we give notice first, on this site and on the status page; an emergency,
+					such as a security problem or GitHub withdrawing access, may not allow it.
 				</p>
 				<p>
-					We may suspend or remove an organisation’s registry that breaks section 5, or that threatens the
+					We may suspend or remove an organisation’s registry that breaks section 6, or that threatens the
 					service or other organisations, and will tell its admins why where we can. Your storage repository
 					is untouched either way.
 				</p>
 
-				<h2 id="stopping">10. Stopping</h2>
+				<h2 id="stopping">11. Stopping</h2>
 				<p>
 					You can stop at any time: uninstall the PrivateCrates GitHub Apps from your organisation. Your
 					storage repository, with your index and every crate file, stays where it is.
 				</p>
 
-				<h2 id="new-versions">11. New versions of these terms</h2>
+				<h2 id="new-versions">12. New versions of these terms</h2>
 				<p>
 					When these terms change, we publish a new version here with a new version name. A new version
 					applies to your organisation once an admin accepts it; the account page asks them to. Until then,
 					the version your organisation accepted continues to apply. If you do not want to accept a new
-					version, you can stop (section 10).
+					version, you can stop (section 11).
 				</p>
 
-				<h2 id="privacy">12. Privacy and data processing</h2>
+				<h2 id="privacy">13. Privacy and data processing</h2>
 				<p>
 					The <a href="/legal/privacy">privacy notice</a> explains how we handle personal data. The
 					<a href="/legal/dpa">data processing agreement</a> is a draft, and is
-					<strong>not yet in force during the preview</strong>. How the service handles data today is
+					<strong>not yet in force during the private preview</strong>. How the service handles data today is
 					described, factually, on the <a href="/trust">trust centre</a>. Both documents will be reviewed by a
 					lawyer before general availability.
 				</p>
 
-				<h2 id="contact">13. Contact</h2>
+				<h2 id="contact">14. Contact</h2>
 				<ul>
 					<li>
 						Security problems: <a href="mailto:{SECURITY_EMAIL}">{SECURITY_EMAIL}</a>, as described in the
