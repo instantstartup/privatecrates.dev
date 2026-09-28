@@ -21,8 +21,8 @@ we are down. DNS is already on Cloudflare.
 
   | Our component | Depends on |
   |---|---|
-  | Registry reads (index, `cargo build`) | our server; GitHub API Requests (cold caches only) |
-  | Downloads | our server; GitHub API Requests; release asset CDN |
+  | Registry reads (index, `cargo build`) | our server; GitHub API Requests (cold caches only); GitHub Webhooks (access changes take effect at once; without them, within the 5-minute cache lifetime) |
+  | Downloads | our server; GitHub API Requests; release asset CDN (GitHub publishes no status component for it, so the page cannot attribute a CDN problem by name) |
   | Publishing | our server; GitHub API Requests, Git Operations; GitHub Actions (where customers publish from) |
   | Sign-in | our server; GitHub API Requests |
   | Website and account | our server |

@@ -591,10 +591,11 @@ to a token with *Workers Scripts: Edit*, *D1: Edit*, *Workers Routes: Edit* and,
 
 ### 14.1 The canary registry
 
-Each environment's canary is a real registry slug on that apex (`canary` in `status/wrangler.jsonc` under `vars`,
-`ENVIRONMENTS[].canary`). An unknown slug answers 404, which the page shows as the registry being down, so create
-one first: a small organisation we own, with PrivateCrates installed on each environment, claiming the slug
-`canary` (or change the slug in `wrangler.jsonc`). Nobody needs to publish to it. Check:
+Each environment's canary is a registry slug on that apex (`canary` in `status/wrangler.jsonc` under `vars`,
+`ENVIRONMENTS[].canary`). Since every name answers like a registry without access (SPEC §6.7), any slug answers 401,
+so the probe proves the server, DNS, TLS and tenant routing, not that a particular registry works; a broken App key
+shows instead as GitHub errors in `/api/status`, which the page reads. Prefer a real registry we own (dev uses
+`uxlint-net`), so that the probe will catch more if it ever authenticates. Check:
 
 ```sh
 curl -si https://canary.dev.privatecrates.dev/index/config.json | grep -Ei '^(HTTP|www-authenticate)'

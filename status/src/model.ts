@@ -45,7 +45,12 @@ export const COMPONENTS: readonly ComponentDefinition[] = [
 		server: true,
 		registryHost: true,
 		provider: 'github',
-		dependencies: [{ name: 'API Requests', observed: true }],
+		// Webhooks revoke access at once (SPEC §7); without them, access changes wait for the caches to expire.
+		// We receive them rather than call them, so our error rate says nothing about them.
+		dependencies: [
+			{ name: 'API Requests', observed: true },
+			{ name: 'Webhooks', observed: false },
+		],
 		upstreamCap: 'degraded',
 	},
 	{

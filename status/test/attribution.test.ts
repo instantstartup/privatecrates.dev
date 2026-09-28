@@ -258,7 +258,7 @@ describe('billing and Stripe', () => {
 describe('the dependency table, every combination', () => {
 	// docs/trust-and-status.md §1, restated independently of src/model.ts.
 	const DEPENDS: Record<ComponentId, string[]> = {
-		reads: ['API Requests'],
+		reads: ['API Requests', 'Webhooks'],
 		downloads: ['API Requests'],
 		publishing: ['API Requests', 'Git Operations', 'Actions'],
 		signin: ['API Requests'],
@@ -279,7 +279,9 @@ describe('the dependency table, every combination', () => {
 					const depends = DEPENDS[c.id].includes(dep);
 					const usesGitHub = DEPENDS[c.id].length > 0;
 					let expected: [string, string];
-					if (depends && (dep === 'Actions' || calls === 'unknown')) expected = ['degraded', 'upstream'];
+					// Actions and Webhooks are not called by our server, so its error rate says nothing about them.
+					const unobserved = dep === 'Actions' || dep === 'Webhooks';
+					if (depends && (unobserved || calls === 'unknown')) expected = ['degraded', 'upstream'];
 					else if (depends && calls === 'normal') expected = ['operational', 'none'];
 					else if (depends) expected = ['degraded', 'upstream'];
 					else if (usesGitHub && calls === 'high') expected = ['degraded', 'api-errors'];
