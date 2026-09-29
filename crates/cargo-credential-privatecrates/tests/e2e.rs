@@ -274,6 +274,52 @@ async fn publish_a_workspace_in_github_actions() {
     assert!(engine.contains("\"name\":\"story_core\""), "{engine}");
 }
 
+/// GitHub's OIDC endpoint sometimes answers 504: the provider asks again, so one blip does not fail a publish
+/// partway through a workspace.
+#[tokio::test]
+async fn a_failing_oidc_endpoint_is_retried() {
+    let h = Harness::start().await;
+    let repo = h.repo("story-engine");
+    let home = tempfile::tempdir().unwrap();
+    h.fake.set_actions_claims(h.fake.actions_claims(
+        &h.org,
+        "acme/story-engine",
+        repo,
+        "release.yml",
+    ));
+    let krate = tempfile::tempdir().unwrap();
+    project(
+        &h,
+        krate.path(),
+        &package("story_engine", "0.1.0", "acme/story-engine", ""),
+    );
+    h.fake.fail_actions_tokens(2);
+    let output = cargo(
+        home.path(),
+        krate.path(),
+        Env::Actions { fake: &h.fake },
+        &[
+            "publish",
+            "--registry",
+            "acme",
+            "--allow-dirty",
+            "--no-verify",
+        ],
+    )
+    .await;
+    let err = stderr(&output);
+    assert!(output.status.success(), "{err}");
+    assert!(
+        err.contains("504 Gateway Timeout); trying again in 1s"),
+        "{err}"
+    );
+    assert!(
+        h.fake
+            .file(h.org.storage_repo, "index/st/or/story_engine")
+            .is_some()
+    );
+}
+
 #[tokio::test]
 async fn a_job_without_id_token_permission_is_told_what_to_add() {
     let h = Harness::start().await;

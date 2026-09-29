@@ -111,9 +111,26 @@ ${PROVIDER_STEP}      - name: cargo publish
         env:
           TAG: \${{ github.ref_name }}
         run: |
+          # Crates already in the registry at this version are skipped, so a run that failed partway (a GitHub
+          # blip, say) can simply be re-run.
           case "$TAG" in
-            v[0-9]*) cargo publish --workspace --registry ${name} ;;
-            *-v[0-9]*) cargo publish --package "\${TAG%-v*}" --registry ${name} ;;
+            v[0-9]*)
+              todo=0; skip=()
+              for crate in $(cargo metadata --no-deps --format-version 1 \\
+                | jq -r '.packages[] | select(.publish // [] | index("${name}")) | "\\(.name)@\\(.version)"'); do
+                if cargo info "$crate" --registry ${name} >/dev/null 2>&1; then
+                  echo "$crate is already published"; skip+=(--exclude "\${crate%@*}")
+                else
+                  todo=$((todo + 1))
+                fi
+              done
+              if [ "$todo" -gt 0 ]; then cargo publish --workspace --registry ${name} "\${skip[@]}"; fi ;;
+            *-v[0-9]*)
+              if cargo info "\${TAG%-v*}@\${TAG##*-v}" --registry ${name} >/dev/null 2>&1; then
+                echo "$TAG is already published"
+              else
+                cargo publish --package "\${TAG%-v*}" --registry ${name}
+              fi ;;
             *) echo "::error::$TAG is neither v<version> nor <crate>-v<version>"; exit 1 ;;
           esac`;
 }

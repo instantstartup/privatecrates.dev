@@ -88,6 +88,13 @@ cargo yank --registry acme --version 0.2.0 --undo story_engine`;
 	them.
 </p>
 <p>
+	If a run stops partway, say because GitHub answered one request with an error, re-run the job: it skips the
+	crates that tag already published and publishes the rest. (Workflows written before
+	<code>cargo privatecrates init</code> 0.2.8 do not skip; run <code>init --force</code> to update yours, or push
+	the per-crate tags of the crates still missing.) The credential provider also retries GitHub’s token requests
+	a few times before giving up.
+</p>
+<p>
 	A tag can be used only once. If the repository already has a <code>v0.2.0</code> tag, for example from when
 	its crates were git dependencies, use per-crate tags or a new version;
 	<code>cargo privatecrates doctor</code>

@@ -730,9 +730,26 @@ pub fn workflow(slug: &str, workspace: bool, working_directory: Option<&str>) ->
         env:
           TAG: ${{{{ github.ref_name }}}}
         run: |
+          # Crates already in the registry at this version are skipped, so a run that failed partway (a GitHub
+          # blip, say) can simply be re-run.
           case \"$TAG\" in
-            v[0-9]*) cargo publish --workspace --registry {slug} ;;
-            *-v[0-9]*) cargo publish --package \"${{TAG%-v*}}\" --registry {slug} ;;
+            v[0-9]*)
+              todo=0; skip=()
+              for crate in $(cargo metadata --no-deps --format-version 1 \\
+                | jq -r '.packages[] | select(.publish // [] | index(\"{slug}\")) | \"\\(.name)@\\(.version)\"'); do
+                if cargo info \"$crate\" --registry {slug} >/dev/null 2>&1; then
+                  echo \"$crate is already published\"; skip+=(--exclude \"${{crate%@*}}\")
+                else
+                  todo=$((todo + 1))
+                fi
+              done
+              if [ \"$todo\" -gt 0 ]; then cargo publish --workspace --registry {slug} \"${{skip[@]}}\"; fi ;;
+            *-v[0-9]*)
+              if cargo info \"${{TAG%-v*}}@${{TAG##*-v}}\" --registry {slug} >/dev/null 2>&1; then
+                echo \"$TAG is already published\"
+              else
+                cargo publish --package \"${{TAG%-v*}}\" --registry {slug}
+              fi ;;
             *) echo \"::error::$TAG is neither v<version> nor <crate>-v<version>\"; exit 1 ;;
           esac
 "
@@ -1101,11 +1118,12 @@ jobs:
             workspace.contains("          TAG: ${{ github.ref_name }}\n"),
             "{workspace}"
         );
-        assert!(workspace.contains("v[0-9]*) cargo publish --workspace --registry acme ;;"));
+        // A re-run skips what the tag already published.
         assert!(
-            workspace
-                .contains("*-v[0-9]*) cargo publish --package \"${TAG%-v*}\" --registry acme ;;")
+            workspace.contains("if cargo info \"$crate\" --registry acme >/dev/null 2>&1; then")
         );
+        assert!(workspace.contains("cargo publish --workspace --registry acme \"${skip[@]}\""));
+        assert!(workspace.contains("cargo publish --package \"${TAG%-v*}\" --registry acme"));
         assert!(workspace.contains(
             "    runs-on: ubuntu-24.04\n    defaults:\n      run:\n        working-directory: rust\n    steps:\n"
         ));

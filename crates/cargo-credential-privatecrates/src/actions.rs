@@ -54,12 +54,15 @@ impl Job {
         let mut url = url::Url::parse(&self.request_url)
             .map_err(|e| format!("ACTIONS_ID_TOKEN_REQUEST_URL is invalid: {e}"))?;
         url.query_pairs_mut().append_pair("audience", audience);
-        let response = crate::http()?
-            .get(url)
-            .bearer_auth(&self.request_token)
-            .send()
-            .and_then(|r| r.error_for_status())
-            .map_err(|e| format!("could not get an OIDC token from GitHub Actions: {e}"))?;
+        let http = crate::http()?;
+        // GitHub's token endpoint does fail now and then (504s); asking again is harmless.
+        let response = retrying("GitHub Actions' OIDC endpoint", || {
+            http.get(url.clone())
+                .bearer_auth(&self.request_token)
+                .send()
+        })
+        .and_then(|r| r.error_for_status())
+        .map_err(|e| format!("could not get an OIDC token from GitHub Actions: {e}"))?;
         let response: Response = response
             .json()
             .map_err(|e| format!("GitHub Actions returned an unexpected OIDC response: {e}"))?;
@@ -73,12 +76,42 @@ struct RegistryToken {
     expires_at: i64,
 }
 
+/// Delays before each retry of a request that failed for a reason worth retrying.
+const BACKOFF_SECONDS: [u64; 4] = [1, 2, 4, 8];
+
+/// Sends a request, again after each backoff while it times out, cannot connect, or is answered with 429 or 5xx.
+/// Only for requests that are safe to repeat.
+fn retrying(
+    what: &str,
+    send: impl Fn() -> reqwest::Result<reqwest::blocking::Response>,
+) -> reqwest::Result<reqwest::blocking::Response> {
+    let mut delays = BACKOFF_SECONDS.iter();
+    loop {
+        let result = send();
+        let reason = match &result {
+            Ok(r) if r.status().is_server_error() || r.status().as_u16() == 429 => {
+                r.status().to_string()
+            }
+            Ok(_) => return result,
+            Err(e) if e.is_timeout() || e.is_connect() || e.is_request() => e.to_string(),
+            Err(_) => return result,
+        };
+        let Some(delay) = delays.next() else {
+            return result;
+        };
+        eprintln!("{what} failed ({reason}); trying again in {delay}s");
+        std::thread::sleep(std::time::Duration::from_secs(*delay));
+    }
+}
+
 fn exchange(base: &str, oidc: &str) -> Result<RegistryToken, Error> {
-    let response = crate::http()?
-        .post(format!("{base}/api/v1/oidc/exchange"))
-        .bearer_auth(oidc)
-        .send()
-        .map_err(|e| format!("could not reach {base}: {e}"))?;
+    let http = crate::http()?;
+    let response = retrying(base, || {
+        http.post(format!("{base}/api/v1/oidc/exchange"))
+            .bearer_auth(oidc)
+            .send()
+    })
+    .map_err(|e| format!("could not reach {base}: {e}"))?;
     if !response.status().is_success() {
         let status = response.status();
         let detail = response

@@ -178,6 +178,8 @@ struct World {
     crates_io_down: bool,
     /// Claims the fake Actions runtime puts in the OIDC tokens it issues.
     actions_claims: Value,
+    /// How many of the next OIDC token requests fail with 504, as GitHub's endpoint sometimes does.
+    actions_token_failures: u32,
     /// The user token the device flow hands out once approved.
     device_flow_token: Option<String>,
     /// Device code → polls so far.
@@ -561,6 +563,11 @@ impl FakeGitHub {
     }
 
     /// Makes the device flow sign in as the user holding `token`.
+    /// Makes the next `count` OIDC token requests from the fake Actions runtime fail with 504.
+    pub fn fail_actions_tokens(&self, count: u32) {
+        self.world().actions_token_failures = count;
+    }
+
     pub fn set_device_flow_user(&self, token: &str) {
         self.world().device_flow_token = Some(token.into());
     }
@@ -1802,7 +1809,14 @@ async fn actions_token(
     if !authorised {
         return error(StatusCode::UNAUTHORIZED, "bad request token");
     }
-    let claims = fake.world().actions_claims.clone();
+    let claims = {
+        let mut w = fake.world();
+        if w.actions_token_failures > 0 {
+            w.actions_token_failures -= 1;
+            return error(StatusCode::GATEWAY_TIMEOUT, "Gateway Timeout");
+        }
+        w.actions_claims.clone()
+    };
     Json(json!({ "value": fake.oidc_token(&query.audience, &claims) })).into_response()
 }
 
