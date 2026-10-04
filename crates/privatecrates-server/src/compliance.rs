@@ -203,13 +203,15 @@ async fn compliance(
     Path(org): Path<String>,
     Query(query): Query<AuditQuery>,
 ) -> Result<Json<Value>, ApiError> {
-    let report = report(&state, &session, &org).await?;
-    let entries = after(&report.audit, query.before.as_deref());
+    let (report, visible) = report(&state, &session, &org).await?;
+    let audit = visible.audit(&report.audit);
+    let entries = after(&audit, query.before.as_deref());
     let page = &entries[..entries.len().min(AUDIT_PAGE)];
     let next = (entries.len() > page.len())
         .then(|| page.last().map(|e| e.commit.clone()))
         .flatten();
     let mut doc = serde_json::to_value(&*report).map_err(|e| ApiError::internal(e.to_string()))?;
+    visible.filter(&mut doc);
     doc["audit"] = serde_json::to_value(page).map_err(|e| ApiError::internal(e.to_string()))?;
     doc["audit_next_before"] = next.into();
     Ok(Json(doc))
@@ -222,8 +224,9 @@ async fn audit_csv(
     Path(org): Path<String>,
     Query(query): Query<AuditQuery>,
 ) -> Result<Response, ApiError> {
-    let report = report(&state, &session, &org).await?;
-    let entries = after(&report.audit, query.before.as_deref());
+    let (report, visible) = report(&state, &session, &org).await?;
+    let audit = visible.audit(&report.audit);
+    let entries = after(&audit, query.before.as_deref());
     let disposition = format!(
         "attachment; filename=\"{}-audit.csv\"",
         report.org.login.to_ascii_lowercase()
@@ -239,7 +242,7 @@ async fn audit_csv(
 }
 
 /// The entries after the one for commit `before`, or all of them; none if `before` is not in the audit.
-fn after<'a>(entries: &'a [AuditEntry], before: Option<&str>) -> &'a [AuditEntry] {
+fn after<'a, 'b>(entries: &'b [&'a AuditEntry], before: Option<&str>) -> &'b [&'a AuditEntry] {
     match before {
         None => entries,
         Some(sha) => entries
@@ -249,7 +252,7 @@ fn after<'a>(entries: &'a [AuditEntry], before: Option<&str>) -> &'a [AuditEntry
     }
 }
 
-fn csv(entries: &[AuditEntry]) -> String {
+fn csv(entries: &[&AuditEntry]) -> String {
     let mut out = String::from("at,action,crate,version,by,provenance,commit\r\n");
     for e in entries {
         let provenance = e.provenance.map(|p| p.to_string()).unwrap_or_default();
@@ -284,12 +287,41 @@ fn csv_field(field: &str) -> String {
     }
 }
 
-/// The organisation's report, for a member: cached, or built now.
+/// The crates a member may see in the report: those whose repository they can read, as the registry decides for
+/// the index. Entries about no crate (settings changes, say) are shown to every member.
+struct Visible(HashSet<String>);
+
+impl Visible {
+    fn shows(&self, krate: Option<&str>) -> bool {
+        krate.is_none_or(|k| self.0.contains(&k.to_ascii_lowercase()))
+    }
+
+    fn audit<'a>(&self, entries: &'a [AuditEntry]) -> Vec<&'a AuditEntry> {
+        entries
+            .iter()
+            .filter(|e| self.shows(e.krate.as_deref()))
+            .collect()
+    }
+
+    /// Drops publishers, problems and risks about crates the member cannot read. The totals stay the registry's.
+    fn filter(&self, doc: &mut Value) {
+        let keep = |items: &mut Value| {
+            if let Some(items) = items.as_array_mut() {
+                items.retain(|item| self.shows(item["crate"].as_str()));
+            }
+        };
+        keep(&mut doc["publishers"]);
+        keep(&mut doc["risks"]);
+        keep(&mut doc["integrity"]["problems"]);
+    }
+}
+
+/// The organisation's report (cached, or built now), and what of it this member may see.
 async fn report(
     state: &Arc<AppState>,
     session: &Session,
     org: &str,
-) -> Result<Arc<Report>, ApiError> {
+) -> Result<(Arc<Report>, Visible), ApiError> {
     let membership = member(state, session, org).await?;
     let tenant = state
         .tenants
@@ -298,8 +330,9 @@ async fn report(
             org: membership.organization.login.clone(),
             account_url: state.config.account_url(),
         })?;
+    let visible = visible(state, session, &tenant).await?;
     if let Some(report) = state.compliance.reports.get(&tenant.storage_repo_id).await {
-        return Ok(report);
+        return Ok((report, visible));
     }
     let report = Arc::new(build(state, &tenant).await?);
     state
@@ -307,7 +340,25 @@ async fn report(
         .reports
         .insert(tenant.storage_repo_id, report.clone())
         .await;
-    Ok(report)
+    Ok((report, visible))
+}
+
+async fn visible(
+    state: &AppState,
+    session: &Session,
+    tenant: &Tenant,
+) -> Result<Visible, ApiError> {
+    let resolver = crate::routes::resolver(state, tenant);
+    let caller = resolver
+        .caller(crate::auth::Credential::AppUser(session.token.clone()))
+        .await?;
+    let mut crates = HashSet::new();
+    for (name, owner) in tenant.owners() {
+        if resolver.can_read(&caller, owner.repository_id).await? {
+            crates.insert(name);
+        }
+    }
+    Ok(Visible(crates))
 }
 
 /// A version in the index.

@@ -699,14 +699,45 @@ pub struct Verifier {
 pub fn verifier(domain: &Domain, org: &str) -> Result<Verifier, Error> {
     let api = Api::signed_in(domain)?;
     let doc = api.get(&format!("/api/orgs/{org}/onboarding"))?;
-    serde_json::from_value::<Option<Verifier>>(doc["verifier"].clone())
+    let mut verifier = serde_json::from_value::<Option<Verifier>>(doc["verifier"].clone())
         .ok()
         .flatten()
         .ok_or_else(|| {
             Error::Invalid(format!(
                 "{org} has no registry yet; finish `cargo privatecrates setup {org}` first"
             ))
-        })
+        })?;
+    // What is committed with the admin's own gh login is decided here, never by the server: the workflow is built
+    // from this CLI's own copy, at its fixed path, and only into a repository of the organisation asked for.
+    let slug = doc["suggested_slug"].as_str().unwrap_or_default();
+    if !privatecrates_common::slug_is_valid(slug) {
+        return Err(Error::Invalid(format!(
+            "the registry name `{slug}` from the server is not valid"
+        )));
+    }
+    if !repository_in(&verifier.repository, org) {
+        return Err(Error::Invalid(format!(
+            "the server named `{}` as the storage repository, which is not a repository of {org}",
+            verifier.repository
+        )));
+    }
+    verifier.workflow = privatecrates_common::verifier::workflow(&domain.registry(slug));
+    verifier.path = privatecrates_common::verifier::WORKFLOW_PATH.to_owned();
+    Ok(verifier)
+}
+
+/// Whether `repository` is `<org>/<name>`, with a plain repository name: nothing that could reach another
+/// repository or another API path.
+fn repository_in(repository: &str, org: &str) -> bool {
+    repository.split_once('/').is_some_and(|(owner, name)| {
+        owner.eq_ignore_ascii_case(org)
+            && !name.is_empty()
+            && name != "."
+            && name != ".."
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+    })
 }
 
 /// Commits the verifier workflow to the storage repository with the person's own `gh` login: never with our Apps,
@@ -767,4 +798,26 @@ pub fn add_verifier(verifier: &Verifier) -> Result<(), Error> {
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_verifier_goes_only_to_a_repository_of_the_organisation() {
+        assert!(repository_in("acme/crates-store", "acme"));
+        assert!(repository_in("ACME/crates.store_2", "acme"));
+        for bad in [
+            "evil/crates-store",
+            "acme/",
+            "acme",
+            "acme/..",
+            "acme/crates-store/../../other",
+            "acme/crates store",
+            "acme/x?y=1",
+        ] {
+            assert!(!repository_in(bad, "acme"), "{bad}");
+        }
+    }
 }

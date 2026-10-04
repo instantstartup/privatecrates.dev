@@ -1018,3 +1018,32 @@ async fn the_login_page_guides_a_developer_joining_the_team() {
         assert!(page.contains(expected), "missing {expected}");
     }
 }
+
+/// An upload is unpacked only for a caller allowed to publish it, so an anonymous one cannot make the server
+/// decompress anything (a gzip bomb would otherwise tie it up).
+#[tokio::test]
+async fn uploads_are_unpacked_only_once_the_publisher_is_authorised() {
+    let h = Harness::start().await;
+    let repo = h.repo("story-engine");
+    let garbage = Crate::new("story_engine", "0.1.0", "acme/story-engine").corrupt();
+
+    for token in ["ghu_made_up", "github_pat_made_up", "pcr_made_up"] {
+        let response = h.publish(&garbage, token).await;
+        let status = response.status();
+        let body = response.text().await.unwrap();
+        assert!(!body.contains("crate_file"), "{token}: {status} {body}");
+        assert!(status.is_client_error(), "{token}: {status}");
+    }
+
+    // Allowed to publish: now it is unpacked, and refused.
+    let token = h.publish_token("acme/story-engine", repo, "release.yml", &garbage);
+    let response = h.publish(&garbage, &token).await;
+    assert_eq!(response.status(), 400);
+    assert!(
+        response
+            .text()
+            .await
+            .unwrap()
+            .contains("publish::crate_file_invalid"),
+    );
+}

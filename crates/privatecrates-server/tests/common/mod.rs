@@ -284,6 +284,8 @@ pub struct Crate {
     pub keywords: Vec<String>,
     /// `.cargo_vcs_info.json`, as `cargo package` writes it in a git checkout; `None` leaves it out.
     pub vcs: Option<String>,
+    /// Bytes that are not a gzip tar archive at all.
+    pub corrupt: bool,
 }
 
 /// The commit test crates say they were packaged from.
@@ -302,7 +304,14 @@ impl Crate {
             vcs: Some(format!(
                 "{{\n  \"git\": {{\n    \"sha1\": \"{COMMIT}\"\n  }},\n  \"path_in_vcs\": \"\"\n}}"
             )),
+            corrupt: false,
         }
+    }
+
+    /// Not a gzip tar archive.
+    pub fn corrupt(mut self) -> Self {
+        self.corrupt = true;
+        self
     }
 
     /// Packaged from a checkout with uncommitted changes (`--allow-dirty`).
@@ -334,6 +343,9 @@ impl Crate {
     }
 
     pub fn bytes(&self) -> Vec<u8> {
+        if self.corrupt {
+            return b"not a crate".to_vec();
+        }
         let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(
             Vec::new(),
             flate2::Compression::default(),

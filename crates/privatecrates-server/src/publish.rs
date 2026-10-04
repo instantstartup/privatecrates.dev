@@ -123,11 +123,6 @@ pub async fn publish(
         version: meta.vers.clone(),
         reason: e.to_string(),
     })?;
-    crate_file::check(&upload.crate_bytes, &meta.name, &meta.vers).map_err(|e| {
-        ApiError::CrateFileInvalid {
-            reason: e.to_string(),
-        }
-    })?;
     let cksum = sha256_hex(&upload.crate_bytes);
 
     let resolver = Resolver {
@@ -150,6 +145,19 @@ pub async fn publish(
     if state.standing(tenant).await != Standing::Active {
         return Err(crate::routes::subscription_inactive(state, tenant));
     }
+    // Unpacked only now, for a caller allowed to publish here (an anonymous upload is never decompressed), and off
+    // the async workers, since a large archive takes a while to read.
+    let (bytes, crate_name, version) = (
+        upload.crate_bytes.clone(),
+        meta.name.clone(),
+        meta.vers.clone(),
+    );
+    tokio::task::spawn_blocking(move || crate_file::check(&bytes, &crate_name, &version))
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .map_err(|e| ApiError::CrateFileInvalid {
+            reason: e.to_string(),
+        })?;
     let mut warnings = Vec::new();
 
     if new_owner.is_some() {

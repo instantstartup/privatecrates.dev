@@ -10,10 +10,13 @@ const OWNERS: &str = "owners/story_engine.toml";
 const INDEX: &str = "index/st/or/story_engine";
 const WORKFLOW: &str = "releaser via workflow acme/story-engine/.github/workflows/release.yml@refs/tags/v1 (run 42, attempt 1), triggered by push on refs/tags/v1";
 
-/// A signed-in member of `acme` with the given role.
+/// A signed-in member of `acme` with the given role, who can read every repository created so far.
 async fn member(h: &Harness, login: &str, role: &str) -> String {
     let token = h.fake.add_user(login, "ghu_", &[]);
     h.fake.add_member(&token, &h.org, role);
+    for repo in h.fake.org_repos(&h.org) {
+        h.fake.set_repo_role(&token, repo, "read");
+    }
     h.sign_in(&token).await
 }
 
@@ -586,4 +589,42 @@ async fn reports_are_cached_until_the_storage_repository_changes() {
         releases,
         ["GET /repos/acme/crates-store/releases/tags/story_engine-0.2.0"]
     );
+}
+
+/// The report names only crates whose repository the member can read, as the registry does: a member without
+/// access to a private repository never learns its crates' names here either.
+#[tokio::test]
+async fn members_see_only_crates_they_can_read() {
+    let h = Harness::start().await;
+    let engine = h.repo("story-engine");
+    let secret = h.repo("secret-project");
+    h.publish_from_ci(
+        "acme/story-engine",
+        engine,
+        &Crate::new("story_engine", "0.1.0", "acme/story-engine"),
+    )
+    .await;
+    h.publish_from_ci(
+        "acme/secret-project",
+        secret,
+        &Crate::new("secret_sauce", "0.1.0", "acme/secret-project"),
+    )
+    .await;
+    let token = h.fake.add_user("dave", "ghu_", &[(engine, false)]);
+    h.fake.add_member(&token, &h.org, "member");
+    let session = h.sign_in(&token).await;
+
+    let doc = report(&h, &session).await;
+    let text = doc.to_string();
+    assert!(text.contains("story_engine"), "{text}");
+    assert!(!text.contains("secret_sauce"), "{text}");
+    assert!(!text.contains("secret-project"), "{text}");
+    let csv = h
+        .api_get("/api/orgs/acme/compliance/audit.csv", &session)
+        .await
+        .text()
+        .await
+        .unwrap();
+    assert!(csv.contains("story_engine"), "{csv}");
+    assert!(!csv.contains("secret_sauce"), "{csv}");
 }

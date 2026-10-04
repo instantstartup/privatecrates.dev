@@ -309,6 +309,19 @@ impl FakeGitHub {
 
     /// Gives a user a role on a repository: `read`, `triage`, `write`, `maintain` or `admin`. Write and above can
     /// push.
+    /// Every repository of `org`, the storage repository included.
+    pub fn org_repos(&self, org: &Org) -> Vec<u64> {
+        let mut ids: Vec<u64> = self
+            .world()
+            .repos
+            .values()
+            .filter(|r| r.owner_id == org.id)
+            .map(|r| r.id)
+            .collect();
+        ids.sort_unstable();
+        ids
+    }
+
     pub fn set_repo_role(&self, token: &str, repo: u64, role: &str) {
         let mut w = self.world();
         let user = w.users.get_mut(token).expect("known token");
