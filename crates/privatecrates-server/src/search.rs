@@ -286,6 +286,11 @@ async fn search(
 ) -> Result<Json<Value>, ApiError> {
     let caller = routes::caller(&state, &tenant, &headers).await?;
     let resolver = routes::resolver(&state, &tenant);
+    // As for the registry's configuration: an outsider gets nothing, crates.io's results included, and costs no
+    // walk of the registry (the same answer for a name with no registry).
+    if !resolver.can_use_registry(&caller).await? {
+        return Err(ApiError::NoAccess);
+    }
     let per_page = query
         .per_page
         .unwrap_or(DEFAULT_PER_PAGE)

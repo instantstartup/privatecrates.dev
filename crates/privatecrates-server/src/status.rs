@@ -1,5 +1,5 @@
 //! `GET /api/status` (docs/trust-and-status.md §2): the server's own view of its health, for the status page. Nothing
-//! about any customer: no organisation names, URLs or tokens, and tenants only as a count.
+//! about any customer: no organisation names, URLs or tokens, and not even how many there are.
 
 use std::sync::Arc;
 
@@ -43,7 +43,6 @@ async fn status(State(state): State<Arc<AppState>>) -> Response {
             // Rate limits count as errors: the status page shows no more detail for Stripe.
             "errors": stripe.errors + stripe.rate_limited,
         },
-        "tenants": state.tenants.all().len(),
     }))
     .into_response();
     // A probe must see the server as it is now.

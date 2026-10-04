@@ -208,7 +208,9 @@ impl Config {
     /// tenants.
     pub fn slug_for_host<'a>(&self, host: &'a str) -> Option<&'a str> {
         let slug = host.strip_suffix(&self.base_domain)?.strip_suffix('.')?;
-        (!slug.is_empty() && !slug.contains('.') && !is_reserved(slug)).then_some(slug)
+        // Only names a registry could have: anything else never becomes a stand-in registry, and so never reaches
+        // the HTML of its /login page.
+        (crate::tenant::slug_is_valid(slug) && !is_reserved(slug)).then_some(slug)
     }
 
     /// Classifies a lowercase `Host` header.

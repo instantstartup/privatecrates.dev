@@ -132,6 +132,7 @@ async fn unknown_names_look_like_registries_without_access() {
         ("GET", "/api/v1/auth"),
         ("GET", "/index/config.json"),
         ("GET", "/index/en/gi/engine"),
+        ("GET", "/api/v1/crates?q=engine"),
         ("GET", "/api/v1/crates/engine/0.1.0/download"),
         ("PUT", "/api/v1/crates/new"),
         ("DELETE", "/api/v1/crates/engine/0.1.0/yank"),
@@ -1004,6 +1005,15 @@ async fn the_login_page_guides_a_developer_joining_the_team() {
     assert_eq!(root.headers()["location"], "/login");
     let response = h.get("/login", None).await;
     assert_eq!(response.status(), 200);
+    let csp = response.headers()["content-security-policy"]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    assert!(
+        csp.contains("default-src 'none'") && csp.contains("frame-ancestors 'none'"),
+        "{csp}"
+    );
+    assert_eq!(response.headers()["x-frame-options"], "DENY");
     let page = response.text().await.unwrap();
     for expected in [
         "cargo binstall cargo-credential-privatecrates",

@@ -1024,6 +1024,17 @@ async fn the_private_preview_is_by_invitation() {
         .unwrap();
     assert_eq!(doc["invite_only"], true);
     assert_eq!(doc["invitations_requested"], json!(["globex", "hooli"]));
+    // Up to ten organisations each; asking again about one of them still updates it.
+    let body = json!({ "email": "alice@globex.example" });
+    for n in 0..8 {
+        let response = ask(&format!("org-{n}"), body.clone()).await.unwrap();
+        assert_eq!(response.status(), 200, "org-{n}");
+    }
+    let response = ask("one-too-many", body.clone()).await.unwrap();
+    assert_eq!(response.status(), 400);
+    assert_eq!(error_code(response).await, "account::invitation_invalid");
+    let response = ask("globex", body).await.unwrap();
+    assert_eq!(response.status(), 200);
     let signed_out = h
         .client
         .post(h.apex("/api/orgs/globex/invitation"))

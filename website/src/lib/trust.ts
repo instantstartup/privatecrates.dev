@@ -46,8 +46,8 @@ export const subprocessors: Subprocessor[] = [
 	{
 		name: 'Cloudflare',
 		purpose:
-			'DNS for privatecrates.dev (not proxied: traffic goes straight to Railway), and the status page at status.privatecrates.dev.',
-		data: 'DNS lookups for our domains. The status page probes only our public endpoints and holds no customer data.',
+			'DNS for privatecrates.dev (not proxied: traffic goes straight to Railway), the status page at status.privatecrates.dev, and forwarding email sent to our addresses (contact@, security@).',
+		data: 'DNS lookups for our domains. The status page probes only our public endpoints and holds no customer data. Email you send us passes through Cloudflare Email Routing on its way to our inbox.',
 		location: 'Global network',
 		url: 'https://www.cloudflare.com/privacypolicy/'
 	}

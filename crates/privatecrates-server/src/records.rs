@@ -206,6 +206,12 @@ impl Records for Postgres {
         .bind(&r.note)
         .execute(&self.pool)
         .await?;
+        // We keep a request for a year (the privacy notice, §5): long enough to reply, then it goes.
+        sqlx::query(
+            "delete from invitation_requests where requested_at < now() - interval '12 months'",
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 

@@ -38,13 +38,9 @@ async fn the_status_shows_counts_and_nothing_about_customers() {
         keys.sort();
         keys
     };
-    assert_eq!(
-        keys(&status),
-        ["github", "started_at", "stripe", "tenants", "version"]
-    );
+    assert_eq!(keys(&status), ["github", "started_at", "stripe", "version"]);
     assert_eq!(status["version"], env!("CARGO_PKG_VERSION"));
     assert!(status["started_at"].as_str().unwrap().ends_with('Z'));
-    assert_eq!(status["tenants"], 1);
 
     let github = &status["github"];
     assert_eq!(

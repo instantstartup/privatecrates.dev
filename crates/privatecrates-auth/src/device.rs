@@ -235,11 +235,18 @@ fn grant(http: &Client, info: &AuthInfo, params: &[(&str, &str)]) -> Result<Opti
 }
 
 fn auth_info(http: &Client, base: &str) -> Result<AuthInfo, Error> {
-    http.get(format!("{base}/api/v1/auth"))
+    let mut info: AuthInfo = http
+        .get(format!("{base}/api/v1/auth"))
         .send()
         .and_then(|r| r.error_for_status())
         .and_then(|r| r.json())
-        .map_err(|e| format!("could not reach {base}: {e}").into())
+        .map_err(|e| format!("could not reach {base}: {e}"))?;
+    // Sign-ins and refresh tokens go to GitHub itself, never to wherever a registry says GitHub is: a compromised or
+    // impostor registry must not collect them. Tests against a fake GitHub opt in to the registry's answer.
+    if std::env::var_os("PRIVATECRATES_TRUST_REGISTRY_GITHUB_URL").is_none() {
+        info.github_url = "https://github.com".to_owned();
+    }
+    Ok(info)
 }
 
 #[cfg(test)]

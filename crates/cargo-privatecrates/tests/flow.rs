@@ -60,6 +60,7 @@ impl Env<'_> {
             .env("CARGO_TERM_COLOR", "never")
             .env("PRIVATECRATES_CREDENTIAL_STORE", "file")
             .env("PRIVATECRATES_CONFIG_DIR", self.config)
+            .env("PRIVATECRATES_TRUST_REGISTRY_GITHUB_URL", "1")
             .env_remove("RUSTC_WRAPPER")
             .env_remove("CARGO_REGISTRIES_ACME_TOKEN")
             .env_remove("CI")

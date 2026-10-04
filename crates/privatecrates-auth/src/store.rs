@@ -146,6 +146,10 @@ fn write_file(path: &Path, all: &BTreeMap<String, Stored>) -> Result<(), Error> 
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
     let mut file = options.open(&tmp).map_err(fail)?;
+    // The mode above applies only to a new file: tighten one left behind too.
+    #[cfg(unix)]
+    file.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o600))
+        .map_err(fail)?;
     std::io::Write::write_all(&mut file, text.as_bytes()).map_err(fail)?;
     fs::rename(&tmp, path).map_err(fail)
 }

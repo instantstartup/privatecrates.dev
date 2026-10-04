@@ -148,6 +148,13 @@ async fn apex_responses_carry_security_headers() {
             "strict-origin-when-cross-origin"
         );
         assert_eq!(headers["x-frame-options"], "DENY");
+        assert_eq!(headers["cross-origin-opener-policy"], "same-origin");
+        assert!(
+            headers["permissions-policy"]
+                .to_str()
+                .unwrap()
+                .contains("camera=()")
+        );
         // The harness serves plain http, so no HSTS.
         assert!(headers.get("strict-transport-security").is_none());
         // Only production may be indexed.

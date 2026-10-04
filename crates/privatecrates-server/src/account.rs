@@ -827,6 +827,8 @@ struct InvitationBody {
 }
 
 const NOTE_LIMIT: usize = 2000;
+/// How many organisations one person may ask about: enough for anyone, too few to fill the table.
+const INVITATION_LIMIT: usize = 10;
 
 /// `POST /api/orgs/{org}/invitation`: asks to join the private preview (docs/preview.md §5). Anyone signed in may
 /// ask for any organisation: GitHub does not show us an organisation that has not installed our App, so we check
@@ -864,14 +866,22 @@ async fn request_invitation(
         ));
     }
     let user = state.gh.user(&session.token).await?;
+    let org = org.to_ascii_lowercase();
+    let records = state.terms.records();
+    let asked = records.invitations_requested(user.id).await?;
+    if asked.len() >= INVITATION_LIMIT && !asked.contains(&org) {
+        return Err(invalid(
+            "you have asked for 10 organisations already; we will reply to those first",
+        ));
+    }
     let request = InvitationRequest {
-        org_login: org.to_ascii_lowercase(),
+        org_login: org,
         user_id: user.id,
         user_login: user.login,
         email: email.to_owned(),
         note: note.to_owned(),
     };
-    state.terms.records().request_invitation(&request).await?;
+    records.request_invitation(&request).await?;
     tracing::info!(org = %request.org_login, by = %request.user_login, "invitation requested");
     Ok(Json(json!({ "requested": true, "org": request.org_login })))
 }

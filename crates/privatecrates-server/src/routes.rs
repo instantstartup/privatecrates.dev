@@ -12,6 +12,7 @@ use bytes::Bytes;
 use privatecrates_common::{
     audience,
     index::name_from_path,
+    name::CrateName,
     storage::{crate_asset_name, release_tag},
 };
 
@@ -59,6 +60,15 @@ impl FromRequestParts<Arc<AppState>> for TenantHost {
             .unwrap_or_else(|| Arc::new(Tenant::phantom(slug.to_owned())));
         Ok(TenantHost(tenant))
     }
+}
+
+/// A crate name and version from a URL, before either goes near a GitHub API path: anything else is not found, as an
+/// unknown crate is.
+fn well_formed(name: &str, version: &str) -> Result<(), ApiError> {
+    if CrateName::parse(name).is_err() || semver::Version::parse(version).is_err() {
+        return Err(ApiError::NotFound);
+    }
+    Ok(())
 }
 
 pub(crate) fn subscription_inactive(state: &AppState, tenant: &Tenant) -> ApiError {
@@ -208,6 +218,7 @@ pub async fn download(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let caller = caller(&state, &tenant, &headers).await?;
+    well_formed(&name, &version)?;
     let owner = tenant.owner(&name).ok_or(ApiError::NotFound)?;
     if !resolver(&state, &tenant)
         .can_read(&caller, owner.repository_id)
@@ -304,6 +315,7 @@ async fn set_yanked(
     yanked: bool,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let caller = caller(&state, &tenant, &headers).await?;
+    well_formed(&name, &version)?;
     let resolver = resolver(&state, &tenant);
     let owner = tenant.owner(&name).ok_or(ApiError::NotFound)?;
     if !resolver.can_read(&caller, owner.repository_id).await? {
@@ -353,17 +365,28 @@ pub async fn oidc_exchange(
     ))
 }
 
+/// The /login page's own policy: plain HTML and inline styles, no scripts, no framing.
+const LOGIN_PAGE_CSP: &str = "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; \
+                              frame-ancestors 'none'";
+
 pub async fn login_page(
     State(state): State<Arc<AppState>>,
     TenantHost(tenant): TenantHost,
-) -> Html<String> {
+) -> impl IntoResponse {
     let base = state.config.tenant_base_url(&tenant.slug);
     let apex = state.config.apex_url();
     // The same page for every name, registry or not, and without the organisation's name (SPEC §6.7).
     let slug = &tenant.slug;
     let install = privatecrates_common::install::ci_step("cargo-credential-privatecrates");
-    Html(format!(
-        r#"<!doctype html>
+    let headers = [
+        (header::CONTENT_SECURITY_POLICY, LOGIN_PAGE_CSP),
+        (header::X_FRAME_OPTIONS, "DENY"),
+        (header::REFERRER_POLICY, "no-referrer"),
+    ];
+    (
+        headers,
+        Html(format!(
+            r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{slug} · PrivateCrates</title>
 <style>body{{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}}pre{{background:#f4f4f4;padding:1rem;overflow-x:auto}}@media (prefers-color-scheme:dark){{body{{background:#111;color:#eee}}pre{{background:#222}}a{{color:#8cf}}}}</style>
@@ -432,5 +455,6 @@ jobs:
 <code>cargo privatecrates init</code> sets all of this up.</p>
 <p>More: <a href="{apex}/docs/joining">joining a team</a>, <a href="{apex}/docs">all documentation</a>.</p>
 </body></html>"#
-    ))
+        )),
+    )
 }

@@ -67,6 +67,10 @@ fn write_pending(
     let mut file = options
         .open(&path)
         .map_err(Error::io("write", path.clone()))?;
+    // The mode above applies only to a new file: tighten one left behind too.
+    #[cfg(unix)]
+    file.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o600))
+        .map_err(Error::io("write", path.clone()))?;
     std::io::Write::write_all(
         &mut file,
         serde_json::to_string(pending)

@@ -46,7 +46,8 @@ export function ciInstall(binary: string): string {
           base=https://github.com/${RELEASE_REPO}/releases/download/v$VERSION
           curl -fsSL --remote-name-all "$base/$name.tgz" "$base/SHA256SUMS"
           sha256sum --check --ignore-missing SHA256SUMS
-          gh attestation verify "$name.tgz" --repo ${RELEASE_REPO}
+          gh attestation verify "$name.tgz" --repo ${RELEASE_REPO} \\
+            --signer-workflow ${RELEASE_REPO}/.github/workflows/release.yml --source-ref refs/tags/v$VERSION
           tar -xzf "$name.tgz"
           install -D "$name/${binary}" ~/.cargo/bin/${binary}
 `;

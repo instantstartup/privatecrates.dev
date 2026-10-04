@@ -81,7 +81,9 @@
 				Railway, which hosts the service, its logs and the database of terms acceptances and invitation
 				requests.
 			</li>
-			<li>Cloudflare, for DNS and the status page.</li>
+			<li>
+				Cloudflare, for DNS, the status page, and forwarding email sent to our privatecrates.dev addresses.
+			</li>
 		</ul>
 
 		<h2>5. Retention</h2>

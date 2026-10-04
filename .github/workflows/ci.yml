@@ -5,6 +5,8 @@ on:
     branches: [dev, main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *" # new advisories arrive without a push
 
 permissions:
   contents: read
@@ -42,6 +44,21 @@ jobs:
       - run: cargo test --workspace --locked
       - name: Package the publishable crates
         run: cargo publish --dry-run --locked -p privatecrates-common -p privatecrates-auth -p cargo-credential-privatecrates -p cargo-privatecrates -p privatecrates-verify
+
+  advisories:
+    name: Dependencies (RustSec advisories, licences, sources)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-09-12
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo install cargo-deny --version 0.20.2 --locked
+      - run: cargo deny --locked check
 
   msrv:
     name: Client tools on their minimum Rust (rust-version)

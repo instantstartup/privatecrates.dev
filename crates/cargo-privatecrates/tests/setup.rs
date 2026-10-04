@@ -28,6 +28,7 @@ async fn cli_with_immutable_releases(config: &Path, args: &[&str], enabled: &str
         .args(args)
         .env("PRIVATECRATES_CREDENTIAL_STORE", "file")
         .env("PRIVATECRATES_CONFIG_DIR", config)
+        .env("PRIVATECRATES_TRUST_REGISTRY_GITHUB_URL", "1")
         .env("PRIVATECRATES_GH", &gh)
         .output()
         .await

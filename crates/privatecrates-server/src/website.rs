@@ -199,6 +199,15 @@ pub async fn security_headers(
         HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
     headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    // Nothing on the site needs these; sign-in and Checkout are redirects, never pop-ups.
+    headers.insert(
+        "permissions-policy",
+        HeaderValue::from_static("camera=(), microphone=(), geolocation=(), payment=(), usb=()"),
+    );
+    headers.insert(
+        "cross-origin-opener-policy",
+        HeaderValue::from_static("same-origin"),
+    );
     if !state.config.is_production() {
         headers.insert("x-robots-tag", HeaderValue::from_static("noindex"));
     }

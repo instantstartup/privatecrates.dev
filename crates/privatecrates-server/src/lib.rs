@@ -266,7 +266,12 @@ pub fn router(state: Arc<AppState>) -> Router {
         .layer(middleware::from_fn(move |request: Request, next: Next| {
             transport_headers(https, request, next)
         }))
-        .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(
+            // The path only: query strings carry OAuth codes and states, which have no place in logs.
+            tower_http::trace::TraceLayer::new_for_http().make_span_with(|request: &Request| {
+                tracing::info_span!("request", method = %request.method(), path = %request.uri().path())
+            }),
+        )
 }
 
 /// Headers for every response on every host, registries and redirects included: HSTS when served over HTTPS, and

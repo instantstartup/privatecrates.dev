@@ -52,14 +52,13 @@ The server's own view, with nothing about any customer:
     "latency_ms_p50": 180, "latency_ms_p95": 640,
     "last_error_at": "2026-09-27T14:20:01Z"
   },
-  "stripe": { "configured": true, "requests": 12, "errors": 0 },
-  "tenants": 14
+  "stripe": { "configured": true, "requests": 12, "errors": 0 }
 }
 ```
 
 Counts from a sliding 5-minute window of GitHub (and Stripe) calls made by the server, classified by outcome
 (`ok`, `error`, `rate_limited`; 404s used as "not found" answers count as ok). No organisation names, no URLs, no
-tokens. `tenants` is a count only.
+tokens, and not the number of customers.
 
 ## 3. Trust centre: `/trust` (website, public)
 
@@ -83,7 +82,9 @@ tokens. `tenants` is a count only.
 
 `GET /api/orgs/{org}/compliance` (any member who can read the registry; the account API's session or bearer auth).
 Built by the server from the tenant's storage repository with the storage App's existing read access: no new
-permissions.
+permissions. Each caller sees only the crates whose source repositories they can read: publishers, risks, integrity
+problems, the audit log and its CSV are filtered by crate, so the dashboard never names a crate the registry itself
+would hide from them.
 
 ```json
 {

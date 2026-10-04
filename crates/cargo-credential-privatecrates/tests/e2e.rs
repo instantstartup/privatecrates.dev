@@ -56,12 +56,14 @@ async fn cargo(home: &Path, dir: &Path, env: Env<'_>, args: &[&str]) -> Output {
             command
                 .env("PRIVATECRATES_CREDENTIAL_STORE", "file")
                 .env("PRIVATECRATES_CONFIG_DIR", config)
+                .env("PRIVATECRATES_TRUST_REGISTRY_GITHUB_URL", "1")
                 .env("PRIVATECRATES_INTERACTIVE", "1");
         }
         Env::Editor { config } => {
             command
                 .env("PRIVATECRATES_CREDENTIAL_STORE", "file")
                 .env("PRIVATECRATES_CONFIG_DIR", config)
+                .env("PRIVATECRATES_TRUST_REGISTRY_GITHUB_URL", "1")
                 .env_remove("PRIVATECRATES_INTERACTIVE");
         }
     }
