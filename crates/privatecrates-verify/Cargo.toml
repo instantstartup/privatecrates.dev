@@ -1,6 +1,6 @@
 [package]
 name = "privatecrates-verify"
-version = "0.2.8"
+version = "0.2.9"
 description = "Verifies everything PrivateCrates wrote to a storage repository: append-only index, immutable releases and GitHub-signed provenance."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -14,7 +14,7 @@ homepage.workspace = true
 [dependencies]
 clap = { version = "4.6.7", features = ["derive", "env"] }
 jsonwebtoken = { version = "11.1.0", features = ["aws_lc_rs"] }
-privatecrates-common = { version = "0.2.8", path = "../privatecrates-common" }
+privatecrates-common = { version = "0.2.9", path = "../privatecrates-common" }
 reqwest = { version = "0.13.5", features = ["blocking", "json"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
