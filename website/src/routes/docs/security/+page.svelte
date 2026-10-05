@@ -70,17 +70,76 @@
 
 <h2 id="lost-device">A lost or stolen device</h2>
 <p>
-	On another device, sign in on the <a href="/account">account page</a> and choose
-	<strong>Sign out everywhere</strong>. GitHub cancels every token it gave you for PrivateCrates: the
-	website’s sign-ins and the credential provider’s tokens on every machine, refresh tokens included. Nobody
-	else is signed out, and you can sign in again straight away. Doing the same on GitHub works too: in
-	<strong>Settings → Applications → Authorized GitHub Apps</strong>, revoke
-	<strong>privatecrates-reader</strong>. That revokes only your own authorisation; the organisation’s
-	installation, and everyone else, are unaffected.
+	A stolen laptop usually holds more than PrivateCrates: the <code>gh</code> CLI’s login, git’s stored credentials
+	or SSH keys, personal access tokens, and a browser signed in to GitHub. Any of them can read, and some can push
+	to, your organisation’s repositories. Deal with GitHub first; PrivateCrates follows GitHub.
 </p>
+
+<h3 id="lost-device-you">If it is your laptop</h3>
+<p>From another device:</p>
+<ol>
+	<li>
+		On the <a href="/account">account page</a>, choose <strong>Sign out everywhere</strong>. GitHub cancels
+		every token it gave you for PrivateCrates: the website’s sign-ins and the credential provider’s tokens on
+		every machine, refresh tokens included. Nobody else is signed out, and you can sign in again straight
+		away. (Revoking
+		<strong>privatecrates-reader</strong> under GitHub’s
+		<strong>Settings → Applications → Authorized GitHub Apps</strong>
+		does the same. It revokes only your own authorisation, not the organisation’s installation.)
+	</li>
+	<li>
+		On GitHub: under <strong>Settings → Sessions</strong>, sign out the laptop’s sessions; under
+		<strong>Applications → Authorized OAuth Apps</strong>, revoke GitHub CLI and anything else the laptop
+		used; delete the laptop’s SSH keys and personal access tokens; change your password, and your two-factor
+		set-up if the laptop held it.
+	</li>
+	<li>Tell your organisation’s admins, so they can contain it if you cannot do all of this at once.</li>
+</ol>
+
+<h3 id="lost-device-admin">If you are an organisation admin</h3>
 <p>
-	If the person cannot do it themselves, an organisation admin can remove them from the organisation or from
-	the repositories that own its crates. We hear of it from GitHub at once, and their access ends with it.
+	GitHub does not let an admin revoke one member’s tokens on most plans. Its answer is to suspend the member,
+	which is quick and fully reversible:
+</p>
+<ol>
+	<li>
+		<strong>Remove them from the organisation</strong> (or from the teams that give them access). Their GitHub credentials
+		stop working on your repositories at once, and so does PrivateCrates: we hear of it from GitHub immediately.
+	</li>
+	<li>Ask them to clean up their account, as above.</li>
+	<li>
+		<strong>Reinstate them</strong> by inviting them again. Within three months, GitHub offers to restore their
+		teams, repository access and forks, so they lose nothing.
+	</li>
+</ol>
+<p>
+	On GitHub Enterprise Cloud with SAML single sign-on, you can instead revoke the member’s SAML sessions and
+	the tokens and SSH keys authorised for the organisation, under <strong>People</strong> in the organisation’s settings,
+	without removing them. With Enterprise Managed Users, suspend the account in your identity provider.
+</p>
+
+<h3 id="lost-device-limits">Limiting what a stolen login can do</h3>
+<p>Set these up before you need them:</p>
+<ul>
+	<li>
+		<strong>Protect your release branches and tags</strong> with GitHub’s rulesets: require a reviewed pull
+		request to reach <code>main</code>, and restrict who can create release tags. A stolen login can then push
+		a branch, but cannot release from it alone.
+	</li>
+	<li>
+		<strong>Keep publishing in GitHub Actions.</strong> By default a version can only be published by the
+		crate’s allowed release workflow, never from a laptop, so a stolen login cannot publish directly. Leave
+		<a href="/docs/publishing#laptop">publishing from developers’ machines</a> off.
+	</li>
+	<li>
+		<strong>Require a reviewer to publish.</strong> Set <code>publish_environment</code> in a crate’s
+		<a href="/docs/publishing#owners">owners file</a> to a GitHub environment with required reviewers. Even someone
+		who edits the release workflow cannot publish without a second person’s approval.
+	</li>
+</ul>
+<p>
+	A stolen login can still read the crates its owner can read until it is revoked, as it can read the
+	repositories themselves. Signing out everywhere, or removing the member, ends that.
 </p>
 
 <h2 id="permissions">Permissions are GitHub’s</h2>

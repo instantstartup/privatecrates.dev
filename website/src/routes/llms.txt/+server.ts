@@ -123,6 +123,7 @@ At each of these, stop. Give the admin the exact link, say what to choose there,
 - The token from \`cargo privatecrates login\` is a reader App user token: it can read repository metadata and nothing else. It expires after 8 hours and is refreshed from the keyring.
 - CI needs no secrets: the publish and build workflows use \`permissions: id-token: write\`. Do not add registry tokens to repository secrets.
 - Publish from GitHub Actions by pushing a tag, never from the agent's machine, so every version has provenance.
+- A lost or stolen laptop: the person signs out everywhere on /account and cleans up their GitHub account; an organisation admin can remove them from the organisation and reinstate them within three months, losing nothing. PrivateCrates follows GitHub, so there is nothing else to do in PrivateCrates. See ${SITE_URL}/docs/security#lost-device.
 - Never accept the terms for the admin: accepting binds the organisation. Pass \`--accept-terms\` (or \`terms --accept\`) only with the version the admin has read and said they accept.
 
 ## Docs
