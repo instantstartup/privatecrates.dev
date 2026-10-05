@@ -298,6 +298,7 @@ ${production ? '' : '<meta name="robots" content="noindex">\n'}<link rel="icon" 
 			<li><a href="${p}/feed.xml">Incident feed (Atom)</a></li>
 			<li><a href="${p}/api/summary.json">Current status as JSON</a></li>
 			<li><a href="https://${e(env.apex)}/">${e(env.apex)}</a></li>
+			<li><a href="/third-party-licenses.txt">Third-party licences</a></li>
 		</ul>
 	</div>
 </footer>

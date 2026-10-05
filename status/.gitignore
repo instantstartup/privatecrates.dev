@@ -5,3 +5,4 @@ dist/
 src/generated/
 public/fonts/
 worker-configuration.d.ts
+public/third-party-licenses.txt

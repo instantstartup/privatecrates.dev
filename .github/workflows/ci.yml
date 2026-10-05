@@ -46,7 +46,7 @@ jobs:
         run: cargo publish --dry-run --locked -p privatecrates-common -p privatecrates-auth -p cargo-credential-privatecrates -p cargo-privatecrates -p privatecrates-verify
 
   advisories:
-    name: Dependencies (RustSec advisories, licences, sources)
+    name: Dependencies (RustSec advisories, licences, sources, notices)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -59,6 +59,13 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo install cargo-deny --version 0.20.2 --locked
       - run: cargo deny --locked check
+      # The release ships these with each binary; a dependency whose licence they cannot cover fails here first.
+      - run: cargo install cargo-about --version 0.9.2 --locked --features cli
+      - name: Third-party licence notices generate
+        run: |
+          for name in cargo-credential-privatecrates cargo-privatecrates privatecrates-verify; do
+            deploy/licenses/generate.sh "$name" "$RUNNER_TEMP/$name.txt"
+          done
 
   msrv:
     name: Client tools on their minimum Rust (rust-version)

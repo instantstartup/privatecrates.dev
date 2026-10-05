@@ -1,6 +1,7 @@
 // Build step (run by Wrangler before `deploy` and `dev`, see wrangler.jsonc; or `pnpm build`):
 //   1. parse status/incidents/*.md into src/generated/incidents.json (examples and README.md are left out);
-//   2. copy the website's two variable fonts (Latin subset) into public/fonts, so the page makes no third-party requests.
+//   2. copy the website's two variable fonts (Latin subset) into public/fonts, so the page makes no third-party requests,
+//      with their licences, also gathered in public/third-party-licenses.txt.
 // Node runs this TypeScript directly (type stripping).
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -65,12 +66,20 @@ function copyFonts(): void {
 		['@fontsource-variable/big-shoulders', 'big-shoulders-latin-opsz-normal.woff2'],
 		['@fontsource-variable/atkinson-hyperlegible-next', 'atkinson-hyperlegible-next-latin-wght-normal.woff2'],
 	];
+	const notices = [];
 	for (const [pkg, file] of fonts) {
 		const dir = join(root, 'node_modules', pkg!);
 		copyFileSync(join(dir, 'files', file!), join(out, file!));
 		// Both are under the SIL Open Font License; it travels with the font.
 		copyFileSync(join(dir, 'LICENSE'), join(out, `${file!.replace(/-latin.*$/, '')}-LICENSE.txt`));
+		const { version } = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { version: string };
+		notices.push(`${'='.repeat(78)}\n${pkg} ${version} (OFL-1.1)\n\n${readFileSync(join(dir, 'LICENSE'), 'utf8').trim()}\n`);
 	}
+	// Linked from the page's footer: the only third-party files the page serves are these fonts.
+	writeFileSync(
+		join(root, 'public/third-party-licenses.txt'),
+		`Third-party software on the PrivateCrates status page\n\nThis page uses the following fonts, under the licence below.\n\n${notices.join('\n')}`,
+	);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

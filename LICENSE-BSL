@@ -3,10 +3,10 @@ Business Source License 1.1
 Parameters
 
 Licensor:             Bryn Dyllan Cooke
-Licensed Work:        The PrivateCrates server: the privatecrates-server crate
-                      (crates/privatecrates-server) and the website it serves
-                      (website/) in this repository, in each version released
-                      by the Licensor.
+Licensed Work:        The PrivateCrates service: the privatecrates-server crate
+                      (crates/privatecrates-server), the website it serves
+                      (website/) and the status page (status/) in this
+                      repository, in each version released by the Licensor.
                       The Licensed Work is (c) 2026 Bryn Dyllan Cooke.
 Additional Use Grant: You may make production use of the Licensed Work to run a
                       private Cargo registry for your own organisation(s),

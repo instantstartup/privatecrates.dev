@@ -1,6 +1,7 @@
 {
 	"name": "privatecrates-status",
 	"private": true,
+	"license": "BUSL-1.1",
 	"version": "0.1.0",
 	"type": "module",
 	"description": "status.privatecrates.dev: probes, history and the public status page, as a Cloudflare Worker.",

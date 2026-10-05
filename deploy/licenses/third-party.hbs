@@ -1,0 +1,23 @@
+Third-party software in @BINARY@
+=====================================================================
+
+@BINARY@ is licensed under MIT OR Apache-2.0 (LICENSE-MIT, LICENSE-APACHE). It includes the following
+third-party crates, under the licences below.
+
+Licences used:
+{{#each overview}}
+  - {{{name}}}: {{{count}}} crate(s)
+{{/each}}
+
+{{#each licenses}}
+=====================================================================
+{{{name}}}
+
+Used by:
+{{#each used_by}}
+  - {{{crate.name}}} {{{crate.version}}}{{#if crate.repository}} ({{{crate.repository}}}){{/if}}
+{{/each}}
+
+{{{text}}}
+
+{{/each}}

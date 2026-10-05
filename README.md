@@ -21,6 +21,7 @@ with GitHub's device flow through a Cargo credential provider; CI needs no store
 | [`crates/privatecrates-common`](crates/privatecrates-common) | Types and rules shared by the above | MIT OR Apache-2.0 |
 | [`crates/privatecrates-testkit`](crates/privatecrates-testkit) | Fake GitHub and fixtures for the tests (not published) | MIT OR Apache-2.0 |
 | [`website/`](website) | SvelteKit static site, served by the server on the apex host | BUSL-1.1 |
+| [`status/`](status) | Status page: a Cloudflare Worker that probes the service from outside it | BUSL-1.1 |
 | [`docs/`](docs) | [`website-api.md`](docs/website-api.md) (website ↔ server contract), [`deploy.md`](docs/deploy.md) (deployment) | |
 | [`deploy/github-apps/`](deploy/github-apps) | GitHub App manifests and the page that registers them | |
 | [`scripts/stripe-setup.sh`](scripts/stripe-setup.sh) | Creates the Stripe product, price, webhook and portal configuration | |
@@ -71,7 +72,7 @@ GitHub Apps and Stripe, is in [`docs/deploy.md`](docs/deploy.md).
 
 ## Licences
 
-- The server (`crates/privatecrates-server`) and the website are source-available under the
+- The server (`crates/privatecrates-server`), the website and the status page are source-available under the
   [Business Source License 1.1](LICENSE-BSL): you may read, modify and self-host it to run a private registry for
   your own organisation(s), but not offer it as a hosted registry service to third parties. Each version becomes
   available under the Apache License 2.0 four years after its first public release.
@@ -81,3 +82,10 @@ GitHub Apps and Stripe, is in [`docs/deploy.md`](docs/deploy.md).
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the MIT/Apache-2.0
 crates shall be dual-licensed as above, without any additional terms or conditions.
+
+We do not accept code contributions to the BSL-licensed parts (the server, the website and the status page), because
+the Licensor must hold every right in them to offer them under other terms. Bug reports and suggestions for them
+are very welcome as issues.
+
+Release binaries include `THIRD-PARTY-LICENSES.txt`, the licences of every crate compiled into them. The website and
+the status page serve theirs at `/third-party-licenses.txt`.

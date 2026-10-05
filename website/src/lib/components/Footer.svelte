@@ -37,6 +37,7 @@
 				<li><a href="/legal/terms">Private preview terms</a></li>
 				<li><a href="/legal/privacy">Privacy</a></li>
 				<li><a href="/legal/dpa">DPA (draft)</a></li>
+				<li><a href="/third-party-licenses.txt">Third-party licences</a></li>
 			</ul>
 		</nav>
 	</div>
