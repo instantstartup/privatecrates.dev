@@ -604,6 +604,33 @@ impl GitHub {
         }
     }
 
+    /// Revokes the App's grant for the user behind `token`: every token GitHub has issued to that user for this App,
+    /// on every device, stops working, and so does the refresh token. Other users are unaffected. A token GitHub no
+    /// longer knows (already revoked) is not an error.
+    pub async fn revoke_grant(
+        &self,
+        client_id: &str,
+        client_secret: &str,
+        token: &str,
+    ) -> Result<(), GitHubError> {
+        let response = self
+            .http
+            .delete(self.url(&format!("/applications/{client_id}/grant")))
+            .basic_auth(client_id, Some(client_secret))
+            .header(header::ACCEPT, "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .json(&serde_json::json!({ "access_token": token }))
+            .send_recorded(&self.metrics)
+            .await?;
+        if matches!(
+            response.status(),
+            StatusCode::NOT_FOUND | StatusCode::UNPROCESSABLE_ENTITY
+        ) {
+            return Ok(());
+        }
+        check(response).await.map(|_| ())
+    }
+
     /// The repositories in an installation that the user behind a GitHub App user token can access, with their
     /// permissions (SPEC §6.3). A user with no access to the installation gets an empty list.
     pub async fn user_installation_repositories(

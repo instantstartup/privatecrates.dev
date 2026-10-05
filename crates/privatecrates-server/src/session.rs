@@ -303,6 +303,32 @@ pub async fn logout() -> Response {
         .into_response()
 }
 
+/// `POST /auth/logout-everywhere`: signs the user out of PrivateCrates on every device, for a lost or stolen laptop.
+/// GitHub revokes the reader App's grant for this user, which ends every token it issued them: the website's
+/// sessions, and the credential provider's tokens and refresh tokens on every machine. Nobody else is affected.
+pub async fn logout_everywhere(
+    State(state): State<Arc<AppState>>,
+    session: Session,
+) -> Result<Response, ApiError> {
+    let user = state.gh.user(&session.token).await?;
+    state
+        .gh
+        .revoke_grant(
+            &state.config.reader_client_id,
+            &state.config.reader_client_secret,
+            &session.token,
+        )
+        .await?;
+    // GitHub's webhook says the same, but this request should not depend on it arriving.
+    state.permissions.forget_user(user.id, None).await;
+    tracing::info!(user = %user.login, "signed out of every device");
+    Ok((
+        StatusCode::NO_CONTENT,
+        [(header::SET_COOKIE, clear_session_cookie())],
+    )
+        .into_response())
+}
+
 /// CSRF protection for the account API: a state-changing request must be JSON from the website itself. A form on
 /// another site can send neither that content type nor our `Origin`.
 ///

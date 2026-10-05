@@ -704,7 +704,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	}
 
 	if (path === '/api/errors') return delay(json(catalog));
-	if (path === '/auth/logout' && method === 'POST') {
+	if ((path === '/auth/logout' || path === '/auth/logout-everywhere') && method === 'POST') {
 		state.scenario = 'signed-out';
 		save(state);
 		return delay(new Response(null, { status: 204 }));

@@ -19,7 +19,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use base64::Engine;
 use bytes::Bytes;
@@ -814,6 +814,16 @@ impl FakeGitHub {
             .push((org.id, role.into()));
     }
 
+    /// Another token of the same kind for the same user, as when they sign in on a second device.
+    pub fn another_token(&self, token: &str) -> String {
+        let mut w = self.world();
+        let user = w.users[token].clone();
+        let prefix = if user.app_user { "ghu_" } else { "gho_" };
+        let another = format!("{prefix}{}{}", user.login, w.id());
+        w.users.insert(another.clone(), user);
+        another
+    }
+
     /// Adds members to `org` who have no token here, as people join the organisation.
     pub fn add_org_members(&self, org: &Org, count: u64) {
         *self.world().web.other_members.entry(org.id).or_default() += count;
@@ -1022,6 +1032,46 @@ fn web_flow_token(w: &mut World, form: &AccessTokenForm, code: &str) -> Response
     }
 }
 
+/// `DELETE /applications/{client_id}/grant`, with the App's client credentials: revokes every reader App token of
+/// the user behind `access_token`, and their refresh tokens. Other users' tokens, and the user's other kinds of
+/// token, keep working.
+async fn revoke_grant(
+    State(fake): State<FakeGitHub>,
+    Path(client_id): Path<String>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Response {
+    let expected = format!(
+        "Basic {}",
+        base64::engine::general_purpose::STANDARD
+            .encode(format!("{READER_CLIENT_ID}:{READER_CLIENT_SECRET}"))
+    );
+    if client_id != READER_CLIENT_ID
+        || headers
+            .get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            != Some(&expected)
+    {
+        return error(StatusCode::UNAUTHORIZED, "Bad credentials");
+    }
+    let mut w = fake.world();
+    w.calls
+        .push(format!("DELETE /applications/{client_id}/grant"));
+    let Some(user_id) = body["access_token"]
+        .as_str()
+        .and_then(|t| w.users.get(t))
+        .filter(|u| u.app_user)
+        .map(|u| u.id)
+    else {
+        return error(StatusCode::NOT_FOUND, "Not Found");
+    };
+    w.users.retain(|_, u| !(u.app_user && u.id == user_id));
+    let users = &w.users;
+    let live: HashSet<String> = users.keys().cloned().collect();
+    w.refresh_tokens.retain(|_, token| live.contains(token));
+    StatusCode::NO_CONTENT.into_response()
+}
+
 // --- The HTTP side ---
 
 enum Principal {
@@ -1221,6 +1271,7 @@ fn router(fake: FakeGitHub) -> Router {
         .route("/api/v1/crates/{name}", get(crates_io_crate))
         .route("/login/device/code", post(device_code))
         .route("/login/oauth/access_token", post(oauth_access_token))
+        .route("/applications/{client_id}/grant", delete(revoke_grant))
         .merge(web_routes())
         .layer(axum::middleware::from_fn_with_state(
             fake.clone(),

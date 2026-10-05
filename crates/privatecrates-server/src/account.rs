@@ -41,6 +41,7 @@ pub fn routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/auth/github/login", get(session::login))
         .route("/auth/github/callback", get(session::callback))
         .route("/auth/logout", post(session::logout))
+        .route("/auth/logout-everywhere", post(session::logout_everywhere))
         .route("/api/session", get(session_info))
         .route("/api/orgs/{org}/onboarding", get(onboarding))
         .route("/api/orgs/{org}/settings", post(settings))

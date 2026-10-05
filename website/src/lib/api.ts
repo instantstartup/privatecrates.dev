@@ -312,6 +312,8 @@ export const api = {
 	billingEmail: (login: string, billingEmail: string) =>
 		request<Onboarding>('POST', `${org(login)}/billing-email`, { billing_email: billingEmail }),
 	logout: () => request<void>('POST', '/auth/logout'),
+	/** Ends every token GitHub gave this user for PrivateCrates, on every device (a lost or stolen laptop). */
+	logoutEverywhere: () => request<void>('POST', '/auth/logout-everywhere'),
 	errors: () => request<CatalogEntry[]>('GET', '/api/errors')
 };
 

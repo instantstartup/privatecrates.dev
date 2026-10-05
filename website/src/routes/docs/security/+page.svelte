@@ -3,7 +3,10 @@
 	import Lighthouse from '$lib/illustrations/Lighthouse.svelte';
 
 	const threats = [
-		['A developer’s token is stolen', 'The thief can list repository metadata. Nothing else.'],
+		[
+			'A developer’s token is stolen',
+			'On GitHub, the thief can list repository metadata, nothing else. Through PrivateCrates, they can read the crates that developer can read, until the developer signs out everywhere (see below), which ends it within seconds.'
+		],
 		[
 			'A CI registry token is stolen',
 			'The thief can read your crates for under an hour. We can revoke every outstanding token at once by rotating the signing key.'
@@ -64,6 +67,21 @@
 		</tbody>
 	</table>
 </div>
+
+<h2 id="lost-device">A lost or stolen device</h2>
+<p>
+	On another device, sign in on the <a href="/account">account page</a> and choose
+	<strong>Sign out everywhere</strong>. GitHub cancels every token it gave you for PrivateCrates: the
+	website’s sign-ins and the credential provider’s tokens on every machine, refresh tokens included. Nobody
+	else is signed out, and you can sign in again straight away. Doing the same on GitHub works too: in
+	<strong>Settings → Applications → Authorized GitHub Apps</strong>, revoke
+	<strong>privatecrates-reader</strong>. That revokes only your own authorisation; the organisation’s
+	installation, and everyone else, are unaffected.
+</p>
+<p>
+	If the person cannot do it themselves, an organisation admin can remove them from the organisation or from
+	the repositories that own its crates. We hear of it from GitHub at once, and their access ends with it.
+</p>
 
 <h2 id="permissions">Permissions are GitHub’s</h2>
 <p>

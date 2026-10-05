@@ -179,6 +179,22 @@
 			signingOut = false;
 		}
 	}
+
+	let confirmingEverywhere = $state(false);
+	let signOutEverywhereError = $state<ApiError | null>(null);
+	async function signOutEverywhere() {
+		signingOut = true;
+		signOutEverywhereError = null;
+		try {
+			await api.logoutEverywhere();
+			confirmingEverywhere = false;
+			await loadSession(false);
+		} catch (e) {
+			signOutEverywhereError = toApiError(e);
+		} finally {
+			signingOut = false;
+		}
+	}
 </script>
 
 <Seo
@@ -445,6 +461,44 @@
 				</div>
 			</div>
 		{/if}
+
+		<section class="devices" aria-labelledby="devices-heading">
+			<h2 id="devices-heading">Lost a laptop?</h2>
+			<p>
+				Sign out of PrivateCrates on every device at once: this browser, other browsers, and every machine
+				where Cargo is signed in. GitHub cancels every token it gave you for PrivateCrates, so a stolen laptop
+				can no longer read your crates. Nobody else is signed out, and you can sign in again straight away.
+			</p>
+			{#if confirmingEverywhere}
+				<div class="confirm" role="group" aria-label="Confirm signing out everywhere">
+					<p>Each machine will ask you to sign in again the next time Cargo needs the registry.</p>
+					<button
+						{@attach (el) => el.focus()}
+						class="btn btn-danger"
+						type="button"
+						onclick={signOutEverywhere}
+						disabled={signingOut}
+					>
+						{signingOut ? 'Signing out…' : 'Sign out of every device'}
+					</button>
+					<button
+						class="btn btn-quiet"
+						type="button"
+						onclick={() => (confirmingEverywhere = false)}
+						disabled={signingOut}
+					>
+						Cancel
+					</button>
+				</div>
+			{:else}
+				<button class="btn btn-quiet" type="button" onclick={() => (confirmingEverywhere = true)}>
+					Sign out everywhere…
+				</button>
+			{/if}
+			{#if signOutEverywhereError}
+				<ErrorNotice error={signOutEverywhereError} title="You are still signed in on your devices" />
+			{/if}
+		</section>
 	{/if}
 </div>
 
@@ -516,6 +570,35 @@
 		justify-content: space-between;
 		gap: 0 1.5rem;
 		margin-bottom: 1.5rem;
+	}
+	.devices {
+		max-width: 46rem;
+		margin-top: 3rem;
+		padding-top: 1.5rem;
+		border-top: 1px solid var(--rule);
+	}
+	.devices h2 {
+		margin-bottom: 0.5rem;
+	}
+	.confirm {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 1rem;
+		border-radius: 8px;
+		background: var(--danger-bg);
+	}
+	.confirm p {
+		flex-basis: 100%;
+		margin: 0;
+	}
+	.btn-danger {
+		background: var(--container);
+		color: var(--container-ink);
+	}
+	.btn-danger:hover {
+		filter: brightness(1.1);
 	}
 	.who h1 {
 		margin-bottom: 0;

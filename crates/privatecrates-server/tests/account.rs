@@ -106,6 +106,54 @@ async fn sign_in_round_trip() {
 }
 
 #[tokio::test]
+async fn signing_out_everywhere_ends_every_device_and_nobody_elses() {
+    let h = Harness::start().await;
+    let repos = h.fake.org_repos(&h.org);
+    let read: Vec<(u64, bool)> = repos.iter().map(|&id| (id, false)).collect();
+    let laptop = h.fake.add_user("alice", "ghu_", &read);
+    h.fake.add_member(&laptop, &h.org, "member");
+    let browser = h.fake.another_token(&laptop);
+    let colleague = h.fake.add_user("bob", "ghu_", &read);
+    let session = h.sign_in(&browser).await;
+    // Cached, as during a build.
+    for token in [&laptop, &colleague] {
+        assert_eq!(h.get("/index/config.json", Some(token)).await.status(), 200);
+    }
+
+    let response = h
+        .api_post("/auth/logout-everywhere", &session)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 204);
+    assert_eq!(cookie(&response, "pc_session").unwrap(), "pc_session=");
+
+    // The stolen laptop's token stops working at once, without waiting for the cache or GitHub's webhook.
+    let response = h.get("/index/config.json", Some(&laptop)).await;
+    assert_eq!(response.status(), 401);
+    // The old session cookie is no longer signed in.
+    let doc: Value = h
+        .api_get("/api/session", &session)
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(doc["user"], Value::Null);
+    // A colleague is unaffected.
+    assert_eq!(
+        h.get("/index/config.json", Some(&colleague)).await.status(),
+        200
+    );
+    // Signed out already: asking again needs a sign-in.
+    let response = h
+        .api_post("/auth/logout-everywhere", &session)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 401);
+}
+
+#[tokio::test]
 async fn the_session_cookie_is_sealed() {
     let h = Harness::start().await;
     let token = h.fake.add_user("alice", "ghu_", &[]);

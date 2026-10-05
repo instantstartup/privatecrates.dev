@@ -106,6 +106,11 @@ Exchanges the code, sets `pc_session`, redirects to `return_to`.
 ### `POST /auth/logout`
 Clears the cookie. `204`.
 
+### `POST /auth/logout-everywhere`
+For a lost or stolen device. Revokes the reader App's grant for the signed-in user (`DELETE
+/applications/{client_id}/grant`), which ends every token GitHub issued them for the App, on every device, refresh
+tokens included; drops their cached permissions; clears the cookie. `204`. Other users are unaffected.
+
 ### `GET /api/session`
 ```json
 {
