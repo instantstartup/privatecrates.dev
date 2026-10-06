@@ -192,6 +192,8 @@ struct World {
     faults: Vec<Fault>,
     /// The rate-limit allowance every answer reports, as `(remaining, limit)`.
     allowance: Option<(u64, u64)>,
+    /// Requests whose path contains the pattern take this long to answer, as large uploads do.
+    delays: Vec<(String, std::time::Duration)>,
 }
 
 struct Fault {
@@ -600,6 +602,11 @@ impl FakeGitHub {
                 .collect(),
             body: body.into(),
         });
+    }
+
+    /// Every request whose path contains `path_part` takes `delay` longer to answer, from now on.
+    pub fn slow_down(&self, path_part: &str, delay: std::time::Duration) {
+        self.world().delays.push((path_part.into(), delay));
     }
 
     /// Every answer from now on reports this much of the hourly allowance left, as GitHub's `x-ratelimit-*`
@@ -1317,17 +1324,24 @@ async fn record_call(
     next: axum::middleware::Next,
 ) -> Response {
     let call = format!("{} {}", request.method(), request.uri().path());
-    let (fault, allowance) = {
+    let (fault, allowance, delay) = {
         let mut w = fake.world();
         w.calls.push(call);
         let path = request.uri().path();
+        let delay = w
+            .delays
+            .iter()
+            .filter(|(part, _)| path.contains(part.as_str()))
+            .map(|(_, d)| *d)
+            .sum::<std::time::Duration>();
         let fault = w
             .faults
             .iter()
             .position(|f| path.contains(&f.path_part))
             .map(|i| w.faults.remove(i));
-        (fault, w.allowance)
+        (fault, w.allowance, delay)
     };
+    tokio::time::sleep(delay).await;
     let mut response = match fault {
         Some(fault) => {
             let mut response = (fault.status, fault.body).into_response();

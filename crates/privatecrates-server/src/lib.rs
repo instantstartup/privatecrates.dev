@@ -93,6 +93,9 @@ pub struct AppState {
     /// (storage repository ID, release tag) → signed download URL.
     pub download_urls: moka::future::Cache<(u64, String), String>,
     pub publish_limiter: PublishLimiter,
+    /// One lock per crate, by storage repository and crate name: a crate's versions publish one at a time, while
+    /// different crates publish in parallel.
+    pub crate_locks: moka::future::Cache<(u64, String), Arc<tokio::sync::Mutex<()>>>,
     pub search: search::Search,
     /// GitHub webhook deliveries already handled (SPEC §7).
     pub webhook_deliveries: moka::future::Cache<String, ()>,
@@ -134,6 +137,11 @@ impl AppState {
                 .time_to_live(routes::DOWNLOAD_URL_TTL)
                 .build(),
             publish_limiter: PublishLimiter::new(config.publish_rate_per_minute),
+            crate_locks: moka::future::Cache::builder()
+                .max_capacity(100_000)
+                // Long enough for any publish: an entry is only dropped once nobody has used it for this long.
+                .time_to_idle(Duration::from_secs(30 * 60))
+                .build(),
             search: search::Search::default(),
             webhook_deliveries: webhooks::deliveries(),
             sealer: Sealer::new(&config.session_secret),

@@ -167,7 +167,15 @@ pub async fn publish(
     }
     check_dependencies(tenant, &resolver, &publisher, meta).await?;
 
-    let _write = tenant.write_lock.lock().await;
+    // This crate's versions one at a time; other crates go ahead in parallel. Only the commits below wait for the
+    // whole registry: GitHub refuses two at once on the same branch.
+    let crate_lock = state
+        .crate_locks
+        .get_with((tenant.storage_repo_id, name.as_str().to_owned()), async {
+            Arc::default()
+        })
+        .await;
+    let _crate = crate_lock.lock().await;
     let index = current_index(state, tenant, &name).await?;
     if index
         .as_ref()
@@ -183,12 +191,17 @@ pub async fn publish(
         meta.vers,
         publisher.describe()
     );
-    if let Some(owner) = &new_owner {
-        create_owner(state, tenant, &name, owner, &message).await?;
-    }
+    // The slow part, uploading to GitHub, runs outside the registry-wide lock. A crash after it leaves a release
+    // that a retry reuses (SPEC §4.4).
     store_release(state, tenant, &name, &upload, &cksum, &publisher, &message).await?;
     let line = IndexLine::from_publish(meta, &cksum);
-    append_index(state, tenant, &name, &line, &message).await?;
+    {
+        let _write = tenant.write_lock.lock().await;
+        if let Some(owner) = &new_owner {
+            create_owner(state, tenant, &name, owner, &message).await?;
+        }
+        append_index(state, tenant, &name, &line, &message).await?;
+    }
     tracing::info!(tenant = %tenant.slug, krate = %name, version = %meta.vers, publisher = %publisher.describe(), "published");
     warnings.extend(trial_reminder(state, tenant).await);
     warnings.extend(allowance_warning(state, tenant).await);
