@@ -18,7 +18,7 @@
 	<h2 class="title">{orgs.some((o) => o.personal) ? 'Accounts' : 'Organisations'}</h2>
 	{#if preview}
 		<!-- One line for all of them, in place of a plan badge on each. -->
-		<p class="preview">Free during the private preview</p>
+		<p class="preview">Free during the preview</p>
 	{/if}
 	<ul>
 		{#each orgs as org (org.id)}

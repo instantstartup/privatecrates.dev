@@ -1,6 +1,6 @@
 //! Configuration, from the environment only (SPEC §11).
 
-use std::{collections::BTreeSet, env, net::SocketAddr, path::PathBuf, time::Duration};
+use std::{env, net::SocketAddr, path::PathBuf, time::Duration};
 
 use apollo_errors::Error;
 use miette::Diagnostic;
@@ -43,9 +43,6 @@ pub struct Config {
     /// The preview (docs/preview.md): PrivateCrates is free, and billing is off whatever Stripe configuration is
     /// present.
     pub preview: bool,
-    /// The private preview: only these organisations (lowercase GitHub logins) may have a registry. `None` lets
-    /// every organisation in (docs/preview.md §5).
-    pub invited_orgs: Option<BTreeSet<String>>,
     /// Postgres, for the terms acceptances (the only records of our own). Without it, in local development only,
     /// they are kept in memory.
     pub database_url: Option<String>,
@@ -151,9 +148,6 @@ impl Config {
             session_secret: secret("SESSION_SECRET")?,
             website_dir: optional("WEBSITE_DIR").map(PathBuf::from),
             preview,
-            // Invitation only during the preview: without INVITED_ORGS, no organisation is invited.
-            invited_orgs: preview
-                .then(|| invited(optional("INVITED_ORGS").as_deref().unwrap_or(""))),
             database_url,
             stripe,
             free_member_limit: parse_or("FREE_MEMBER_LIMIT", 5)?,
@@ -194,12 +188,6 @@ impl Config {
     }
 
     /// Whether this is the production deployment, the only one search engines may index.
-    pub fn is_invited(&self, org_login: &str) -> bool {
-        self.invited_orgs
-            .as_ref()
-            .is_none_or(|orgs| orgs.contains(&org_login.to_ascii_lowercase()))
-    }
-
     pub fn is_production(&self) -> bool {
         self.base_domain == PRODUCTION_DOMAIN
     }
@@ -244,13 +232,6 @@ fn secret(name: &'static str) -> Result<Vec<u8>, ConfigError> {
 }
 
 /// GitHub organisation logins, separated by commas or whitespace, case-insensitively.
-fn invited(list: &str) -> BTreeSet<String> {
-    list.split(|c: char| c == ',' || c.is_whitespace())
-        .filter(|login| !login.is_empty())
-        .map(str::to_ascii_lowercase)
-        .collect()
-}
-
 fn optional(name: &'static str) -> Option<String> {
     env::var(name).ok().filter(|v| !v.is_empty())
 }
@@ -325,7 +306,6 @@ pub(crate) mod tests {
             session_secret: vec![8; 32],
             website_dir: None,
             preview: false,
-            invited_orgs: None,
             database_url: None,
             stripe: None,
             free_member_limit: 5,

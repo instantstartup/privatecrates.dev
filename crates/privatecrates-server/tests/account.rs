@@ -67,8 +67,7 @@ async fn sign_in_round_trip() {
     assert_eq!(
         body,
         json!({
-            "user": null, "orgs": [], "install_url": install_url, "preview": true, "invite_only": false,
-            "invitations_requested": [], "terms": terms,
+            "user": null, "orgs": [], "install_url": install_url, "preview": true, "terms": terms,
         })
     );
 
@@ -369,10 +368,7 @@ async fn onboarding_checklist() {
             ("plan".into(), "done".into()),
         ]
     );
-    assert_eq!(
-        doc["steps"][4]["detail"],
-        "Free during the private preview."
-    );
+    assert_eq!(doc["steps"][4]["detail"], "Free during the preview.");
     assert_eq!(
         doc["terms"],
         json!({ "version": TERMS_VERSION, "url": h.apex("/legal/terms"), "accepted": false })
@@ -818,7 +814,7 @@ async fn settings_need_the_terms_accepted() {
     assert_eq!(
         accepted.statement,
         format!(
-            "I have read and accept the PrivateCrates private preview terms ({TERMS_VERSION}) on behalf of globex"
+            "I have read and accept the PrivateCrates preview terms ({TERMS_VERSION}) on behalf of globex"
         )
     );
     assert!(accepted.accepted_at >= before);
@@ -946,179 +942,4 @@ async fn the_verifier_is_recommended_until_it_is_added() {
     );
     h.refresh().await;
     assert_eq!(verifier().await["installed"], true);
-}
-
-/// During the private preview only invited organisations get a registry: they cannot create one, and one set up by
-/// hand (the organisation owns its storage repository) is not served.
-#[tokio::test]
-async fn the_private_preview_is_by_invitation() {
-    let h = Harness::start_with(common::Options {
-        invited_orgs: Some(&["ACME", "initech"]),
-        ..Default::default()
-    })
-    .await;
-    let globex = h.fake.add_org_without_apps("globex");
-    h.fake.install_app(&globex, READER_APP_ID);
-    h.fake.install_app(&globex, STORAGE_APP_ID);
-    let token = h.fake.add_user("alice", "ghu_", &[]);
-    h.fake.add_member(&token, &globex, "admin");
-    h.fake.add_member(&token, &h.org, "admin");
-    let session = h.sign_in(&token).await;
-
-    let doc: Value = h
-        .api_get("/api/session", &session)
-        .await
-        .json()
-        .await
-        .unwrap();
-    let invited: Vec<(String, bool)> = doc["orgs"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|o| {
-            (
-                o["login"].as_str().unwrap().to_owned(),
-                o["invited"].as_bool().unwrap(),
-            )
-        })
-        .collect();
-    assert_eq!(invited, [("acme".into(), true), ("globex".into(), false)]);
-
-    let onboarding: Value = h
-        .api_get("/api/orgs/globex/onboarding", &session)
-        .await
-        .json()
-        .await
-        .unwrap();
-    assert_eq!(onboarding["invited"], false);
-    for step in onboarding["steps"].as_array().unwrap() {
-        if step["status"] != "done" {
-            assert_eq!(step["status"], "blocked", "{step}");
-            let detail = step["detail"].as_str().unwrap();
-            assert!(detail.contains(&h.apex("/account")), "{detail}");
-        }
-    }
-
-    let response = h
-        .api_post("/api/orgs/globex/settings", &session)
-        .body(json!({ "slug": "globex", "accept_terms": TERMS_VERSION }).to_string())
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(response.status(), 403);
-    assert_eq!(error_code(response).await, "account::not_invited");
-    assert!(
-        h.fake
-            .file(globex.storage_repo, "privatecrates.toml")
-            .is_none()
-    );
-
-    // So they ask for an invitation, for this organisation or one GitHub does not show us yet.
-    let ask = |org: &str, body: Value| {
-        h.api_post(&format!("/api/orgs/{org}/invitation"), &session)
-            .body(body.to_string())
-            .send()
-    };
-    for (org, body, status, code) in [
-        (
-            "globex",
-            json!({ "email": "not an email" }),
-            400,
-            "account::invitation_invalid",
-        ),
-        (
-            "globex",
-            json!({ "note": "no email" }),
-            400,
-            "account::invitation_invalid",
-        ),
-        (
-            "globex",
-            json!({ "email": "a@globex.example", "note": "x".repeat(2001) }),
-            400,
-            "account::invitation_invalid",
-        ),
-        (
-            "glo.bex",
-            json!({ "email": "a@globex.example" }),
-            400,
-            "account::invitation_invalid",
-        ),
-        (
-            "Acme",
-            json!({ "email": "a@acme.example" }),
-            409,
-            "account::already_invited",
-        ),
-    ] {
-        let response = ask(org, body).await.unwrap();
-        assert_eq!(response.status(), status, "{org}");
-        assert_eq!(error_code(response).await, code, "{org}");
-    }
-    for org in ["globex", "Hooli", "globex"] {
-        let response = ask(
-            org,
-            json!({ "email": " alice@globex.example ", "note": "12 people" }),
-        )
-        .await
-        .unwrap();
-        assert_eq!(response.status(), 200, "{org}");
-    }
-    let doc: Value = h
-        .api_get("/api/session", &session)
-        .await
-        .json()
-        .await
-        .unwrap();
-    assert_eq!(doc["invite_only"], true);
-    assert_eq!(doc["invitations_requested"], json!(["globex", "hooli"]));
-    // Up to ten organisations each; asking again about one of them still updates it.
-    let body = json!({ "email": "alice@globex.example" });
-    for n in 0..8 {
-        let response = ask(&format!("org-{n}"), body.clone()).await.unwrap();
-        assert_eq!(response.status(), 200, "org-{n}");
-    }
-    let response = ask("one-too-many", body.clone()).await.unwrap();
-    assert_eq!(response.status(), 400);
-    assert_eq!(error_code(response).await, "account::invitation_invalid");
-    let response = ask("globex", body).await.unwrap();
-    assert_eq!(response.status(), 200);
-    let signed_out = h
-        .client
-        .post(h.apex("/api/orgs/globex/invitation"))
-        .header("Origin", h.apex(""))
-        .header("Content-Type", "application/json")
-        .body(json!({ "email": "x@y.example" }).to_string())
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(signed_out.status(), 401);
-
-    // Set up by hand: the registry is not served, and looks like any name without one.
-    let rogue = h.fake.add_org("rogue", "rogue");
-    let repo = h.fake.add_repo(&rogue, "tools");
-    let member = h.fake.add_user("rita", "ghu_", &[(repo, false)]);
-    h.state.discover().await.unwrap();
-    let response = h
-        .client
-        .get(format!(
-            "http://rogue.localhost:{}/index/config.json",
-            h.port
-        ))
-        .header("Authorization", &member)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(response.status(), 403);
-    assert_eq!(error_code(response).await, "auth::no_access");
-
-    // Invited organisations are unaffected, whatever the case of their login in INVITED_ORGS.
-    let acme_repo = h.repo("story-engine");
-    let acme_member = h.fake.add_user("amy", "ghu_", &[(acme_repo, false)]);
-    assert_eq!(
-        h.get("/index/config.json", Some(&acme_member))
-            .await
-            .status(),
-        200
-    );
 }

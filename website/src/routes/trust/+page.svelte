@@ -49,7 +49,7 @@
 
 <Seo
 	title="Trust centre"
-	description="What PrivateCrates holds (records of who accepted the terms, and requests to join the private preview), where it runs, who else touches your data, our security controls, certifications, incident response and vulnerability disclosure."
+	description="What PrivateCrates holds (records of who accepted the terms), where it runs, who else touches your data, our security controls, certifications, incident response and vulnerability disclosure."
 	path="/trust"
 />
 
@@ -60,7 +60,7 @@
 			<p class="lede">
 				What we hold, who else touches it, and how you can check us. The short answer: your crates live in
 				your own GitHub organisation. We store only a record of who accepted our terms, and requests to join
-				the private preview.
+				the preview.
 			</p>
 		</div>
 		<Lighthouse class="hero-art" />
@@ -103,8 +103,8 @@
 			<p>
 				PrivateCrates runs the Cargo registry protocol in front of a repository your organisation owns. The
 				index and every crate file are stored there, by GitHub, as commits and immutable releases. The service
-				itself keeps two kinds of record, terms acceptances and invitation requests; everything else it knows
-				is on GitHub, or can be rebuilt from it.
+				itself keeps one kind of record, terms acceptances, and the last of the invitation requests from when
+				the preview was by invitation; everything else it knows is on GitHub, or can be rebuilt from it.
 			</p>
 			<h3>Stored: terms acceptances</h3>
 			<p>
@@ -120,10 +120,10 @@
 			</p>
 			<h3>Stored: invitation requests</h3>
 			<p>
-				When someone asks to join the private preview, we record their GitHub ID and login, the organisation
-				they named, the email address they gave and their note, in the same database. We use them only to
-				decide on the invitation and to reply, and delete them once we have replied, or at the latest after 12
-				months.
+				Until 6 October 2026 the preview was by invitation, and people who asked to join gave their GitHub ID
+				and login, the organisation they named, an email address and a note, kept in the same database. We use
+				them only to tell those people the preview is open, then delete them; at the latest, each is deleted
+				12 months after it was made. We no longer collect them.
 			</p>
 			<h3>Passes through, not kept</h3>
 			<ul>
@@ -194,8 +194,8 @@
 						<tr>
 							<th scope="row">Billing</th>
 							<td>
-								Stripe, from general availability. Billing is off during the private preview, so Stripe is
-								listed but not yet used. Card details will be entered on Stripe’s pages and never reach us.
+								Stripe, from general availability. Billing is off during the preview, so Stripe is listed but
+								not yet used. Card details will be entered on Stripe’s pages and never reach us.
 							</td>
 						</tr>
 						<tr>
@@ -382,13 +382,13 @@
 					<strong>Communication:</strong> incidents are posted on
 					<a href={STATUS_URL}>status.privatecrates.dev</a>, with an Atom feed to subscribe to. When GitHub is
 					the cause, the page says so and links GitHub’s incident. For a security incident affecting your
-					organisation, we will also email its billing address once billing is on; during the private preview
-					there is none, so the status page is where we say it.
+					organisation, we will also email its billing address once billing is on; during the preview there is
+					none, so the status page is where we say it.
 				</li>
 				<li>
 					<strong>Target times:</strong>
-					none are committed during the private preview. Time to first status update and a 72-hour breach notification
-					deadline are on the <a href="#roadmap">roadmap</a>.
+					none are committed during the preview. Time to first status update and a 72-hour breach notification deadline
+					are on the <a href="#roadmap">roadmap</a>.
 				</li>
 				<li>
 					<strong>Limiting the damage:</strong> the only durable data is the terms acceptance record, which holds
@@ -409,15 +409,15 @@
 			<ul class="documents">
 				<li>
 					<a href="/legal/dpa">Data processing agreement</a>: a template, in draft for legal review, not yet
-					in force during the private preview.
+					in force during the preview.
 				</li>
 				<li><a href="#subprocessors">Subprocessor list</a>, above.</li>
 				<li><a href="/security">Vulnerability disclosure policy</a>.</li>
 				<li><a href="/docs/security">Security model</a>, with the threat table.</li>
-				<li><a href={TERMS_PATH}>Private preview terms</a>, in force during the private preview.</li>
+				<li><a href={TERMS_PATH}>Preview terms</a>, in force during the preview.</li>
 				<li>
 					<a href="/legal/privacy">Privacy notice</a>, in force. The data processing agreement above: a draft,
-					not yet in force during the private preview.
+					not yet in force during the preview.
 				</li>
 				<li>
 					Licences: MIT or Apache-2.0 for the client tools and the verifier; Business Source License 1.1 for

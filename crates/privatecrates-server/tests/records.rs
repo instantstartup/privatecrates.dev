@@ -3,7 +3,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use privatecrates_server::records::{Acceptance, InvitationRequest, Postgres, Records, Via};
+use privatecrates_server::records::{Acceptance, Postgres, Records, Via};
 
 fn database() -> Postgres {
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL is set for these tests");
@@ -99,34 +99,5 @@ async fn the_first_acceptance_is_kept() {
             .unwrap()
             .via,
         "cli"
-    );
-}
-
-#[tokio::test]
-#[ignore = "needs DATABASE_URL"]
-async fn asking_again_replaces_an_invitation_request() {
-    let db = database();
-    db.migrate().await.unwrap();
-    let user_id = fresh_org_id();
-    let request = |org: &str, email: &str| InvitationRequest {
-        org_login: org.into(),
-        user_id,
-        user_login: "alice".into(),
-        email: email.into(),
-        note: String::new(),
-    };
-    assert!(db.invitations_requested(user_id).await.unwrap().is_empty());
-    db.request_invitation(&request("globex", "a@globex.example"))
-        .await
-        .unwrap();
-    db.request_invitation(&request("globex", "alice@globex.example"))
-        .await
-        .unwrap();
-    db.request_invitation(&request("hooli", "a@hooli.example"))
-        .await
-        .unwrap();
-    assert_eq!(
-        db.invitations_requested(user_id).await.unwrap(),
-        ["globex", "hooli"]
     );
 }

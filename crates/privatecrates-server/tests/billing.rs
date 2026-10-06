@@ -866,7 +866,7 @@ async fn the_preview_is_free_and_never_calls_stripe() {
     assert_eq!(org["tenant"]["status"], Value::Null);
     let step = plan_step(&h, &session).await;
     assert_eq!(step["status"], "done");
-    assert_eq!(step["detail"], "Free during the private preview.");
+    assert_eq!(step["detail"], "Free during the preview.");
 
     for action in ["trial", "checkout", "portal", "billing-email"] {
         let response = post(&h, &session, action).await;

@@ -8,9 +8,9 @@
 	// The ids are stable: the account page and agents link to them.
 	const toc: TocItem[] = [
 		['operator', '1. Who runs PrivateCrates'],
-		['invitation', '2. By invitation only'],
+		['who', '2. Who can use it'],
 		['accepting', '3. Accepting these terms'],
-		['free', '4. Free during the private preview'],
+		['free', '4. Free during the preview'],
 		['your-data', '5. Your data'],
 		['acceptable-use', '6. Acceptable use'],
 		['as-is', '7. As is: no warranty or guarantee'],
@@ -27,15 +27,15 @@
 </script>
 
 <Seo
-	title="Private preview terms"
-	description="The terms for the PrivateCrates private preview: by invitation only, free, provided as is with no warranty or guarantee, and at your own risk, run by an individual until a company is formed."
+	title="Preview terms"
+	description="The terms for the PrivateCrates preview: open to any GitHub organisation, free, provided as is with no warranty or guarantee, and at your own risk, run by an individual until a company takes over."
 	path="/legal/terms"
 />
 
 <div class="page">
 	<div class="legal">
 		<header class="prose intro">
-			<h1>Private preview terms</h1>
+			<h1>Preview terms</h1>
 			<dl class="meta">
 				<div>
 					<dt>Version</dt>
@@ -51,9 +51,9 @@
 				</div>
 			</dl>
 			<p class="lede">
-				PrivateCrates is in private preview, open only to organisations we invite. These terms apply to every
-				organisation that uses it until general availability. They are short on purpose; the summary below is
-				part of them.
+				PrivateCrates is in preview, open to any GitHub organisation or personal account. These terms apply to
+				every organisation that uses it until general availability. They are short on purpose; the summary
+				below is part of them.
 			</p>
 		</header>
 
@@ -61,10 +61,10 @@
 			<h2 id="summary-title">In short</h2>
 			<ul>
 				<li>
-					<strong>By invitation only.</strong> An invitation can be withdrawn at any time, and gives no right to
-					the service.
+					<strong>Open to everyone, at our discretion.</strong> Using the preview gives no right to the service:
+					we may refuse or end any organisation’s use.
 				</li>
-				<li><strong>Free.</strong> No payments are taken during the private preview.</li>
+				<li><strong>Free.</strong> No payments are taken during the preview.</li>
 				<li>
 					<strong>As is, at your own risk.</strong> No warranty or guarantee of any kind, no uptime or support commitment,
 					and no liability beyond what the law does not let us exclude.
@@ -96,16 +96,15 @@
 					“You” means the GitHub organisation that uses PrivateCrates, and the people who use its registry.
 				</p>
 
-				<h2 id="invitation">2. By invitation only</h2>
+				<h2 id="who">2. Who can use it</h2>
 				<p>
-					During the private preview, a registry can be created only for a GitHub organisation we have
-					invited. To ask for an invitation, sign in on the <a href="/account">account page</a>, or email
-					<a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>. We invite organisations at our discretion and
-					may decline without giving a reason.
+					During the preview, an admin of any GitHub organisation, or anyone for their personal GitHub
+					account, may set up a registry on the <a href="/account">account page</a>.
 				</p>
 				<p>
-					An invitation is permission to try the service, not a promise to provide it. We may withdraw it at
-					any time, which ends your organisation’s use of the service (section 11).
+					Using the preview is permission to try the service, not a promise to provide it. We may refuse a
+					registry, or end an organisation’s use of the service, at our discretion and without giving a reason
+					(section 11).
 				</p>
 
 				<h2 id="accepting">3. Accepting these terms</h2>
@@ -126,10 +125,10 @@
 					must never accept on their behalf.
 				</p>
 
-				<h2 id="free">4. Free during the private preview</h2>
+				<h2 id="free">4. Free during the preview</h2>
 				<p>
-					The private preview costs nothing. We take no payments and ask for no card, whatever the size of
-					your organisation.
+					The preview costs nothing. We take no payments and ask for no card, whatever the size of your
+					organisation.
 				</p>
 				<p>
 					The <a href="/pricing">pricing page</a> shows what we plan to charge from general availability,
@@ -195,8 +194,8 @@
 				<p>
 					You are responsible for deciding whether PrivateCrates is suitable for you, for checking what you
 					build and publish with it, and for your own safeguards: run the open-source
-					<a href="/docs/verify">verifier</a> on your storage repository, and do not rely on the private preview
-					for anything you could not cope with losing access to, or with being exposed.
+					<a href="/docs/verify">verifier</a> on your storage repository, and do not rely on the preview for anything
+					you could not cope with losing access to, or with being exposed.
 				</p>
 
 				<h2 id="availability">8. Availability and support</h2>
@@ -246,8 +245,8 @@
 
 				<h2 id="changes">11. Changes, suspension and the end of the service</h2>
 				<p>
-					The private preview may change as we build towards general availability: features may be added,
-					changed or removed. We may also end the private preview, withdraw an invitation, or end the service
+					The preview may change as we build towards general availability: features may be added, changed or
+					removed. We may also end the preview, end an organisation’s use of it, or end the service
 					altogether. Where we can, we give notice first, on this site and on the status page; an emergency,
 					such as a security problem or GitHub withdrawing access, may not allow it.
 				</p>
@@ -275,7 +274,7 @@
 				<p>
 					The <a href="/legal/privacy">privacy notice</a> explains how we handle personal data. The
 					<a href="/legal/dpa">data processing agreement</a> is a draft, and is
-					<strong>not yet in force during the private preview</strong>. How the service handles data today is
+					<strong>not yet in force during the preview</strong>. How the service handles data today is
 					described, factually, on the <a href="/trust">trust centre</a>. Both documents will be reviewed by a
 					lawyer before general availability.
 				</p>

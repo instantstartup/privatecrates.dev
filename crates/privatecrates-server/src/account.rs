@@ -31,7 +31,7 @@ use crate::{
     github::{
         Account, AppKind, Conditional, FileWrite, GitHubError, Membership, Organization, Repo, User,
     },
-    records::{self, Acceptance, InvitationRequest, Via},
+    records::{self, Acceptance, Via},
     session::{self, Session, clear_session_cookie},
     tenant::{SETTINGS_PATH, Tenant, is_reserved, slug_is_valid},
 };
@@ -46,7 +46,6 @@ pub fn routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/orgs/{org}/onboarding", get(onboarding))
         .route("/api/orgs/{org}/settings", post(settings))
         .route("/api/orgs/{org}/terms", post(terms))
-        .route("/api/orgs/{org}/invitation", post(request_invitation))
         .route("/api/orgs/{org}/trial", post(trial))
         .route("/api/orgs/{org}/billing-email", post(set_billing_email))
         .route("/api/orgs/{org}/checkout", post(checkout))
@@ -115,7 +114,6 @@ fn org_json(
         "trial_available": plan.trial_available,
         "tenant": tenant_json(state, org.id, plan),
         "terms_accepted": terms_accepted,
-        "invited": state.config.is_invited(&org.login),
         "personal": membership.personal,
     })
 }
@@ -145,7 +143,7 @@ async fn session_info(
     let terms = terms_json(&state);
     let signed_out = Json(json!({
         "user": null, "orgs": [], "install_url": install_url, "preview": preview,
-        "invite_only": state.config.invited_orgs.is_some(), "invitations_requested": [], "terms": terms,
+        "terms": terms,
     }));
     let Some(session) = Session::from_headers(&state, &headers)? else {
         return Ok(signed_out.into_response());
@@ -203,27 +201,11 @@ async fn session_info(
         );
         orgs.insert(0, (user.login.clone(), account));
     }
-    // Organisations this person has asked an invitation for; not worth failing the page over.
-    let invitations_requested = if state.config.invited_orgs.is_some() {
-        state
-            .terms
-            .records()
-            .invitations_requested(user.id)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "looking up invitation requests failed");
-                Vec::new()
-            })
-    } else {
-        Vec::new()
-    };
     Ok(Json(json!({
         "user": { "login": user.login, "avatar_url": user.avatar_url, "name": user.name },
         "orgs": orgs.into_iter().map(|(_, org)| org).collect::<Vec<_>>(),
         "install_url": install_url,
         "preview": preview,
-        "invite_only": state.config.invited_orgs.is_some(),
-        "invitations_requested": invitations_requested,
         "terms": terms,
     }))
     .into_response())
@@ -458,21 +440,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
         settings,
         plan_step(state, &plan, membership.personal),
     ];
-    let invited = config.is_invited(&org.login);
-    if !invited {
-        let ask = format!(
-            "PrivateCrates is in private preview, by invitation only. Ask for an invitation for {} at {}.",
-            org.login,
-            config.account_url()
-        );
-        steps = steps
-            .into_iter()
-            .map(|step| match step.status {
-                Status::Done => step,
-                _ => step.blocked(ask.clone()),
-            })
-            .collect();
-    } else if !membership.is_admin() {
+    if !membership.is_admin() {
         let ask = format!("Only admins of {} can do this; ask one of them.", org.login);
         steps = steps
             .into_iter()
@@ -491,7 +459,6 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
     Ok(json!({
         "org": { "id": org.id, "login": org.login },
         "personal": membership.personal,
-        "invited": invited,
         "steps": steps,
         "suggested_slug": suggested_slug(state, org, tenant.as_deref()),
         "terms": terms,
@@ -536,7 +503,7 @@ fn plan_step(state: &AppState, plan: &OrgPlan, personal: bool) -> Step {
     };
     let (done, detail) = match plan.plan {
         Plan::Free if personal => (true, "Personal accounts are always free.".to_owned()),
-        Plan::Free if billing.preview() => (true, "Free during the private preview.".to_owned()),
+        Plan::Free if billing.preview() => (true, "Free during the preview.".to_owned()),
         Plan::Free => (
             true,
             match plan.members {
@@ -715,12 +682,6 @@ async fn settings(
 ) -> Result<Json<Value>, ApiError> {
     let membership = admin(&state, &session, &org).await?;
     let org = &membership.organization;
-    if !state.config.is_invited(&org.login) {
-        return Err(ApiError::NotInvited {
-            org: org.login.clone(),
-            account_url: state.config.account_url(),
-        });
-    }
     let request =
         serde_json::from_slice::<SettingsRequest>(&body).map_err(|_| ApiError::SlugInvalid)?;
     let slug = request.slug;
@@ -821,73 +782,6 @@ fn is_github_login(login: &str) -> bool {
         && login
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'-')
-}
-
-#[derive(Deserialize)]
-struct InvitationBody {
-    email: String,
-    #[serde(default)]
-    note: String,
-}
-
-const NOTE_LIMIT: usize = 2000;
-/// How many organisations one person may ask about: enough for anyone, too few to fill the table.
-const INVITATION_LIMIT: usize = 10;
-
-/// `POST /api/orgs/{org}/invitation`: asks to join the private preview (docs/preview.md §5). Anyone signed in may
-/// ask for any organisation: GitHub does not show us an organisation that has not installed our App, so we check
-/// before inviting, not here.
-async fn request_invitation(
-    State(state): State<Arc<AppState>>,
-    session: Session,
-    Path(org): Path<String>,
-    body: Bytes,
-) -> Result<Json<Value>, ApiError> {
-    let invalid = |reason: &str| ApiError::InvitationInvalid {
-        reason: reason.to_owned(),
-    };
-    if !is_github_login(&org) {
-        return Err(invalid("that is not a GitHub organisation name"));
-    }
-    if state.config.is_invited(&org) {
-        return Err(ApiError::AlreadyInvited { org });
-    }
-    let body = serde_json::from_slice::<InvitationBody>(&body)
-        .map_err(|_| invalid("send an email address, and optionally a note"))?;
-    let email = body.email.trim();
-    let valid_email = email.len() <= 254
-        && !email.chars().any(char::is_whitespace)
-        && email
-            .split_once('@')
-            .is_some_and(|(local, domain)| !local.is_empty() && domain.contains('.'));
-    if !valid_email {
-        return Err(invalid("that is not an email address"));
-    }
-    let note = body.note.trim();
-    if note.chars().count() > NOTE_LIMIT {
-        return Err(invalid(
-            "the note is too long; keep it under 2,000 characters",
-        ));
-    }
-    let user = state.gh.user(&session.token).await?;
-    let org = org.to_ascii_lowercase();
-    let records = state.terms.records();
-    let asked = records.invitations_requested(user.id).await?;
-    if asked.len() >= INVITATION_LIMIT && !asked.contains(&org) {
-        return Err(invalid(
-            "you have asked for 10 organisations already; we will reply to those first",
-        ));
-    }
-    let request = InvitationRequest {
-        org_login: org,
-        user_id: user.id,
-        user_login: user.login,
-        email: email.to_owned(),
-        note: note.to_owned(),
-    };
-    records.request_invitation(&request).await?;
-    tracing::info!(org = %request.org_login, by = %request.user_login, "invitation requested");
-    Ok(Json(json!({ "requested": true, "org": request.org_login })))
 }
 
 /// Billing is off during the preview: there is nothing to pay.

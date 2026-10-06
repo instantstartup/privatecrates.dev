@@ -44,8 +44,6 @@ export interface Org {
 	 * Absent from servers older than the terms: then nothing is asked.
 	 */
 	terms_accepted?: boolean;
-	/** The private preview: whether this organisation is invited. Absent (true) when anyone may join. */
-	invited?: boolean;
 	/** The user's own GitHub account rather than an organisation: they alone administer it, and it is always free. */
 	personal?: boolean;
 	tenant: Tenant | null;
@@ -53,7 +51,7 @@ export interface Org {
 
 /** The terms an admin accepts before a registry is created (docs/preview.md §2). */
 export interface Terms {
-	/** e.g. `private-preview-2026-09-28-2`: sent back as `accept_terms`. */
+	/** e.g. `preview-2026-10-06`: sent back as `accept_terms`. */
 	version: string;
 	url: string;
 }
@@ -77,10 +75,6 @@ export interface Session {
 	preview?: boolean;
 	/** The current terms; absent from servers older than the terms. */
 	terms?: Terms;
-	/** The private preview: only invited organisations can create a registry (docs/preview.md §5). */
-	invite_only?: boolean;
-	/** Organisations (lowercase logins) this person has asked an invitation for. */
-	invitations_requested?: string[];
 }
 
 export type StepStatus = 'done' | 'todo' | 'blocked';
@@ -95,8 +89,6 @@ export interface Step {
 
 export interface Onboarding {
 	org: { id: number; login: string };
-	/** The private preview: whether this organisation is invited. */
-	invited?: boolean;
 	/** A personal account rather than an organisation. */
 	personal?: boolean;
 	steps: Step[];
@@ -289,12 +281,6 @@ export const api = {
 			allow_manual_publish: allowManualPublish,
 			...(acceptTerms ? { accept_terms: acceptTerms } : {})
 		}),
-	/**
-	 * Asks for an invitation to the private preview for an organisation, which need not have installed anything.
-	 * Asking again replaces the earlier request.
-	 */
-	requestInvitation: (login: string, email: string, note: string) =>
-		request<{ requested: true; org: string }>('POST', `${org(login)}/invitation`, { email, note }),
 	/** Accepts the current terms for an existing registry (admin only); returns nothing the page needs. */
 	acceptTerms: (login: string, version: string) =>
 		request<unknown>('POST', `${org(login)}/terms`, { accept_terms: version }),

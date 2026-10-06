@@ -38,7 +38,7 @@
 
 <Callout
 	tone="warn"
-	title={admin ? `Accept the private preview terms for ${org}` : 'The preview terms are waiting for an admin'}
+	title={admin ? `Accept the preview terms for ${org}` : 'The preview terms are waiting for an admin'}
 >
 	{#if admin}
 		<p>
@@ -62,7 +62,7 @@
 					disabled={saving || !accepted}
 					aria-describedby={accepted ? undefined : `terms-wait-${org}`}
 				>
-					{saving ? 'Accepting the private preview terms…' : 'Accept the private preview terms'}
+					{saving ? 'Accepting the preview terms…' : 'Accept the preview terms'}
 				</button>
 				<p class="wait" id="terms-wait-{org}" aria-live="polite">
 					{accepted ? '' : 'Tick the box above first.'}
@@ -71,8 +71,8 @@
 		</form>
 	{:else}
 		<p>
-			An admin of {org} needs to accept the <a href={terms.url}>private preview terms</a>. The registry keeps
-			working in the meantime.
+			An admin of {org} needs to accept the <a href={terms.url}>preview terms</a>. The registry keeps working
+			in the meantime.
 		</p>
 	{/if}
 </Callout>

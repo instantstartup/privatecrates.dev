@@ -76,7 +76,7 @@
 		},
 		settingsWithTerms: {
 			title: 'Choose your registry name and accept the terms',
-			body: 'The name is saved as privatecrates.toml in your storage repository, so later changes are a pull request. An admin accepts the private preview terms on behalf of the organisation at the same time.'
+			body: 'The name is saved as privatecrates.toml in your storage repository, so later changes are a pull request. An admin accepts the preview terms on behalf of the organisation at the same time.'
 		},
 		plan: {
 			title: 'Choose a plan',
@@ -105,8 +105,8 @@
 			};
 		if (preview)
 			return {
-				title: 'Plan: free during the private preview',
-				// The server's detail says "Free during the private preview.", which the title already does.
+				title: 'Plan: free during the preview',
+				// The server's detail says "Free during the preview.", which the title already does.
 				body: 'Nothing to choose: billing is off until general availability.'
 			};
 		const plan = planOf(org);
@@ -343,7 +343,7 @@
 				Or hand the rest to Claude Code or another coding agent. This prompt is filled in for
 				<strong>{doc.org.login}</strong>. The agent works with your own <code>gh</code> login, and stops to
 				give you a link when GitHub needs you: to approve its sign-in, and to install each App.{terms
-					? ' It also shows you the private preview terms and waits for you to accept them: it never accepts for you.'
+					? ' It also shows you the preview terms and waits for you to accept them: it never accepts for you.'
 					: ''}
 			</p>
 			<p><a href="/docs/agents">What the agent does, step by step</a></p>

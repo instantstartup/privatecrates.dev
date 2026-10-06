@@ -8,8 +8,8 @@ Decided 27 September 2026. There is no legal entity yet, so PrivateCrates runs a
 - It is provided **as is, at the user's own risk**: no warranty, no service commitment, no liability beyond what law
   forbids excluding, and it may change or stop.
 - An organisation admin must **accept the preview terms** before a registry is created for their organisation.
-- It is a **private preview**, by invitation only (§5), decided 28 September 2026: while the service is run by an
-  individual, only organisations we have chosen are exposed to it.
+- It is **open to any GitHub organisation or personal account** since 6 October 2026. From 28 September it was a
+  private preview by invitation only (§5).
 
 ## 1. Preview mode (server)
 
@@ -84,37 +84,22 @@ contents stay in the customer's organisation.
 
 The trust centre shows this roadmap publicly, with "2027, subject to demand".
 
-## 5. Private preview: invitations
+## 5. The invitations, 28 September to 6 October 2026
 
-While `PREVIEW=true`, only organisations listed in `INVITED_ORGS` (GitHub logins, separated by commas or spaces,
-case-insensitive) have a registry. Unset means none. With `PREVIEW=false` every organisation may join.
+The preview was by invitation while the service was run by an individual. It opened to everyone on 6 October 2026,
+when the company was being formed: `INVITED_ORGS`, the request form and `POST /api/orgs/{org}/invitation` are gone.
 
-- **Creating a registry** for an organisation not listed is refused with `403 account::not_invited`, and its
-  onboarding checklist shows every remaining step as `blocked`, pointing at the account page.
-- **Serving:** a registry of an organisation not listed is served as a name with no registry (SPEC §6.7), even if
-  the organisation wrote `privatecrates.toml` in its storage repository itself. Removing an organisation from the
-  list stops its registry at the next deployment; its storage repository is untouched.
-- **Asking:** anyone signed in can ask for any organisation: `POST /api/orgs/{org}/invitation` `{"email": "…",
-  "note": "…"}` (the note is optional, at most 2,000 characters). GitHub shows us no organisation that has not
-  installed our App, so the organisation is not verified; we check before inviting. One request per person and
-  organisation; asking again replaces it. The account page offers the form for an organisation that is listed but
-  not invited, and for any other organisation.
-- **Stored** in Postgres, table `invitation_requests`: organisation (as typed, lowercased), GitHub user ID and
-  login, email, note, time. Personal data: the privacy notice and the trust centre describe it. Delete a request
-  once you have replied, and within 12 months at the latest.
-- **The session** gains `invite_only` and `invitations_requested` (the organisations this person asked for); each
-  organisation, and the onboarding document, gains `invited`.
-
-Reading and handling requests:
+The requests people made are still in Postgres, table `invitation_requests` (organisation, GitHub user ID and login,
+email, note, time). They are personal data, kept only to tell those people the preview is open. The server deletes
+any older than 12 months at start-up. To read them, and to delete them once everyone has been told:
 
 ```sh
 railway connect Postgres        # with the project linked to the environment
 ```
 ```sql
 select requested_at, org_login, user_login, email, note from invitation_requests order by requested_at;
--- after replying:
-delete from invitation_requests where org_login = 'acme';
+-- once everyone has been told:
+delete from invitation_requests;
 ```
 
-To invite an organisation, add it to `INVITED_ORGS` (`railway variable set -e production -s privatecrates
-INVITED_ORGS="uxlint-net acme"`); Railway redeploys. Then reply to the email address in the request.
+After that, a migration drops the table.

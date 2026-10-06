@@ -4,10 +4,10 @@
 
 <!-- Prerendered into every page at a fixed height, so it never pushes the page down after load. -->
 {#if PREVIEW}
-	<aside class="preview-notice" aria-label="Private preview notice">
+	<aside class="preview-notice" aria-label="Preview notice">
 		<p class="page line">
-			<strong class="tag">Private preview</strong>
-			<span>By invitation only. Free, as is, with no warranty: use at your own risk.</span>
+			<strong class="tag">Preview</strong>
+			<span>Free, as is, with no warranty: use at your own risk.</span>
 			<a href={TERMS_PATH}>Read the terms</a>
 		</p>
 	</aside>

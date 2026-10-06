@@ -38,7 +38,7 @@ export const subprocessors: Subprocessor[] = [
 	{
 		name: 'Stripe',
 		purpose:
-			'Subscriptions, invoices, card payments and the trial-ending reminder email, from general availability. Billing is off during the private preview, so Stripe receives nothing yet.',
+			'Subscriptions, invoices, card payments and the trial-ending reminder email, from general availability. Billing is off during the preview, so Stripe receives nothing yet.',
 		data: 'The organisation’s GitHub name and ID, the billing email you give us, and card details (entered on Stripe; we never see them).',
 		location: 'United States and elsewhere, under Stripe’s terms',
 		url: 'https://stripe.com/privacy'

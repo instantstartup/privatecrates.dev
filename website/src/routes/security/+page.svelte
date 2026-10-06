@@ -96,9 +96,9 @@
 				authorised.
 			</p>
 			<p>
-				During the private preview this commitment is given by the operator named in the
-				<a href="/legal/terms">private preview terms</a>. It will be reviewed by a lawyer, and given by the
-				company that runs PrivateCrates, before general availability.
+				During the preview this commitment is given by the operator named in the
+				<a href="/legal/terms">preview terms</a>. It will be reviewed by a lawyer, and given by the company
+				that runs PrivateCrates, before general availability.
 			</p>
 
 			<h2 id="report">What to include</h2>
@@ -126,8 +126,8 @@
 				<li>
 					<strong>Fix:</strong>
 					critical problems (tokens, crates or another organisation’s data exposed, or publishing without permission)
-					within 7 days; others as soon as practical, on a best-effort basis during the private preview. We tell
-					you when the fix is deployed, and post on the status page if customers need to act.
+					within 7 days; others as soon as practical, on a best-effort basis during the preview. We tell you when
+					the fix is deployed, and post on the status page if customers need to act.
 				</li>
 				<li>
 					<strong>Credit:</strong> with your permission, we thank you by name in the release notes of the fix. We

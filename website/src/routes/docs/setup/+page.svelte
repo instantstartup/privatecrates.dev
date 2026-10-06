@@ -42,12 +42,6 @@
 	A personal GitHub account can have a registry too: it appears on the account page once the reader App is
 	installed on it, you are its only admin, and it is always free.
 </p>
-{#if PREVIEW}
-	<p>
-		PrivateCrates is in private preview: only organisations we have invited can set up a registry. If yours is
-		not invited yet, the account page offers a short form to ask; we reply by email.
-	</p>
-{/if}
 <ol>
 	<li>
 		<strong>Install the reader App</strong> on all repositories, or on those that own crates. It can read repository
@@ -67,12 +61,11 @@
 	<li>
 		<strong>Choose your registry name.</strong> It becomes your hostname,
 		<code>your-name.privatecrates.dev</code>, and is saved as <code>privatecrates.toml</code> in the storage
-		repository. In the same step you accept the <a href={TERMS_PATH}>private preview terms</a> on behalf of your
-		organisation.
+		repository. In the same step you accept the <a href={TERMS_PATH}>preview terms</a> on behalf of your organisation.
 	</li>
 	<li>
 		{#if PREVIEW}
-			<strong>Plan.</strong> Nothing to choose: every organisation is free during the private preview. See
+			<strong>Plan.</strong> Nothing to choose: every organisation is free during the preview. See
 			<a href="/pricing">pricing</a> for what is planned from general availability.
 		{:else}
 			<strong>Choose a plan.</strong> Organisations with {FREE_MEMBER_LIMIT} or fewer members are free, with nothing

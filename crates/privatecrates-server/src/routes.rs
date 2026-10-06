@@ -51,12 +51,9 @@ impl FromRequestParts<Arc<AppState>> for TenantHost {
             .config
             .slug_for_host(&host)
             .ok_or(ApiError::NotFound)?;
-        // An organisation that was not invited to the private preview has no registry, even if it wrote
-        // privatecrates.toml itself.
         let tenant = state
             .tenants
             .get(slug)
-            .filter(|tenant| state.config.is_invited(&tenant.org_login))
             .unwrap_or_else(|| Arc::new(Tenant::phantom(slug.to_owned())));
         Ok(TenantHost(tenant))
     }

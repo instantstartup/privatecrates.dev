@@ -30,7 +30,7 @@ const SLUG = '<name>';
 const TERMS_URL = `${SITE_URL}${TERMS_PATH}`;
 
 const pricing = PREVIEW
-	? `- **Private preview, by invitation only:** only organisations PrivateCrates has invited can have a registry. Anyone else asks for an invitation on ${SITE_URL}/account (signed in with GitHub; a person does this). It is free and billing is off: there is no trial, no card and nothing to pay, whatever the organisation's size. It is provided as is, at the user's own risk, under the private preview terms (${TERMS_URL}, version \`${TERMS_VERSION}\`). Planned pricing from general availability (${GA_TARGET}): ${PRICE_PHRASE}, per organisation.`
+	? `- **Preview, open to everyone:** any GitHub organisation or personal account can have a registry. It is free and billing is off: there is no trial, no card and nothing to pay, whatever the organisation's size. It is provided as is, at the user's own risk, under the preview terms (${TERMS_URL}, version \`${TERMS_VERSION}\`). Planned pricing from general availability (${GA_TARGET}): ${PRICE_PHRASE}, per organisation.`
 	: `- Free for organisations with up to ${FREE_MEMBER_LIMIT} members. Larger ones start a ${TRIAL_MONTHS}-month free trial with no card. Pricing per organisation: ${PRICE_PHRASE}.`;
 
 const trialFlag = PREVIEW
@@ -38,7 +38,7 @@ const trialFlag = PREVIEW
 	: '; `--start-trial --billing-email <address>` starts the no-card trial (Stripe sends the trial-ending reminder and invoices to that address; ask the admin for it, never guess it)';
 
 const planStep = PREVIEW
-	? `Plan: nothing to do. Billing is off during the private preview, so the \`plan\` step is \`done\` ("Free during the private preview.").`
+	? `Plan: nothing to do. Billing is off during the preview, so the \`plan\` step is \`done\` ("Free during the preview.").`
 	: `Plan. Organisations with up to ${FREE_MEMBER_LIMIT} members are free: nothing to do. Larger ones: ask the admin for a billing email address, then \`${cli(`setup ${ORG} --start-trial --billing-email <address>`)}\` (no card). If the checklist says the organisation has had its trial, **a person is needed:** the admin subscribes with a card at https://${PROD_APEX}/account.`;
 
 const body = `# PrivateCrates
@@ -70,7 +70,7 @@ Run the steps in order, skipping those \`${cli(`setup ${ORG} --json`)}\` reports
 
 1. Install the CLI (above).
 2. Sign in: \`${cli('login --no-wait --json')}\` prints a GitHub link and a code and exits at once (plain \`login\` waits for the approval, and a shell that shows output only when a command ends would show nothing until then). **A person is needed:** give the admin the link and the code, wait until they say they approved it, then run \`${cli('login --finish')}\`. The code expires after about 15 minutes.
-3. Read the checklist: \`${cli(`setup ${ORG} --json`)}\`. If the organisation is not listed, the reader App is not installed on it yet. If the steps are \`blocked\` because the organisation is not invited to the private preview, **stop: a person is needed.** Tell the admin to ask for an invitation at ${SITE_URL}/account, and go no further until it is granted.
+3. Read the checklist: \`${cli(`setup ${ORG} --json`)}\`. If the organisation is not listed, the reader App is not installed on it yet.
 4. Reader App. **A person is needed:** GitHub has no API to install an App. Give the admin the \`reader_app\` step's link (or https://${PROD_APEX}/account), ask them to install it on the organisation, on all repositories or on those that own crates, and wait.
 5. Storage repository, with the admin's own \`gh\` login (check \`gh auth status\`; it needs rights to create repositories in the organisation):
 ${indent(fence(storageRepoCommands(ORG)))}
@@ -103,7 +103,6 @@ Developers who depend on the crates install the credential provider once (\`carg
 
 ## Where a person is needed
 
-- Asking for an invitation to the private preview, if the organisation is not invited.
 - Approving the sign-in that \`cargo privatecrates login\` starts.
 - Installing the reader App, and installing the storage App on the storage repository.
 - Accepting the terms on behalf of the organisation: the admin reads them and accepts; the agent never does.
@@ -140,8 +139,8 @@ At each of these, stop. Give the admin the exact link, say what to choose there,
 
 - [Verify the registry](${SITE_URL}/docs/verify): the open-source verifier for the storage repository
 - [Error reference](${SITE_URL}/docs/errors): every error code the registry returns
-- [Private preview terms](${TERMS_URL}): the terms an admin accepts before a registry is created
-- [Pricing](${SITE_URL}/pricing): ${PREVIEW ? 'free during the private preview; planned pricing from general availability' : 'free plan, trial and price'}
+- [Preview terms](${TERMS_URL}): the terms an admin accepts before a registry is created
+- [Pricing](${SITE_URL}/pricing): ${PREVIEW ? 'free during the preview; planned pricing from general availability' : 'free plan, trial and price'}
 `;
 
 export function GET(): Response {
