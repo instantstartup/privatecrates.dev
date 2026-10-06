@@ -153,3 +153,32 @@ async fn a_low_allowance_is_warned_about_before_it_runs_out() {
     assert_eq!(allowance["limit"], 5_000);
     assert_eq!(allowance["running_low"], true);
 }
+
+/// A developer who can read hundreds of repositories: every page of them is fetched, a few at a time, so a crate
+/// owned by the last repository is as readable as one owned by the first.
+#[tokio::test]
+async fn a_developer_with_many_repositories_reads_crates_on_every_page() {
+    let h = Harness::start().await;
+    let repos: Vec<u64> = (0..250)
+        .map(|i| h.repo(&format!("service-{i:03}")))
+        .collect();
+    let last = *repos.last().unwrap();
+    h.publish_from_ci(
+        "acme/service-249",
+        last,
+        &Crate::new("service_249", "0.1.0", "acme/service-249"),
+    )
+    .await;
+    let access: Vec<(u64, bool)> = repos.iter().map(|&id| (id, false)).collect();
+    let developer = h.fake.add_user("dev", "ghu_", &access);
+    h.fake.clear_calls();
+    let response = h.get("/index/se/rv/service_249", Some(&developer)).await;
+    assert_eq!(response.status(), 200);
+    let pages = h
+        .fake
+        .calls()
+        .iter()
+        .filter(|c| c.contains("/user/installations/"))
+        .count();
+    assert_eq!(pages, 3);
+}

@@ -9,6 +9,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use apollo_errors::Error;
 use base64::Engine;
 use bytes::Bytes;
+use futures_util::{StreamExt, TryStreamExt};
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use miette::Diagnostic;
 use reqwest::{Method, RequestBuilder, Response, StatusCode, header};
@@ -23,6 +24,8 @@ use crate::{
 
 const USER_AGENT: &str = "privatecrates (https://privatecrates.dev)";
 const PER_PAGE: usize = 100;
+/// How many pages of one listing are fetched at once.
+const PAGE_CONCURRENCY: usize = 4;
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum GitHubError {
@@ -784,29 +787,35 @@ impl GitHub {
             total_count: usize,
             repositories: Vec<Repo>,
         }
-        let mut all = Vec::new();
-        for page in 1.. {
-            let result = json::<Page>(
+        let page = |n: usize| async move {
+            json::<Page>(
                 self.request(
                     Method::GET,
                     &format!("/user/installations/{installation_id}/repositories"),
                     token,
                 )
-                .query(&[("per_page", PER_PAGE), ("page", page)])
+                .query(&[("per_page", PER_PAGE), ("page", n)])
                 .send_via(self)
                 .await?,
             )
-            .await;
-            let batch = match result {
-                Ok(batch) => batch,
-                Err(GitHubError::NotFound) => return Ok(Vec::new()),
-                Err(e) => return Err(e),
-            };
-            let empty = batch.repositories.is_empty();
+            .await
+        };
+        let first = match page(1).await {
+            Ok(first) => first,
+            Err(GitHubError::NotFound) => return Ok(Vec::new()),
+            Err(e) => return Err(e),
+        };
+        // The first page says how many there are; the rest are fetched a few at a time rather than one after
+        // another, so a developer in an organisation with thousands of repositories is not kept waiting.
+        let pages = first.total_count.div_ceil(PER_PAGE);
+        let mut all = first.repositories;
+        let requests: Vec<_> = (2..=pages).map(page).collect();
+        let rest: Vec<Page> = futures_util::stream::iter(requests)
+            .buffered(PAGE_CONCURRENCY)
+            .try_collect()
+            .await?;
+        for batch in rest {
             all.extend(batch.repositories);
-            if empty || all.len() >= batch.total_count {
-                break;
-            }
         }
         Ok(all)
     }

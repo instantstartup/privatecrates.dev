@@ -11,6 +11,7 @@ use std::{
 
 use apollo_errors::Error;
 use bytes::Bytes;
+use futures_util::{StreamExt, TryStreamExt};
 use miette::Diagnostic;
 use serde::Deserialize;
 use tokio::sync::Mutex;
@@ -112,6 +113,11 @@ pub struct Tenant {
     /// A person's own account rather than an organisation: they are its only admin, and it is always free.
     pub personal: bool,
 }
+
+/// How many organisations load or refresh at once.
+pub const TENANT_CONCURRENCY: usize = 4;
+/// How many of one registry's files are fetched at once.
+const BLOB_CONCURRENCY: usize = 8;
 
 /// Blobs by sha, shared by all tenants. A blob sha is a hash of the content, so entries never go stale.
 pub type BlobCache = moka::future::Cache<String, Bytes>;
@@ -272,12 +278,20 @@ impl Tenant {
             .filter(|e| e.kind == "blob")
             .map(|e| (e.path, e.sha))
             .collect();
+        // Fetched several at a time: a registry with many crates has as many owners files.
+        let fetches: Vec<_> = files
+            .iter()
+            .filter_map(|(path, sha)| Some((owner_name(path)?, path, sha)))
+            .map(|(name, path, sha)| async move {
+                Ok::<_, GitHubError>((name, path, blob(self, gh, blobs, sha).await?))
+            })
+            .collect();
+        let contents: Vec<(String, &String, Bytes)> = futures_util::stream::iter(fetches)
+            .buffer_unordered(BLOB_CONCURRENCY)
+            .try_collect()
+            .await?;
         let mut owners = HashMap::new();
-        for (path, sha) in &files {
-            let Some(name) = owner_name(path) else {
-                continue;
-            };
-            let content = blob(self, gh, blobs, sha).await?;
+        for (name, path, content) in contents {
             match parse_owner(path, &content) {
                 Ok(owner) => {
                     owners.insert(name, owner);
@@ -363,16 +377,35 @@ impl Tenants {
             .into_iter()
             .map(|i| (i.account.id, i.id))
             .collect();
+        let candidates: Vec<_> = gh
+            .installations(AppKind::Storage)
+            .await?
+            .into_iter()
+            .filter_map(|storage| Some((*readers.get(&storage.account.id)?, storage)))
+            .collect();
+        // Several organisations load at once: start-up takes a few GitHub calls per organisation, plus one per
+        // crate, and one after another that grows with every customer.
+        let loads: Vec<_> = candidates
+            .into_iter()
+            .map(|(reader, storage)| {
+                let existing = self
+                    .all()
+                    .into_iter()
+                    .find(|t| t.org_id == storage.account.id);
+                async move {
+                    let result =
+                        load(gh, blobs, reader, storage.id, &storage.account, existing).await;
+                    (storage, result)
+                }
+            })
+            .collect();
+        let loaded: Vec<_> = futures_util::stream::iter(loads)
+            .buffer_unordered(TENANT_CONCURRENCY)
+            .collect()
+            .await;
         let mut found = HashMap::new();
-        for storage in gh.installations(AppKind::Storage).await? {
-            let Some(&reader) = readers.get(&storage.account.id) else {
-                continue;
-            };
-            let existing = self
-                .all()
-                .into_iter()
-                .find(|t| t.org_id == storage.account.id);
-            match load(gh, blobs, reader, storage.id, &storage.account, existing).await {
+        for (storage, result) in loaded {
+            match result {
                 Ok(tenant) => {
                     if found.contains_key(&tenant.slug) {
                         tracing::error!(slug = %tenant.slug, "two organisations claim the same slug; serving neither");

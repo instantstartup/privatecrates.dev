@@ -239,13 +239,23 @@ impl AppState {
         }
     }
 
-    /// Refreshes every tenant's storage snapshot; cheap when nothing changed.
+    /// Refreshes every tenant's storage snapshot, several at a time; cheap when nothing changed.
     pub async fn refresh_storage(&self) {
-        for tenant in self.tenants.all() {
-            if let Err(e) = tenant.refresh(&self.gh, &self.blobs).await {
-                tracing::warn!(tenant = %tenant.slug, error = %e, "storage refresh failed");
-            }
-        }
+        use futures_util::StreamExt;
+        let refreshes: Vec<_> = self
+            .tenants
+            .all()
+            .into_iter()
+            .map(|tenant| async move {
+                if let Err(e) = tenant.refresh(&self.gh, &self.blobs).await {
+                    tracing::warn!(tenant = %tenant.slug, error = %e, "storage refresh failed");
+                }
+            })
+            .collect();
+        futures_util::stream::iter(refreshes)
+            .buffer_unordered(tenant::TENANT_CONCURRENCY)
+            .collect::<Vec<()>>()
+            .await;
     }
 }
 
