@@ -75,6 +75,22 @@ pub(crate) fn subscription_inactive(state: &AppState, tenant: &Tenant) -> ApiErr
     }
 }
 
+/// Why a publish is refused while builds can still read: with the day reads stop too.
+pub(crate) fn publishing_paused(state: &AppState, tenant: &Tenant) -> ApiError {
+    let reads_until = state
+        .billing
+        .reads_until(tenant.org_id)
+        .and_then(|t| time::OffsetDateTime::from_unix_timestamp(i64::try_from(t).ok()?).ok());
+    match reads_until {
+        Some(until) => ApiError::PublishingPaused {
+            org: tenant.org_login.clone(),
+            reads_until: until.date().to_string(),
+            account_url: state.config.account_url(),
+        },
+        None => subscription_inactive(state, tenant),
+    }
+}
+
 pub(crate) fn resolver<'a>(state: &'a AppState, tenant: &'a Tenant) -> Resolver<'a> {
     Resolver {
         gh: &state.gh,

@@ -44,6 +44,14 @@ loading, trials, Checkout or portal, and `/webhooks/stripe` answers 404), and `/
   does so from the `organization` webhook and from the 10-minute refresh, for any registered organisation over the
   limit that has never had a subscription (so one registered while already over the limit gets its trial within 10
   minutes if no admin starts it first).
+- **Growing past it again** after a trial or subscription ended: if the organisation was seen at the free limit
+  after it ended, the server notes that on the Stripe customer (`metadata[free_after]` = the ended subscription's
+  ID), and growing past the limit again starts a 14-day no-card grace period (`trial_period_days=14`,
+  `metadata[grace]=true`, one per ended subscription; the session's `grace_period` is `true`). An organisation that
+  let its trial end while over the limit gets none.
+- **Telling people**: while a trial or grace period has no card, every `cargo publish` carries a warning naming the
+  member count, the end date and the price after it; the account page says the same to every member. A publish
+  refused once it has ended (`billing::publishing_paused`, 402) gives the date reads stop, 14 days after it ended.
 - Without Stripe configured (local development, and dev until billing is set up) plans are still computed and shown,
   but nothing is enforced: every tenant is active, `trial_available` is `false`, and `tenant.status` is `null`.
 - Stripe is the source of truth for subscriptions. Each subscription's metadata holds `github_org_id` and

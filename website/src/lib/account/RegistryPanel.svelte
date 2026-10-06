@@ -73,10 +73,12 @@
 	const periodEnd = $derived(formatDate(periodEndIso));
 	const readsUntil = $derived(periodEndIso ? formatDate(addDays(periodEndIso, READ_GRACE_DAYS)) : null);
 	const hasCard = $derived(org.has_payment_method ?? plan === 'paid');
-	/** The last days of a trial with no card: the page and Cargo both remind (billing model). */
-	const trialEnding = $derived(
-		!preview && plan === 'trial' && !hasCard && trialDaysLeft !== null && trialDaysLeft <= TRIAL_REMINDER_DAYS
-	);
+	/** A trial or grace period with no card: said throughout, here and in every `cargo publish` (billing model). */
+	const trialNoCard = $derived(!preview && plan === 'trial' && !hasCard);
+	/** Its last days, when the reminder becomes a warning. */
+	const trialEnding = $derived(trialNoCard && trialDaysLeft !== null && trialDaysLeft <= TRIAL_REMINDER_DAYS);
+	/** Not the first trial: the organisation grew past the free limit again after an earlier one ended. */
+	const graceName = $derived(org.grace_period ? 'grace period' : 'free trial');
 	/** Free again with a subscription still running: admins may cancel it (we never cancel automatically). */
 	const freeAgain = $derived(plan === 'free' && isActive(tenant.status));
 	const portal = $derived(admin && hasSubscription(org));
@@ -130,16 +132,21 @@
 			<TrialForm org={org.login} {price} purpose="email" onstarted={() => onchange?.()} />
 		</Callout>
 	{/if}
-	{#if trialEnding}
+	{#if trialNoCard}
 		<Callout
-			tone="warn"
+			tone={trialEnding ? 'warn' : undefined}
 			role="status"
-			title={`The free trial ends ${trialEnds ? `on ${trialEnds}` : 'soon'}`}
+			title={`The ${graceName} ends ${trialEnds ? `on ${trialEnds}` : 'soon'}`}
 		>
 			<p>
-				{trialDaysLeft === 0 ? 'Today is the last day.' : `${plural(trialDaysLeft ?? 0, 'day')} left.`}
-				{org.login} has no card on file. Without one, publishing stops when the trial ends, and builds can read
-				crates for {READ_GRACE_DAYS} more days.
+				{org.login} has {members === null ? `more than ${limit} members` : plural(members, 'member')}, more
+				than the free {limit}, so it is on a {graceName}{trialDaysLeft === null
+					? ''
+					: trialDaysLeft === 0
+						? ', and today is its last day'
+						: ` with ${plural(trialDaysLeft, 'day')} left`}. After it, ${price} a month. There is no card on file:
+				without one, publishing stops when the {graceName} ends, and builds can read crates for {READ_GRACE_DAYS}
+				more days.
 			</p>
 			{#if admin}
 				<p>
@@ -235,11 +242,10 @@
 						{#if plan === 'free'}
 							Free. Every feature, no card.
 						{:else if plan === 'trial'}
-							Free trial{trialEnds ? ` until ${trialEnds}` : ''}{trialDaysLeft !== null
-								? ` (${plural(trialDaysLeft, 'day')} left)`
-								: ''}. Then ${price} a month{hasCard
-								? ', charged to the card on file'
-								: ' once you add a card'}.
+							{org.grace_period ? 'Grace period' : 'Free trial'}{trialEnds
+								? ` until ${trialEnds}`
+								: ''}{trialDaysLeft !== null ? ` (${plural(trialDaysLeft, 'day')} left)` : ''}. Then ${price} a
+							month{hasCard ? ', charged to the card on file' : ' once an admin adds a card'}.
 						{:else if plan === 'paid'}
 							${price} a month{periodEnd ? `, renews ${periodEnd}` : ''}.
 							<span class="fine"
@@ -264,10 +270,9 @@
 			{#if freeAgain && admin}
 				<Callout title={`${org.login} is free again`}>
 					<p>
-						It has {members === null ? `${limit} or fewer members` : plural(members, 'member')}, so the
-						registry no longer needs a subscription. Yours is still running: cancel it under Manage billing if
-						you do not expect to grow past {limit} members. We never cancel it for you, because member counts go
-						up and down.
+						It has {members === null ? `${limit} or fewer members` : plural(members, 'member')}, so its
+						subscription costs nothing until it grows past {limit} again, when it picks up where it left off. You
+						can cancel it under Manage billing, but there is no need.
 					</p>
 				</Callout>
 			{/if}
@@ -292,7 +297,7 @@
 						</button>
 					{/if}
 					{#if portal}
-						{#if plan === 'trial' && !hasCard && !trialEnding}
+						{#if plan === 'trial' && !hasCard && !trialNoCard}
 							<button
 								class="btn btn-quiet"
 								type="button"

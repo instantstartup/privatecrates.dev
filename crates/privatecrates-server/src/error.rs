@@ -380,6 +380,20 @@ pub enum ApiError {
         account_url: String,
     },
 
+    #[error(
+        "publishing to the {org} registry has stopped: its PrivateCrates trial or subscription has ended. Builds can \
+         still read its crates until {reads_until}. An organisation admin can subscribe at {account_url}"
+    )]
+    #[diagnostic(code(billing::publishing_paused))]
+    #[http_status(402)]
+    PublishingPaused {
+        org: String,
+        #[extension]
+        reads_until: String,
+        #[extension]
+        account_url: String,
+    },
+
     #[error("billing is not set up on this server")]
     #[diagnostic(code(billing::not_configured))]
     #[http_status(503)]

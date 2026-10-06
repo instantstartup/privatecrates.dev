@@ -397,6 +397,12 @@ async fn update_customer(
     if let Some(email) = form.get("email") {
         customer["email"] = json!(email);
     }
+    // Stripe merges metadata keys into what is there.
+    if let Value::Object(update) = metadata(&form) {
+        for (key, value) in update {
+            customer["metadata"][key] = value;
+        }
+    }
     Json(customer.clone()).into_response()
 }
 

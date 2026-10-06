@@ -206,7 +206,7 @@ async fn member_count_changed(state: &AppState, payload: &Payload) {
     };
     state.members.adjust(org.id, change).await;
     if let Some(tenant) = state.tenants.by_org(org.id) {
-        state.start_trial_if_grown(&tenant).await;
+        state.keep_billing_in_step(&tenant).await;
     }
 }
 

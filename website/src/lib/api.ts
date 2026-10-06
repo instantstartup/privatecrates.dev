@@ -34,6 +34,8 @@ export interface Org {
 	current_period_end?: string | null;
 	/** What the organisation pays, or would pay, per month at its member count: 0 when free. See priceOf(). */
 	monthly_price_usd?: number;
+	/** The trial is a 14-day grace period: the organisation grew past the free limit again after an earlier one ended. */
+	grace_period?: boolean;
 	/** Whether POST /trial will work (over the limit, never had a trial, billing configured). */
 	trial_available?: boolean;
 	/** A trial started by itself (the organisation grew past the free limit) and Stripe has no address to remind. */

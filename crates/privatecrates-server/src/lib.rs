@@ -178,33 +178,38 @@ impl AppState {
         self.billing.standing(tenant.org_id, members)
     }
 
-    /// Starts the trial of a registered organisation that is over the member limit and has never had a
-    /// subscription, so that growing past the limit never breaks its registry; for one that has a subscription,
-    /// keeps the members it pays for in step with its member count. Called from webhooks and the periodic
-    /// refresh, never while serving a request: a failure is logged, and the next refresh tries again.
-    pub async fn start_trial_if_grown(&self, tenant: &Tenant) {
+    /// Keeps a registered organisation's billing in step with its member count, so that growing never breaks its
+    /// registry. Called from webhooks and the periodic refresh, never while serving a request: a failure is logged,
+    /// and the next refresh tries again.
+    ///
+    /// - Past the free limit for the first time: its no-card trial starts.
+    /// - Past it again, after an earlier trial or subscription ended while it was free: a grace period starts.
+    /// - Subscribed: the members it pays for follow its member count.
+    /// - Back at the free limit with an ended subscription: noted, so that growing again earns the grace period.
+    pub async fn keep_billing_in_step(&self, tenant: &Tenant) {
+        if tenant.personal {
+            return;
+        }
         let plan = self
             .plan(tenant.org_id, &tenant.org_login, tenant.personal)
             .await;
-        if !plan.trial_available {
-            // Already subscribed: what it pays for follows the member count.
-            if !tenant.personal
-                && let Err(e) = self
-                    .billing
-                    .sync_quantity(tenant.org_id, &tenant.org_login, plan.members)
-                    .await
-            {
-                tracing::warn!(org = %tenant.org_login, error = %e, "updating the billed members failed");
+        let (org_id, login, members) = (tenant.org_id, tenant.org_login.as_str(), plan.members);
+        let result = if plan.trial_available {
+            tracing::info!(org = %login, members = ?members, "over the free member limit; starting the trial");
+            self.billing.start_trial(org_id, login, members, None).await
+        } else if self.billing.grace_due(org_id, members) {
+            tracing::info!(org = %login, members = ?members, "over the free member limit again; starting a grace period");
+            self.billing.start_grace(org_id, login, members).await
+        } else {
+            // Each does nothing when it does not apply: an active subscription follows the members (down to 0 when
+            // free); an ended one is noted once the organisation is free.
+            match self.billing.sync_quantity(org_id, login, members).await {
+                Ok(()) => self.billing.note_free(org_id, members).await,
+                Err(e) => Err(e),
             }
-            return;
-        }
-        tracing::info!(org = %tenant.org_login, members = ?plan.members, "over the free member limit; starting the trial");
-        if let Err(e) = self
-            .billing
-            .start_trial(tenant.org_id, &tenant.org_login, plan.members, None)
-            .await
-        {
-            tracing::warn!(org = %tenant.org_login, error = %e, "starting the trial automatically failed");
+        };
+        if let Err(e) = result {
+            tracing::warn!(org = %login, error = %e, "keeping billing in step with the members failed");
         }
     }
 
@@ -386,7 +391,7 @@ pub fn spawn_refresh(state: Arc<AppState>) {
             }
             // Recounts each organisation's members once their count expires.
             for tenant in subscriptions.tenants.all() {
-                subscriptions.start_trial_if_grown(&tenant).await;
+                subscriptions.keep_billing_in_step(&tenant).await;
             }
         }
     });

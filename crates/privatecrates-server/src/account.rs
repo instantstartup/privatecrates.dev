@@ -108,6 +108,8 @@ fn org_json(
         // What the organisation pays (or would pay) a month at its member count: 0 when free.
         "monthly_price_usd": if membership.personal { 0 } else { state.billing.monthly_price_usd(plan.members) },
         "trial_ends_at": rfc3339(subscription.and_then(Subscription::trial_ends_at)),
+        // The trial is a grace period: the organisation grew past the free limit again after an earlier one ended.
+        "grace_period": plan.plan == Plan::Trial && subscription.is_some_and(Subscription::is_grace),
         "has_payment_method": subscription.is_some_and(Subscription::has_payment_method),
         "billing_email_missing": subscription.is_some_and(Subscription::billing_email_missing),
         "current_period_end": rfc3339(subscription.and_then(Subscription::current_period_end)),

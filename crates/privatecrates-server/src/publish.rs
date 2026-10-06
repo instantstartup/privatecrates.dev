@@ -20,7 +20,7 @@ use crate::{
     billing::Standing,
     crate_file,
     error::ApiError,
-    github::{AppKind, FileWrite, GitHubError, Release, now_secs},
+    github::{AppKind, FileWrite, GitHubError, Release},
     oidc::{ActionsClaims, OidcError},
     tenant::{NameClash, Owner, Tenant, index_path, owner_path},
 };
@@ -142,8 +142,10 @@ pub async fn publish(
     };
     let (publisher, new_owner) = authorize(state, tenant, &resolver, credential, &target).await?;
     // Checked only once the publisher is known to belong here, so that it says nothing to anyone else.
-    if state.standing(tenant).await != Standing::Active {
-        return Err(crate::routes::subscription_inactive(state, tenant));
+    match state.standing(tenant).await {
+        Standing::Active => {}
+        Standing::Grace => return Err(crate::routes::publishing_paused(state, tenant)),
+        Standing::Lapsed => return Err(crate::routes::subscription_inactive(state, tenant)),
     }
     // Unpacked only now, for a caller allowed to publish here (an anonymous upload is never decompressed), and off
     // the async workers, since a large archive takes a while to read.
@@ -194,19 +196,33 @@ pub async fn publish(
     })))
 }
 
-/// In the last days of a trial with no card, a reminder for whoever publishes.
+/// While a trial or grace period has no card, a warning on every publish: developers are the people who notice, and
+/// a trial that started by itself has no billing email for Stripe's reminders.
 async fn trial_reminder(state: &AppState, tenant: &Tenant) -> Option<String> {
-    let ends = state
+    let plan = state
         .plan(tenant.org_id, &tenant.org_login, tenant.personal)
-        .await
-        .trial_ending(now_secs())?;
+        .await;
+    let subscription = plan.subscription.as_ref()?;
+    if plan.plan != crate::billing::Plan::Trial || subscription.has_payment_method() {
+        return None;
+    }
+    let ends = subscription.trial_ends_at()?;
     let date = OffsetDateTime::from_unix_timestamp(i64::try_from(ends).ok()?)
         .ok()?
         .date();
+    let what = if subscription.is_grace() {
+        "grace period"
+    } else {
+        "free trial"
+    };
     Some(format!(
-        "the PrivateCrates free trial for {} ends on {date}; add a card at {}",
-        tenant.org_login,
-        state.config.account_url()
+        "{org} has {members} members, more than the free {limit}, so it is on a PrivateCrates {what} until {date}; \
+         after that, ${price} a month. Publishing stops on {date} unless an organisation admin adds a card at {url}",
+        org = tenant.org_login,
+        members = plan.members.unwrap_or_default(),
+        limit = state.billing.free_member_limit(),
+        price = state.billing.monthly_price_usd(plan.members),
+        url = state.config.account_url(),
     ))
 }
 

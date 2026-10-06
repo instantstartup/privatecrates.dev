@@ -41,8 +41,6 @@ use crate::{
 
 /// Reads keep working this long after a subscription's last paid period ends.
 pub const READ_GRACE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
-/// Publishes warn this long before a trial with no payment method ends.
-pub const TRIAL_REMINDER: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 /// How often subscriptions are listed again, in case a webhook was missed.
 pub const REFRESH: Duration = Duration::from_secs(10 * 60);
 /// How far a webhook's timestamp may be from our clock, against replays (Stripe's own libraries use 5 minutes).
@@ -54,6 +52,14 @@ pub const MEMBER_PRICE_USD: u64 = 10;
 /// The Stripe API version of our requests, and of the webhook endpoint (`scripts/stripe-setup.sh`).
 const API_VERSION: &str = "2026-08-26.dahlia";
 const ORG_ID_KEY: &str = "github_org_id";
+/// On a customer: the ID of its last subscription that had ended when the organisation was seen back at the free
+/// limit. Growing past the limit again then earns a grace period, rather than stopping the registry at once.
+const FREE_AFTER_KEY: &str = "free_after";
+/// On a subscription: a grace period, not the organisation's one free trial.
+const GRACE_KEY: &str = "grace";
+/// How long an organisation that grows past the free limit again, after an earlier trial or subscription ended,
+/// keeps everything working without a card.
+pub const GRACE_DAYS: u32 = 14;
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum BillingError {
@@ -109,6 +115,8 @@ enum Customer {
         invoice_settings: InvoiceSettings,
         #[serde(default)]
         default_source: Option<serde_json::Value>,
+        #[serde(default)]
+        metadata: HashMap<String, String>,
     },
 }
 
@@ -193,6 +201,32 @@ impl Subscription {
         })
     }
 
+    fn customer_metadata(&self, key: &str) -> Option<&str> {
+        match &self.customer {
+            Customer::Expanded { metadata, .. } => metadata.get(key).map(String::as_str),
+            Customer::Id(_) => None,
+        }
+    }
+
+    /// Whether this is a grace period after growing past the free limit again, rather than the first trial.
+    pub fn is_grace(&self) -> bool {
+        self.metadata.get(GRACE_KEY).is_some_and(|v| v == "true")
+    }
+
+    /// Whether the organisation has been seen back at the free limit since this subscription ended.
+    fn freed_since(&self) -> bool {
+        self.customer_metadata(FREE_AFTER_KEY) == Some(self.id.as_str())
+    }
+
+    /// Until when builds can still read, once the subscription is over: the end of what was paid for (or of the
+    /// trial), plus the read grace period. `None` while it is active.
+    pub fn reads_until(&self) -> Option<u64> {
+        if self.is_active() {
+            return None;
+        }
+        self.paid_until().map(|until| until + READ_GRACE.as_secs())
+    }
+
     /// The subscription's one item and the quantity it pays for.
     fn item(&self) -> Option<(&str, u64)> {
         let item = self.items.data.first()?;
@@ -252,19 +286,6 @@ pub struct OrgPlan {
     pub subscription: Option<Subscription>,
     /// Whether the organisation can start its no-card trial.
     pub trial_available: bool,
-}
-
-impl OrgPlan {
-    /// When a trial with no payment method ends, if that is within the reminder period.
-    pub fn trial_ending(&self, now: u64) -> Option<u64> {
-        let subscription = self.subscription.as_ref()?;
-        if self.plan != Plan::Trial || subscription.has_payment_method() {
-            return None;
-        }
-        subscription
-            .trial_ends_at()
-            .filter(|&end| end <= now + TRIAL_REMINDER.as_secs())
-    }
 }
 
 /// Keeps the newest subscription per organisation: an organisation that cancelled and subscribed again has two.
@@ -633,6 +654,106 @@ impl Billing {
 
     fn stripe(&self) -> Result<&Stripe, ApiError> {
         self.stripe.as_ref().ok_or(ApiError::BillingNotConfigured)
+    }
+
+    /// Notes, on the Stripe customer, that the organisation is back at the free limit after its last subscription
+    /// ended, so that growing past it again earns a grace period. Nothing to do if that is already noted, or if the
+    /// subscription is still active (it then simply costs nothing).
+    pub async fn note_free(&self, org_id: u64, members: Option<u64>) -> Result<(), ApiError> {
+        let Some(stripe) = &self.stripe else {
+            return Ok(());
+        };
+        if members.is_none() || !self.is_free(members) {
+            return Ok(());
+        }
+        let Some(subscription) = self.subscription(org_id) else {
+            return Ok(());
+        };
+        if subscription.is_active() || subscription.freed_since() {
+            return Ok(());
+        }
+        let customer: String = subscription
+            .customer_id()
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        let key = format!("metadata[{FREE_AFTER_KEY}]");
+        stripe
+            .call::<Created>(
+                Method::POST,
+                &format!("/v1/customers/{customer}"),
+                &[(key.as_str(), subscription.id.as_str())],
+                None,
+            )
+            .await?;
+        self.record(stripe.subscription(&subscription.id).await?);
+        Ok(())
+    }
+
+    /// Whether the organisation has grown past the free limit again since its last subscription ended, and so gets
+    /// a grace period rather than losing its registry at once.
+    pub fn grace_due(&self, org_id: u64, members: Option<u64>) -> bool {
+        self.enabled()
+            && !self.is_free(members)
+            && self
+                .subscription(org_id)
+                .is_some_and(|s| !s.is_active() && s.freed_since())
+    }
+
+    /// Starts a [`GRACE_DAYS`] grace period: a no-card trialing subscription, like the first trial, for an
+    /// organisation that has grown past the free limit again ([`Self::grace_due`]). Without a card by its end, it
+    /// ends as a trial does.
+    pub async fn start_grace(
+        &self,
+        org_id: u64,
+        org_login: &str,
+        members: Option<u64>,
+    ) -> Result<(), ApiError> {
+        let stripe = self.stripe()?;
+        let _starting = self.starting_trial.lock().await;
+        if !self.grace_due(org_id, members) {
+            return Ok(());
+        }
+        let previous = self.subscription(org_id).expect("checked by grace_due");
+        // One grace period per ended subscription, whoever asks and however often.
+        let key = format!("privatecrates-grace-{}", previous.id);
+        let org_id = org_id.to_string();
+        let quantity = self.billed(members).to_string();
+        let days = GRACE_DAYS.to_string();
+        let grace_key = format!("metadata[{GRACE_KEY}]");
+        let subscription: Subscription = stripe
+            .call(
+                Method::POST,
+                "/v1/subscriptions",
+                &[
+                    ("customer", previous.customer_id()),
+                    ("items[0][price]", &stripe.config.price_id),
+                    ("items[0][quantity]", &quantity),
+                    ("trial_period_days", &days),
+                    (
+                        "payment_settings[save_default_payment_method]",
+                        "on_subscription",
+                    ),
+                    (
+                        "trial_settings[end_behavior][missing_payment_method]",
+                        "cancel",
+                    ),
+                    ("metadata[github_org_id]", &org_id),
+                    ("metadata[github_org_login]", org_login),
+                    (grace_key.as_str(), "true"),
+                    ("expand[]", "customer"),
+                ],
+                Some(&key),
+            )
+            .await?;
+        tracing::info!(org = %org_login, subscription = %subscription.id, "grace period started");
+        self.record(subscription);
+        Ok(())
+    }
+
+    /// Until when builds can still read a lapsed organisation's registry (see [`Subscription::reads_until`]).
+    pub fn reads_until(&self, org_id: u64) -> Option<u64> {
+        self.subscription(org_id)?.reads_until()
     }
 
     /// Starts the organisation's no-card trial: a Stripe customer and a trialing subscription that cancels itself
@@ -1014,46 +1135,7 @@ mod tests {
         assert_eq!(over.plan, Plan::Free);
         assert_eq!(over.members, Some(50));
         assert!(!over.trial_available);
-        assert_eq!(over.trial_ending(0), None);
         assert_eq!(preview.standing(100, Some(50)), Standing::Active);
-    }
-
-    #[test]
-    fn trials_without_a_card_are_reminded_in_their_last_fortnight() {
-        let now = 1_800_000_000;
-        let trial = |trial_end: u64, customer: serde_json::Value| {
-            let subscription: Subscription = serde_json::from_value(serde_json::json!({
-                "id": "s", "customer": customer, "status": "trialing", "created": 1, "trial_end": trial_end,
-                "metadata": { "github_org_id": "100" },
-            }))
-            .unwrap();
-            OrgPlan {
-                plan: Plan::Trial,
-                members: Some(6),
-                subscription: Some(subscription),
-                trial_available: false,
-            }
-        };
-        let no_card = serde_json::json!({ "id": "cus_1", "invoice_settings": { "default_payment_method": null } });
-        let soon = now + 13 * 24 * 60 * 60;
-        assert_eq!(trial(soon, no_card.clone()).trial_ending(now), Some(soon));
-        assert_eq!(
-            trial(now + 15 * 24 * 60 * 60, no_card.clone()).trial_ending(now),
-            None
-        );
-        let card = serde_json::json!({ "id": "cus_1", "invoice_settings": { "default_payment_method": "pm_1" } });
-        let with_card = trial(soon, card);
-        assert!(
-            with_card
-                .subscription
-                .as_ref()
-                .unwrap()
-                .has_payment_method()
-        );
-        assert_eq!(with_card.trial_ending(now), None);
-        let mut free = trial(soon, no_card);
-        free.plan = Plan::Free;
-        assert_eq!(free.trial_ending(now), None);
     }
 
     #[test]

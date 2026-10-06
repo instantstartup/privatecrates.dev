@@ -245,8 +245,8 @@ async fn the_trial_starts_without_a_card() {
         h.get("/index/config.json", Some(&reader)).await.status(),
         200
     );
-    // Ninety days to go: no reminder yet.
-    assert!(publish_warnings(&h, repo, "0.1.0").await.is_empty());
+    // Publishing works, and says the trial needs a card (every_publish_warns_while_a_trial_has_no_card).
+    assert_eq!(publish_warnings(&h, repo, "0.1.0").await.len(), 1);
 
     let response = post(&h, &session, "trial").await;
     assert_eq!(response.status(), 409);
@@ -328,7 +328,7 @@ async fn a_trial_started_automatically_asks_for_a_billing_email() {
     );
 
     let tenant = h.state.tenants.by_org(h.org.id).unwrap();
-    h.state.start_trial_if_grown(&tenant).await;
+    h.state.keep_billing_in_step(&tenant).await;
     let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
     assert_eq!(customer["email"], Value::Null);
     let org = session_org(&h, &session).await;
@@ -455,7 +455,7 @@ async fn a_trial_that_ends_without_a_card_is_cancelled() {
 }
 
 #[tokio::test]
-async fn publishes_remind_of_a_trial_ending_without_a_card() {
+async fn every_publish_warns_while_a_trial_has_no_card() {
     let (h, stripe) = start().await;
     let (session, repo, _) = setup_large(&h).await;
     assert_eq!(post(&h, &session, "trial").await.status(), 200);
@@ -463,22 +463,24 @@ async fn publishes_remind_of_a_trial_ending_without_a_card() {
         .as_str()
         .unwrap()
         .to_owned();
-    let ends = now() + 10 * DAY;
+    let ends = now() + 80 * DAY;
     stripe.update_subscription(&id, json!({ "trial_end": ends }));
     send_event(&h, "customer.subscription.updated", json!({ "id": id })).await;
 
     let date = time::OffsetDateTime::from_unix_timestamp(ends as i64)
         .unwrap()
         .date();
+    // From the first day, not only near the end: a trial that started by itself has told nobody else.
     assert_eq!(
         publish_warnings(&h, repo, "0.1.0").await,
         [json!(format!(
-            "the PrivateCrates free trial for acme ends on {date}; add a card at {}",
+            "acme has 12 members, more than the free 5, so it is on a PrivateCrates free trial until {date}; after \
+             that, $70 a month. Publishing stops on {date} unless an organisation admin adds a card at {}",
             h.apex("/account")
         ))]
     );
 
-    // With a card, the trial converts by itself: no reminder.
+    // With a card, the trial converts by itself: no warning.
     stripe.add_card(&id);
     send_event(&h, "customer.subscription.updated", json!({ "id": id })).await;
     assert!(publish_warnings(&h, repo, "0.2.0").await.is_empty());
@@ -556,9 +558,9 @@ async fn the_periodic_refresh_starts_the_trial_too() {
     let (h, stripe) = start().await;
     setup_large(&h).await;
     let tenant = h.state.tenants.by_org(h.org.id).unwrap();
-    h.state.start_trial_if_grown(&tenant).await;
+    h.state.keep_billing_in_step(&tenant).await;
     assert_eq!(stripe.subscriptions(h.org.id)[0]["status"], "trialing");
-    h.state.start_trial_if_grown(&tenant).await;
+    h.state.keep_billing_in_step(&tenant).await;
     assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
 }
 
@@ -741,8 +743,18 @@ async fn a_lapsed_subscription_stops_publishing_then_reads() {
     let response = publish(&h, repo, "0.3.0").await;
     assert_eq!(response.status(), 402);
     let detail = error_detail(response).await;
-    assert!(detail.contains(&h.apex("/account")), "{detail}");
-    assert!(detail.contains("acme"), "{detail}");
+    // It says when reads stop too: 14 days after it ended.
+    let reads_until = time::OffsetDateTime::from_unix_timestamp((now() - DAY + 14 * DAY) as i64)
+        .unwrap()
+        .date();
+    assert_eq!(
+        detail,
+        format!(
+            "publishing to the acme registry has stopped: its PrivateCrates trial or subscription has ended. Builds \
+             can still read its crates until {reads_until}. An organisation admin can subscribe at {}",
+            h.apex("/account")
+        )
+    );
     assert_eq!(
         h.get("/index/config.json", Some(&reader)).await.status(),
         200
@@ -757,6 +769,68 @@ async fn a_lapsed_subscription_stops_publishing_then_reads() {
     send_event(&h, "customer.subscription.updated", json!({ "id": id })).await;
     let response = h.get("/index/config.json", Some(&reader)).await;
     assert_eq!(response.status(), 402);
+}
+
+/// An organisation whose trial ended while it was free, and that later grows past the limit again, gets a grace
+/// period with everything working, rather than losing its registry at once.
+#[tokio::test]
+async fn growing_again_after_an_old_trial_starts_a_grace_period() {
+    let (h, stripe) = start().await;
+    let (session, repo, reader) = setup(&h).await;
+    h.fake.add_org_members(&h.org, 4);
+    // A trial long over, which ended while acme had 5 members.
+    let old = stripe.add_subscription(h.org.id, "acme", "canceled");
+    stripe.update_subscription(&old, json!({ "ended_at": now() - 60 * DAY }));
+    h.state.billing.load().await.unwrap();
+    let tenant = h.state.tenants.by_org(h.org.id).unwrap();
+    h.state.keep_billing_in_step(&tenant).await;
+    let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
+    assert_eq!(customer["metadata"]["free_after"], old);
+
+    h.fake.add_org_members(&h.org, 1);
+    membership_changed(&h, "member_added", "d-1").await;
+    let subscriptions = stripe.subscriptions(h.org.id);
+    assert_eq!(subscriptions.len(), 2);
+    let grace = subscriptions.iter().find(|s| s["id"] != old).unwrap();
+    assert_eq!(grace["status"], "trialing");
+    assert_eq!(grace["metadata"]["grace"], "true");
+    let request = stripe.subscription_requests().pop().unwrap();
+    assert_eq!(request["trial_period_days"], "14");
+    assert_eq!(request["items[0][quantity]"], "1");
+    // Nothing broke, and publishing says what is happening.
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    let warnings = publish_warnings(&h, repo, "0.1.0").await;
+    assert!(
+        warnings[0].as_str().unwrap().contains("grace period until"),
+        "{warnings:?}"
+    );
+    assert_eq!(session_org(&h, &session).await["plan"], "trial");
+
+    // One grace period per ended subscription, however often the refresh runs.
+    h.state.keep_billing_in_step(&tenant).await;
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 2);
+}
+
+/// An organisation that let its trial end while it was over the limit was told for months: no grace period.
+#[tokio::test]
+async fn a_trial_that_ended_over_the_limit_earns_no_grace_period() {
+    let (h, stripe) = start().await;
+    let (_, _, reader) = setup_large(&h).await;
+    let old = stripe.add_subscription(h.org.id, "acme", "canceled");
+    stripe.update_subscription(&old, json!({ "ended_at": now() - 60 * DAY }));
+    h.state.billing.load().await.unwrap();
+    let tenant = h.state.tenants.by_org(h.org.id).unwrap();
+    h.state.keep_billing_in_step(&tenant).await;
+    h.fake.add_org_members(&h.org, 1);
+    membership_changed(&h, "member_added", "d-1").await;
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        402
+    );
 }
 
 #[tokio::test]
@@ -886,7 +960,7 @@ async fn the_preview_is_free_and_never_calls_stripe() {
     membership_changed(&h, "member_added", "preview-1").await;
     h.state.billing.load().await.unwrap();
     for tenant in h.state.tenants.all() {
-        h.state.start_trial_if_grown(&tenant).await;
+        h.state.keep_billing_in_step(&tenant).await;
     }
     // Stripe's webhooks are not served.
     let (body, signature) = stripe::webhook(

@@ -12,8 +12,7 @@
 		PRICE_PHRASE,
 		READ_GRACE_DAYS,
 		TERMS_PATH,
-		TRIAL_MONTHS,
-		TRIAL_REMINDER_DAYS
+		TRIAL_MONTHS
 	} from '$lib/site';
 
 	const included = [
@@ -192,22 +191,24 @@
 				</FaqItem>
 				<FaqItem question="What happens when we grow past {FREE_MEMBER_LIMIT} members?">
 					<p>
-						Nothing breaks. The {TRIAL_MONTHS}-month free trial starts by itself, with no card, and the
-						account page shows how long is left. Organisations that already have more than {FREE_MEMBER_LIMIT}
+						Nothing breaks. The {TRIAL_MONTHS}-month free trial starts by itself, with no card. The account
+						page, and a warning in every <code>cargo publish</code>, say when it ends and what you will pay
+						after it, until an admin adds a card. A paying organisation that grows pays the new price from its
+						next invoice, up to the ${PRICE_CAP_USD} cap. Organisations that already have more than {FREE_MEMBER_LIMIT}
 						members start the same trial with one click when they set up.
 					</p>
 					<p>
-						Each organisation gets one trial. An organisation that subscribes again later pays from the first
-						day.
+						Each organisation gets one trial. If it ends while you have {FREE_MEMBER_LIMIT} members or fewer, growing
+						past {FREE_MEMBER_LIMIT} again later starts a 14-day grace period instead, again with nothing broken
+						and no card needed.
 					</p>
 				</FaqItem>
 				<FaqItem question="What if the trial ends and we have not added a card?">
 					<p>
 						Publishing stops when the trial ends. Builds keep reading crates for {READ_GRACE_DAYS} more days, so
-						nothing breaks overnight, and adding a card or subscribing turns publishing back on. We remind you in
-						the last
-						{TRIAL_REMINDER_DAYS} days: on the account page, and as a warning in
-						<code>cargo publish</code>.
+						nothing breaks overnight, and adding a card or subscribing turns publishing back on. We say so from
+						the first day of the trial, until a card is added: on the account page, and as a warning in every
+						<code>cargo publish</code>, with the date and what it will cost.
 					</p>
 				</FaqItem>
 				<FaqItem question="Can we cancel?">
@@ -217,9 +218,8 @@
 						stops too.
 					</p>
 					<p>
-						If your organisation shrinks to {FREE_MEMBER_LIMIT} members or fewer, it is free again straight away.
-						The account page then suggests cancelling; we do not cancel for you, because member counts go up and
-						down.
+						If your organisation shrinks to {FREE_MEMBER_LIMIT} members or fewer, it is free again straight away:
+						the subscription stays, costing nothing, and picks up again if you grow. There is no need to cancel.
 					</p>
 					<p>
 						Nothing is deleted: your index and every crate file are in your own repository, and stay there.
