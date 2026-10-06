@@ -93,7 +93,7 @@ impl Search {
             let entry = match cached {
                 Some(entry) => Some(entry),
                 None => self.load(state, tenant, &name).await.unwrap_or_else(|e| {
-                    tracing::warn!(tenant = %tenant.slug, krate = %name, error = %e, "could not index crate for search");
+                    log::warn!(tenant:% = tenant.slug, krate:% = name, error:% = e; "could not index crate for search");
                     None
                 }),
             };
@@ -132,7 +132,7 @@ impl Search {
         let metadata = match self.metadata(state, tenant, &name, &max_version).await {
             Ok(metadata) => Some(metadata),
             Err(e) => {
-                tracing::warn!(tenant = %tenant.slug, krate = %name, error = %e, "could not read crate metadata");
+                log::warn!(tenant:% = tenant.slug, krate:% = name, error:% = e; "could not read crate metadata");
                 None
             }
         };
@@ -261,11 +261,11 @@ async fn crates_io<T>(
     match tokio::time::timeout_at(deadline, call).await {
         Ok(Ok(value)) => Some(value),
         Ok(Err(e)) => {
-            tracing::warn!(error = %e, "crates.io {what} failed");
+            log::warn!(error:% = e; "crates.io {what} failed");
             None
         }
         Err(_) => {
-            tracing::warn!("crates.io {what} timed out");
+            log::warn!("crates.io {what} timed out");
             None
         }
     }

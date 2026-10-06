@@ -297,7 +297,7 @@ impl Tenant {
                     owners.insert(name, owner);
                 }
                 // One bad owners file must not take the whole tenant down; its crate becomes unreadable.
-                Err(e) => tracing::warn!(tenant = %self.slug, error = %e, "ignoring owners file"),
+                Err(e) => log::warn!(tenant:% = self.slug, error:% = e; "ignoring owners file"),
             }
         }
         *self.snapshot.write().expect("snapshot lock") = Snapshot {
@@ -408,14 +408,14 @@ impl Tenants {
             match result {
                 Ok(tenant) => {
                     if found.contains_key(&tenant.slug) {
-                        tracing::error!(slug = %tenant.slug, "two organisations claim the same slug; serving neither");
+                        log::error!(slug:% = tenant.slug; "two organisations claim the same slug; serving neither");
                         found.remove(&tenant.slug);
                         continue;
                     }
                     found.insert(tenant.slug.clone(), tenant);
                 }
                 Err(e) => {
-                    tracing::warn!(org = %storage.account.login, error = %e, "organisation is not a working tenant");
+                    log::warn!(org:% = storage.account.login, error:% = e; "organisation is not a working tenant");
                 }
             }
         }

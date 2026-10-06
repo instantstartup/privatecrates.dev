@@ -455,10 +455,7 @@ impl Resolver<'_> {
             Some(permission) => {
                 let user_id = permission.user.as_ref().map(|u| u.id);
                 if user_id != Some(actor_id) {
-                    tracing::warn!(
-                        %repository, %actor, actor_id, ?user_id,
-                        "a workflow actor's login names another account"
-                    );
+                    log::warn!(repository:% = repository, actor:% = actor, actor_id = actor_id, user_id:? = user_id; "a workflow actor's login names another account");
                     return Ok(false);
                 }
                 permission.can_release()

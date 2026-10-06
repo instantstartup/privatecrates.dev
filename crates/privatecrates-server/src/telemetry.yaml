@@ -1,0 +1,20 @@
+# Telemetry, read by apollo-opentelemetry at start-up (src/telemetry.rs). TELEMETRY_CONFIG names a file that replaces
+# this one, for example to export to an OTLP endpoint.
+#
+# Logs go to standard output as JSON, where Railway collects them. They are rate limited first, so that a flood of
+# requests cannot become a flood of logs (or a log bill). RUST_LOG filters them (default: info).
+resource:
+  attributes:
+    - name: service.name
+      value: privatecrates-server
+    - name: deployment.environment.name
+      value: ${env.RAILWAY_ENVIRONMENT_NAME:-local}
+logger_provider:
+  processors:
+    - rate_limited:
+        # A ceiling, not the expected volume: normally a few lines a minute. Past it (a flood of failing requests,
+        # each logging a warning), logs are dropped and counted rather than queued.
+        max_rate: 20
+        exporter:
+          console:
+            format: json

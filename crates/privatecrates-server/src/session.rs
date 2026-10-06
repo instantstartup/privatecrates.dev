@@ -263,7 +263,7 @@ pub async fn callback(
         )
         .await
         .map_err(|e| {
-            tracing::warn!(error = %e, "sign-in code exchange failed");
+            log::warn!(error:% = e; "sign-in code exchange failed");
             ApiError::SignInFailed
         })?;
     let lifetime = token
@@ -321,7 +321,7 @@ pub async fn logout_everywhere(
         .await?;
     // GitHub's webhook says the same, but this request should not depend on it arriving.
     state.permissions.forget_user(user.id, None).await;
-    tracing::info!(user = %user.login, "signed out of every device");
+    log::info!(user:% = user.login; "signed out of every device");
     Ok((
         StatusCode::NO_CONTENT,
         [(header::SET_COOKIE, clear_session_cookie())],

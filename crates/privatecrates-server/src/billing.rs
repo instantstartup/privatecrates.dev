@@ -451,7 +451,7 @@ impl Billing {
     pub fn new(config: &Config) -> Result<Self, BillingError> {
         let stripe = match &config.stripe {
             _ if config.preview => {
-                tracing::info!("preview: PrivateCrates is free, and billing is off");
+                log::info!("preview: PrivateCrates is free, and billing is off");
                 None
             }
             Some(stripe) => Some(Stripe {
@@ -462,7 +462,7 @@ impl Billing {
                 metrics: Metrics::default(),
             }),
             None => {
-                tracing::warn!("Stripe is not configured, so every tenant is treated as active");
+                log::warn!("Stripe is not configured, so every tenant is treated as active");
                 None
             }
         };
@@ -595,7 +595,7 @@ impl Billing {
                 None,
             )
             .await?;
-        tracing::info!(org = %org_login, from = quantity, to = billed, "billed members changed");
+        log::info!(org:% = org_login, from = quantity, to = billed; "billed members changed");
         self.record(updated);
         Ok(())
     }
@@ -645,7 +645,7 @@ impl Billing {
     }
 
     fn record(&self, subscription: Subscription) {
-        tracing::info!(org_id = ?subscription.org_id(), subscription = %subscription.id, status = %subscription.status, "subscription updated");
+        log::info!(org_id:? = subscription.org_id(), subscription:% = subscription.id, status:% = subscription.status; "subscription updated");
         keep_latest(
             &mut self.subscriptions.write().expect("billing lock"),
             subscription,
@@ -746,7 +746,7 @@ impl Billing {
                 Some(&key),
             )
             .await?;
-        tracing::info!(org = %org_login, subscription = %subscription.id, "grace period started");
+        log::info!(org:% = org_login, subscription:% = subscription.id; "grace period started");
         self.record(subscription);
         Ok(())
     }
@@ -824,7 +824,7 @@ impl Billing {
                 Some(&key),
             )
             .await?;
-        tracing::info!(org = %org_login, subscription = %subscription.id, "trial started");
+        log::info!(org:% = org_login, subscription:% = subscription.id; "trial started");
         self.record(subscription);
         Ok(())
     }

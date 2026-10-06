@@ -11,7 +11,9 @@ homepage.workspace = true
 
 [dependencies]
 aes-gcm = "0.11.1"
+apollo-configuration = "0.7.1"
 apollo-errors = "0.8.0"
+apollo-opentelemetry = { version = "0.11.1", default-features = false, features = ["otlp", "tower"] }
 async-trait = "0.1.92"
 axum = "0.8.9"
 base64 = "0.23.1"
@@ -22,8 +24,10 @@ hex = "0.4.3"
 hmac = "0.13.0"
 http = "1.5.0"
 jsonwebtoken = { version = "11.1.0", features = ["aws_lc_rs"] }
+log = { version = "0.4.34", features = ["kv"] }
 miette = "7"
 moka = { version = "0.12.16", features = ["future"] }
+opentelemetry = "0.32.0"
 privatecrates-common = { version = "0.2.9", path = "../privatecrates-common" }
 privatecrates-verify = { version = "0.2.9", path = "../privatecrates-verify" }
 reqwest = { version = "0.13.5", features = ["form", "json", "query"] }
@@ -38,9 +42,7 @@ time = { version = "0.3.55", features = ["formatting", "macros", "parsing"] }
 tokio = { version = "1.53.1", features = ["full"] }
 toml = "1.1.6"
 tower = { version = "0.5.3", features = ["util"] }
-tower-http = { version = "0.7.1", features = ["trace", "limit", "fs"] }
-tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["json", "env-filter"] }
+tower-http = { version = "0.7.1", features = ["limit", "fs"] }
 url = "2.5.8"
 
 [lints]

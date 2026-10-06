@@ -202,7 +202,7 @@ pub async fn publish(
         }
         append_index(state, tenant, &name, &line, &message).await?;
     }
-    tracing::info!(tenant = %tenant.slug, krate = %name, version = %meta.vers, publisher = %publisher.describe(), "published");
+    log::info!(tenant:% = tenant.slug, krate:% = name, version:% = meta.vers, publisher:% = publisher.describe(); "published");
     warnings.extend(trial_reminder(state, tenant).await);
     warnings.extend(allowance_warning(state, tenant).await);
     Ok(Json(serde_json::json!({
@@ -571,7 +571,7 @@ async fn check_name_clash(
     let clash = match state.crates_io.exists(name.as_str()).await {
         Ok(clash) => clash,
         Err(e) => {
-            tracing::warn!(error = %e, "crates.io lookup failed");
+            log::warn!(error:% = e; "crates.io lookup failed");
             return match tenant.settings.name_clash {
                 NameClash::Refuse => Err(ApiError::CratesIoUnavailable),
                 NameClash::Warn => {
@@ -742,7 +742,7 @@ async fn store_release(
             .upload_asset(&token, &draft, &asset_name, upload.crate_bytes.clone())
             .await?;
         if asset.digest.as_deref() != Some(&digest) {
-            tracing::error!(expected = %digest, got = ?asset.digest, "uploaded asset digest mismatch");
+            log::error!(expected:% = digest, got:? = asset.digest; "uploaded asset digest mismatch");
             return Err(ApiError::DigestMismatch);
         }
         if let Publisher::Workflow { token: oidc, .. } = publisher {

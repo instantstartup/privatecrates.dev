@@ -18,6 +18,7 @@ pub mod routes;
 pub mod search;
 pub mod session;
 pub mod status;
+pub mod telemetry;
 pub mod tenant;
 pub mod webhooks;
 pub mod website;
@@ -31,6 +32,7 @@ use std::{
 };
 
 use apollo_errors::Error;
+use apollo_opentelemetry::tower::ServiceBuilderExt;
 use axum::{
     Router,
     extract::{DefaultBodyLimit, Request},
@@ -40,6 +42,10 @@ use axum::{
     routing::{get, post, put},
 };
 use miette::Diagnostic;
+use opentelemetry::{
+    KeyValue,
+    trace::{SpanBuilder, SpanKind},
+};
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 
@@ -116,7 +122,7 @@ impl AppState {
         let records: Box<dyn Records> = match &config.database_url {
             Some(url) => Box::new(Postgres::connect_lazy(url)?),
             None => {
-                tracing::warn!(
+                log::warn!(
                     "DATABASE_URL is not set, so terms acceptances are kept in memory and lost at every restart"
                 );
                 Box::new(Memory::default())
@@ -221,10 +227,10 @@ impl AppState {
             .await;
         let (org_id, login, members) = (tenant.org_id, tenant.org_login.as_str(), plan.members);
         let result = if plan.trial_available {
-            tracing::info!(org = %login, members = ?members, "over the free member limit; starting the trial");
+            log::info!(org:% = login, members:? = members; "over the free member limit; starting the trial");
             self.billing.start_trial(org_id, login, members, None).await
         } else if self.billing.grace_due(org_id, members) {
-            tracing::info!(org = %login, members = ?members, "over the free member limit again; starting a grace period");
+            log::info!(org:% = login, members:? = members; "over the free member limit again; starting a grace period");
             self.billing.start_grace(org_id, login, members).await
         } else {
             // Each does nothing when it does not apply: an active subscription follows the members (down to 0 when
@@ -235,7 +241,7 @@ impl AppState {
             }
         };
         if let Err(e) = result {
-            tracing::warn!(org = %login, error = %e, "keeping billing in step with the members failed");
+            log::warn!(org:% = login, error:% = e; "keeping billing in step with the members failed");
         }
     }
 
@@ -248,7 +254,7 @@ impl AppState {
             .into_iter()
             .map(|tenant| async move {
                 if let Err(e) = tenant.refresh(&self.gh, &self.blobs).await {
-                    tracing::warn!(tenant = %tenant.slug, error = %e, "storage refresh failed");
+                    log::warn!(tenant:% = tenant.slug, error:% = e; "storage refresh failed");
                 }
             })
             .collect();
@@ -317,12 +323,34 @@ pub fn router(state: Arc<AppState>) -> Router {
         .layer(middleware::from_fn(move |request: Request, next: Next| {
             transport_headers(https, request, next)
         }))
+        .layer(middleware::from_fn(record_status))
         .layer(
-            // The path only: query strings carry OAuth codes and states, which have no place in logs.
-            tower_http::trace::TraceLayer::new_for_http().make_span_with(|request: &Request| {
-                tracing::info_span!("request", method = %request.method(), path = %request.uri().path())
-            }),
+            // A server span per request, started when the work starts. The path only: query strings carry OAuth
+            // codes and states, which have no place in telemetry.
+            tower::ServiceBuilder::new().traced(
+                apollo_opentelemetry::default_instrumentation_scope!(),
+                |request: &Request| {
+                    SpanBuilder::from_name(format!("{} {}", request.method(), request.uri().path()))
+                        .with_kind(SpanKind::Server)
+                        .with_attributes([
+                            KeyValue::new("http.request.method", request.method().to_string()),
+                            KeyValue::new("url.path", request.uri().path().to_owned()),
+                        ])
+                },
+            ),
         )
+}
+
+/// Records the response status on the request's span.
+async fn record_status(request: Request, next: Next) -> Response {
+    let response = next.run(request).await;
+    apollo_opentelemetry::span_attr!(
+        "http.response.status_code" = i64::from(response.status().as_u16())
+    );
+    if response.status().is_server_error() {
+        apollo_opentelemetry::span_err!("{}", response.status());
+    }
+    response
 }
 
 /// Headers for every response on every host, registries and redirects included: HSTS when served over HTTPS, and
@@ -422,7 +450,7 @@ pub fn spawn_refresh(state: Arc<AppState>) {
             tick.tick().await;
             if let Err(e) = subscriptions.billing.load().await {
                 // Without a current list, an organisation's earlier subscription could be missed.
-                tracing::warn!(error = %e, "loading subscriptions failed");
+                log::warn!(error:% = e; "loading subscriptions failed");
                 continue;
             }
             // Recounts each organisation's members once their count expires.
@@ -446,7 +474,7 @@ pub fn spawn_refresh(state: Arc<AppState>) {
         loop {
             tick.tick().await;
             if let Err(e) = state.discover().await {
-                tracing::warn!(error = %e, "tenant discovery failed");
+                log::warn!(error:% = e; "tenant discovery failed");
             }
         }
     });

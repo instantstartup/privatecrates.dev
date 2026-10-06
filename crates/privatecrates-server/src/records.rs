@@ -295,7 +295,7 @@ impl Terms {
                 match self.records.acceptance(org_id, TERMS_VERSION).await {
                     Ok(accepted) => Some(accepted.is_some()),
                     Err(e) => {
-                        tracing::warn!(org_id, error = %e, "looking up the terms acceptance failed");
+                        log::warn!(org_id = org_id, error:% = e; "looking up the terms acceptance failed");
                         None
                     }
                 }
@@ -308,7 +308,7 @@ impl Terms {
     pub async fn accept(&self, acceptance: &Acceptance<'_>) -> Result<(), RecordsError> {
         let recorded = self.records.accept(acceptance).await?;
         self.accepted.invalidate(&acceptance.org_id).await;
-        tracing::info!(org = %acceptance.org_login, by = %acceptance.user_login, version = %acceptance.version, via = acceptance.via.as_str(), recorded, "terms accepted");
+        log::info!(org:% = acceptance.org_login, by:% = acceptance.user_login, version:% = acceptance.version, via = acceptance.via.as_str(), recorded = recorded; "terms accepted");
         Ok(())
     }
 }

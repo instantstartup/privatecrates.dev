@@ -441,7 +441,7 @@ impl GitHub {
             }
             if let Some(wait) = rate_limit_wait(&response, now) {
                 self.paused.insert(key, now + wait).await;
-                tracing::warn!(wait, url = %response.url().path(), "GitHub rate limit");
+                log::warn!(wait = wait, url:% = response.url().path(); "GitHub rate limit");
                 // GitHub did not act on a rate-limited request, so sending it again is safe whatever its method.
                 if !last && !waited && wait <= MAX_INLINE_WAIT_SECS {
                     waited = true;
@@ -457,7 +457,7 @@ impl GitHub {
                 && !last
                 && let Some(delay) = backoff.next()
             {
-                tracing::warn!(%status, url = %response.url().path(), "GitHub server error; retrying");
+                log::warn!(status:% = status, url:% = response.url().path(); "GitHub server error; retrying");
                 tokio::time::sleep(*delay).await;
                 continue;
             }

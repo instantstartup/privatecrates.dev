@@ -761,7 +761,7 @@ async fn settings(
         }
         Err(e) => return Err(e.into()),
     }
-    tracing::info!(org = %org.login, %slug, by = %membership.user.login, "registry set up");
+    log::info!(org:% = org.login, slug:% = slug, by:% = membership.user.login; "registry set up");
     state.discover().await?;
     Ok(Json(onboarding_doc(&state, &membership).await?))
 }
@@ -882,7 +882,7 @@ async fn trial(
             Some(&email),
         )
         .await?;
-    tracing::info!(org = %org.login, by = %membership.user.login, "trial requested");
+    log::info!(org:% = org.login, by:% = membership.user.login; "trial requested");
     Ok(Json(onboarding_doc(&state, &membership).await?))
 }
 
@@ -903,7 +903,7 @@ async fn set_billing_email(
         .billing
         .set_billing_email(org.id, &org.login, &email)
         .await?;
-    tracing::info!(org = %org.login, by = %membership.user.login, "billing email set");
+    log::info!(org:% = org.login, by:% = membership.user.login; "billing email set");
     Ok(Json(onboarding_doc(&state, &membership).await?))
 }
 

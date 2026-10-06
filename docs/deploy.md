@@ -365,6 +365,8 @@ Leave these unset (the defaults are right for both environments):
 | `GITHUB_API_URL`, `GITHUB_WEB_URL` | `https://api.github.com`, `https://github.com` | Tests point these at a fake. |
 | `STRIPE_API_URL` | Stripe's API | Tests point this at a fake. |
 | `PREVIEW` | `true` | The preview (docs/preview.md): free for everyone, billing off whatever Stripe configuration is set. `false` from general availability. |
+| `TELEMETRY_CONFIG` | built in | A YAML file for apollo-opentelemetry that replaces the built-in configuration (`crates/privatecrates-server/src/telemetry.yaml`: JSON logs to standard output, at most 20 a second). Use it to export logs, spans and metrics over OTLP. |
+| `RUST_LOG` | `info` | Which logs are kept, by level and module, e.g. `info,privatecrates_server=debug`. |
 | `FREE_MEMBER_LIMIT` | 5 | Organisations with at most this many members (active members, from the reader App; not outside collaborators or pending invitations) are free. |
 | `TRIAL_DAYS` | 90 | Length of the no-card trial larger organisations get once. |
 | `OIDC_ISSUER`, `OIDC_JWKS_URL` | GitHub Actions' | |

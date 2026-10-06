@@ -51,7 +51,7 @@ impl Members {
                 match lookup(gh, org_login, installation).await {
                     Ok(count) => count,
                     Err(e) => {
-                        tracing::warn!(org = %org_login, error = %e, "counting members failed; treating the organisation as free");
+                        log::warn!(org:% = org_login, error:% = e; "counting members failed; treating the organisation as free");
                         None
                     }
                 }

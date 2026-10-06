@@ -43,7 +43,7 @@ impl Website {
         let mut hashes = BTreeSet::new();
         if let Some(dir) = dir {
             if !dir.join("index.html").is_file() {
-                tracing::warn!(dir = %dir.display(), "the website directory has no index.html");
+                log::warn!(dir:% = dir.display(); "the website directory has no index.html");
             }
             collect_inline_script_hashes(dir, &mut hashes);
         }
@@ -73,7 +73,7 @@ fn content_security_policy(script_hashes: &BTreeSet<String>) -> HeaderValue {
 /// SvelteKit's prerendered pages start the app with an inline script; the policy allows exactly those scripts.
 fn collect_inline_script_hashes(dir: &Path, hashes: &mut BTreeSet<String>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
-        tracing::warn!(dir = %dir.display(), "cannot read the website directory");
+        log::warn!(dir:% = dir.display(); "cannot read the website directory");
         return;
     };
     for entry in entries.flatten() {

@@ -667,7 +667,7 @@ impl IntoResponse for ApiError {
         let status = self.http_status();
         let code = self.code().map(|c| c.to_string());
         if status.is_server_error() {
-            tracing::error!(error = ?self, code = ?code, "request failed");
+            log::error!(error:? = self, code:? = code; "request failed");
         }
         let body =
             Json(serde_json::json!({ "errors": [{ "detail": self.to_string(), "code": code }] }));

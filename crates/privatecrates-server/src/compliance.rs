@@ -489,7 +489,7 @@ async fn build(state: &Arc<AppState>, tenant: &Arc<Tenant>) -> Result<Report, Ap
             }),
             Ok(false) => {}
             // The dashboard still answers; the next report asks again.
-            Err(e) => tracing::warn!(error = %e, "checking a name on crates.io failed"),
+            Err(e) => log::warn!(error:% = e; "checking a name on crates.io failed"),
         }
     }
     if !has_verify_workflow(state, tenant).await? {
@@ -713,7 +713,7 @@ async fn check(
             let fp =
                 provenance_fingerprint(tenant.storage_repo_id, v, asset, owners_blob.as_deref());
             verified_before = records.provenance_verified(&fp).await.unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "looking up verified provenance failed; checking again");
+                log::warn!(error:% = e; "looking up verified provenance failed; checking again");
                 false
             });
             if !verified_before {
@@ -758,7 +758,7 @@ async fn check(
         && result.provenance == Provenance::Valid
         && let Err(e) = records.record_provenance_verified(&fp).await
     {
-        tracing::warn!(error = %e, "remembering verified provenance failed");
+        log::warn!(error:% = e; "remembering verified provenance failed");
     }
     Ok(result)
 }
