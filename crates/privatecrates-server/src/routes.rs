@@ -220,9 +220,48 @@ fn cache_control_owned((name, value): (header::HeaderName, &str)) -> (header::He
     (name, value.to_owned())
 }
 
-/// Signed download URLs are cached this long. GitHub's signed URLs stay valid for several minutes, so this is well
-/// within their lifetime, and a burst of CI jobs costs one GitHub call per crate (SPEC §4.3).
-pub const DOWNLOAD_URL_TTL: Duration = Duration::from_secs(60);
+/// The longest a signed download URL is kept, whatever it says about itself.
+pub const DOWNLOAD_URL_TTL: Duration = Duration::from_secs(30 * 60);
+/// How long a signed URL that does not say when it expires is kept (GitHub's last for several minutes).
+const DOWNLOAD_URL_DEFAULT_SECS: u64 = 60;
+/// A cached URL is handed out only while it has at least this long left, so Cargo can still follow it.
+const DOWNLOAD_URL_MARGIN_SECS: u64 = 60;
+
+/// When a signed download URL from GitHub stops working, from what it says about itself: an Azure-style `se` time,
+/// an S3-style `X-Amz-Date` + `X-Amz-Expires`, or a `jwt` parameter's `exp`; the earliest if several.
+fn link_expiry(url: &str) -> Option<u64> {
+    use base64::Engine;
+    let url = url::Url::parse(url).ok()?;
+    let params: std::collections::HashMap<String, String> =
+        url.query_pairs().into_owned().collect();
+    let se = params.get("se").and_then(|t| {
+        time::OffsetDateTime::parse(t, &time::format_description::well_known::Rfc3339).ok()
+    });
+    let amz = params
+        .get("X-Amz-Date")
+        .zip(params.get("X-Amz-Expires"))
+        .and_then(|(date, secs)| {
+            let format =
+                time::macros::format_description!("[year][month][day]T[hour][minute][second]Z");
+            let start = time::PrimitiveDateTime::parse(date, &format)
+                .ok()?
+                .assume_utc();
+            Some(start + Duration::from_secs(secs.parse().ok()?))
+        });
+    let jwt = params.get("jwt").and_then(|jwt| {
+        let payload = jwt.split('.').nth(1)?;
+        let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(payload.trim_end_matches('='))
+            .ok()?;
+        let exp = serde_json::from_slice::<serde_json::Value>(&bytes).ok()?["exp"].as_i64()?;
+        time::OffsetDateTime::from_unix_timestamp(exp).ok()
+    });
+    [se, amz, jwt]
+        .into_iter()
+        .flatten()
+        .min()
+        .and_then(|t| u64::try_from(t.unix_timestamp()).ok())
+}
 
 pub async fn download(
     State(state): State<Arc<AppState>>,
@@ -241,7 +280,10 @@ pub async fn download(
     }
     let tag = release_tag(&name, &version);
     let key = (tenant.storage_repo_id, tag.clone());
-    if let Some(url) = state.download_urls.get(&key).await {
+    let now = crate::github::now_secs();
+    if let Some((url, expires)) = state.download_urls.get(&key).await
+        && expires > now + DOWNLOAD_URL_MARGIN_SECS
+    {
         return Ok(found(&url));
     }
     let token = tenant.storage_token(&state.gh).await?;
@@ -250,7 +292,14 @@ pub async fn download(
         .gh
         .asset_download_url(&token, &tenant.storage_repo, asset_id)
         .await?;
-    state.download_urls.insert(key, url.clone()).await;
+    // Kept as long as GitHub says it works, so a busy CI costs one GitHub call per crate version per link's life
+    // rather than per minute (SPEC §4.3).
+    let expires =
+        link_expiry(&url).unwrap_or(now + DOWNLOAD_URL_DEFAULT_SECS + DOWNLOAD_URL_MARGIN_SECS);
+    state
+        .download_urls
+        .insert(key, (url.clone(), expires))
+        .await;
     Ok(found(&url))
 }
 
@@ -470,4 +519,42 @@ jobs:
 </body></html>"#
         )),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::link_expiry;
+
+    #[test]
+    fn signed_links_say_when_they_expire() {
+        // 2026-10-06T12:05:00Z
+        let at = 1_791_288_300;
+        assert_eq!(
+            link_expiry(
+                "https://release-assets.githubusercontent.com/a?sp=r&se=2026-10-06T12%3A05%3A00Z&sig=x"
+            ),
+            Some(at)
+        );
+        assert_eq!(
+            link_expiry(
+                "https://objects.githubusercontent.com/a?X-Amz-Date=20261006T120000Z&X-Amz-Expires=300&X-Amz-Signature=x"
+            ),
+            Some(at)
+        );
+        // eyJleHAiOjE3OTEyODgzMDB9 is {"exp":1791288300}.
+        assert_eq!(
+            link_expiry(
+                "https://release-assets.githubusercontent.com/a?jwt=eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3OTEyODgzMDB9.sig"
+            ),
+            Some(at)
+        );
+        // The earliest, when it says more than once.
+        assert_eq!(
+            link_expiry(
+                "https://x.example/a?se=2026-10-06T12%3A05%3A00Z&jwt=a.eyJleHAiOjE3OTEyODkwMDB9.s"
+            ),
+            Some(at)
+        );
+        assert_eq!(link_expiry("https://x.example/signed/1?sig=fake"), None);
+    }
 }

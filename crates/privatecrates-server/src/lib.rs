@@ -91,7 +91,8 @@ pub struct AppState {
     /// (storage repository ID, release tag) → `.crate` asset ID. Releases are immutable, so this never goes stale.
     pub asset_ids: moka::future::Cache<(u64, String), u64>,
     /// (storage repository ID, release tag) → signed download URL.
-    pub download_urls: moka::future::Cache<(u64, String), String>,
+    /// Signed download URLs, with when each stops working (Unix seconds), by storage repository and release tag.
+    pub download_urls: moka::future::Cache<(u64, String), (String, u64)>,
     pub publish_limiter: PublishLimiter,
     /// One lock per crate, by storage repository and crate name: a crate's versions publish one at a time, while
     /// different crates publish in parallel.

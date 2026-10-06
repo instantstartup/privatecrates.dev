@@ -33,7 +33,7 @@ sha2 = "0.11.0"
 sqlx = { version = "0.9.0", default-features = false, features = ["macros", "migrate", "postgres", "runtime-tokio", "time", "tls-rustls-aws-lc-rs"] }
 subtle = "2.6.1"
 tar = "0.4.46"
-time = { version = "0.3.55", features = ["formatting"] }
+time = { version = "0.3.55", features = ["formatting", "macros", "parsing"] }
 tokio = { version = "1.53.1", features = ["full"] }
 toml = "1.1.6"
 tower = { version = "0.5.3", features = ["util"] }
