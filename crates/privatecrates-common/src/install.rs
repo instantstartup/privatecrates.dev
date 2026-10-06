@@ -18,7 +18,7 @@ pub fn ci_step(binary: &str) -> String {
           base=https://github.com/{RELEASE_REPO}/releases/download/v$VERSION
           curl -fsSL --remote-name-all "$base/$name.tgz" "$base/SHA256SUMS"
           sha256sum --check --ignore-missing SHA256SUMS
-          gh attestation verify "$name.tgz" --repo {RELEASE_REPO} \\
+          gh attestation verify "$name.tgz" --repo {RELEASE_REPO} \
             --signer-workflow {RELEASE_REPO}/.github/workflows/release.yml --source-ref refs/tags/v$VERSION
           tar -xzf "$name.tgz"
           install -D "$name/{binary}" ~/.cargo/bin/{binary}
@@ -40,8 +40,9 @@ mod tests {
         );
         assert!(step.contains("sha256sum --check --ignore-missing SHA256SUMS\n"));
         // Built by our release workflow, from this version's tag: not by any other workflow of the repository.
+        // One backslash: the shell joins the two lines into one command.
         assert!(step.contains(
-            "gh attestation verify \"$name.tgz\" --repo worldbuilding-dev/privatecrates.dev"
+            "gh attestation verify \"$name.tgz\" --repo worldbuilding-dev/privatecrates.dev \\\n            --signer-workflow"
         ));
         assert!(step.contains(
             "--signer-workflow worldbuilding-dev/privatecrates.dev/.github/workflows/release.yml --source-ref \
