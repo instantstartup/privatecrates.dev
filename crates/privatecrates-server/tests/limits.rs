@@ -107,3 +107,49 @@ async fn a_passing_github_outage_is_retried() {
     assert_eq!(response.status(), 302);
     assert_eq!(asset_calls(&h), 3);
 }
+
+/// Before an organisation runs out of GitHub allowance, the people who would notice are told: in `cargo publish`,
+/// and on the account page.
+#[tokio::test]
+async fn a_low_allowance_is_warned_about_before_it_runs_out() {
+    let h = Harness::start().await;
+    let repo = h.repo("story-engine");
+    let first = Crate::new("story_engine", "0.1.0", "acme/story-engine");
+    h.publish_from_ci("acme/story-engine", repo, &first).await;
+
+    // Plenty left: no warning.
+    h.fake.set_allowance(4_000, 5_000);
+    let second = Crate::new("story_engine", "0.2.0", "acme/story-engine");
+    let token = h.publish_token("acme/story-engine", repo, "release.yml", &second);
+    let body: serde_json::Value = h.publish(&second, &token).await.json().await.unwrap();
+    assert_eq!(body["warnings"]["other"], serde_json::json!([]));
+
+    // 400 of 5,000 left: 92% used.
+    h.fake.set_allowance(400, 5_000);
+    let third = Crate::new("story_engine", "0.3.0", "acme/story-engine");
+    let token = h.publish_token("acme/story-engine", repo, "release.yml", &third);
+    let body: serde_json::Value = h.publish(&third, &token).await.json().await.unwrap();
+    let warning = body["warnings"]["other"][0].as_str().unwrap().to_owned();
+    assert!(
+        warning.starts_with(
+            "acme has used 92% of its hourly GitHub API allowance (400 of 5000 calls left until"
+        ),
+        "{warning}"
+    );
+    assert!(warning.contains(&h.apex("/docs/setup#limits")), "{warning}");
+
+    // The account page says the same.
+    let admin = h.fake.add_user("ada", "ghu_", &[(repo, true)]);
+    h.fake.add_member(&admin, &h.org, "admin");
+    let session = h.sign_in(&admin).await;
+    let doc: serde_json::Value = h
+        .api_get("/api/session", &session)
+        .await
+        .json()
+        .await
+        .unwrap();
+    let allowance = &doc["orgs"][0]["tenant"]["github_allowance"];
+    assert_eq!(allowance["remaining"], 400);
+    assert_eq!(allowance["limit"], 5_000);
+    assert_eq!(allowance["running_low"], true);
+}

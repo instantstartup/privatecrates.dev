@@ -74,22 +74,33 @@ pub(crate) fn rfc3339(secs: Option<u64>) -> Option<String> {
 }
 
 /// The organisation's registry and its raw subscription status, or `null` when it is not set up.
-fn tenant_json(state: &AppState, org_id: u64, plan: &OrgPlan) -> Value {
+async fn tenant_json(state: &AppState, org_id: u64, plan: &OrgPlan) -> Value {
     let Some(tenant) = state.tenants.by_org(org_id) else {
         return Value::Null;
     };
     let subscription = plan.subscription.as_ref();
+    let allowance = state.github_allowance(&tenant).await.map(|a| {
+        json!({
+            "remaining": a.remaining,
+            "limit": a.limit,
+            "resets_at": rfc3339(Some(a.resets_at)),
+            "running_low": a.running_low(),
+        })
+    });
     json!({
         "slug": tenant.slug,
         "registry_url": state.config.tenant_base_url(&tenant.slug),
         "status": subscription.map(|s| &s.status),
         "trial_ends_at": rfc3339(subscription.and_then(Subscription::trial_ends_at)),
         "current_period_end": rfc3339(subscription.and_then(Subscription::current_period_end)),
+        // The tighter of its two GitHub App installations' hourly API allowances, as of our latest call; `null`
+        // before one.
+        "github_allowance": allowance,
     })
 }
 
 /// An organisation in `GET /api/session`: who it is, the user's role, its plan and its registry.
-fn org_json(
+async fn org_json(
     state: &AppState,
     org: &Organization,
     membership: &Membership,
@@ -114,7 +125,7 @@ fn org_json(
         "billing_email_missing": subscription.is_some_and(Subscription::billing_email_missing),
         "current_period_end": rfc3339(subscription.and_then(Subscription::current_period_end)),
         "trial_available": plan.trial_available,
-        "tenant": tenant_json(state, org.id, plan),
+        "tenant": tenant_json(state, org.id, plan).await,
         "terms_accepted": terms_accepted,
         "personal": membership.personal,
     })
@@ -174,7 +185,7 @@ async fn session_info(
             let terms_accepted = state.terms.accepted(org.id).await;
             Ok(Some((
                 org.login.clone(),
-                org_json(&state, &org, &membership, &plan, terms_accepted),
+                org_json(&state, &org, &membership, &plan, terms_accepted).await,
             )))
         });
     }
@@ -200,7 +211,8 @@ async fn session_info(
             &membership,
             &plan,
             terms_accepted,
-        );
+        )
+        .await;
         orgs.insert(0, (user.login.clone(), account));
     }
     Ok(Json(json!({

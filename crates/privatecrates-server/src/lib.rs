@@ -160,6 +160,23 @@ impl AppState {
             .await
     }
 
+    /// The tenant's tighter of its two installations' GitHub allowances, the reader's and the storage App's, as of
+    /// our latest calls. Each organisation has its own; running out pauses its registry until the hour resets.
+    pub async fn github_allowance(&self, tenant: &Tenant) -> Option<github::Allowance> {
+        let reader = self
+            .gh
+            .installation_allowance(github::AppKind::Reader, tenant.reader_installation)
+            .await;
+        let storage = self
+            .gh
+            .installation_allowance(github::AppKind::Storage, tenant.storage_installation)
+            .await;
+        [reader, storage]
+            .into_iter()
+            .flatten()
+            .max_by(|a, b| a.used().total_cmp(&b.used()))
+    }
+
     /// The plan of an organisation, or of a personal account, which is always free.
     pub async fn plan(&self, org_id: u64, org_login: &str, personal: bool) -> OrgPlan {
         if personal {

@@ -114,7 +114,47 @@ pub struct GitHub {
     /// When GitHub will take calls again from each token it rate-limited (Unix seconds), by the token's hash: calls
     /// before then fail at once rather than adding to the limit.
     paused: moka::future::Cache<[u8; 32], u64>,
+    /// The hourly allowance each token had left at its latest answer, by the token's hash.
+    allowances: moka::future::Cache<[u8; 32], Allowance>,
     metrics: Metrics,
+}
+
+/// How much of an hourly API allowance is left, as GitHub reported it on its latest answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct Allowance {
+    pub remaining: u64,
+    pub limit: u64,
+    /// When it is refilled (Unix seconds).
+    pub resets_at: u64,
+}
+
+impl Allowance {
+    /// Below this share left, people are warned: in `cargo publish` and on the account page.
+    pub const WARN_BELOW: f64 = 0.2;
+
+    fn of(response: &Response) -> Option<Self> {
+        let number = |name: &str| {
+            response
+                .headers()
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.trim().parse::<u64>().ok())
+        };
+        Some(Self {
+            remaining: number("x-ratelimit-remaining")?,
+            limit: number("x-ratelimit-limit").filter(|&l| l > 0)?,
+            resets_at: number("x-ratelimit-reset")?,
+        })
+    }
+
+    /// The share of the allowance used, from 0 to 1.
+    pub fn used(&self) -> f64 {
+        1.0 - self.remaining.min(self.limit) as f64 / self.limit as f64
+    }
+
+    pub fn running_low(&self) -> bool {
+        (self.remaining as f64) < self.limit as f64 * Self::WARN_BELOW
+    }
 }
 
 // Response types: only the fields we use.
@@ -338,6 +378,10 @@ impl GitHub {
                 .max_capacity(100_000)
                 .time_to_live(Duration::from_secs(60 * 60))
                 .build(),
+            allowances: moka::future::Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(Duration::from_secs(60 * 60))
+                .build(),
             metrics: Metrics::default(),
         })
     }
@@ -389,6 +433,9 @@ impl GitHub {
                 started.elapsed(),
             );
             let response = secondary_limit_checked(result?).await?;
+            if let Some(allowance) = Allowance::of(&response) {
+                self.allowances.insert(key, allowance).await;
+            }
             if let Some(wait) = rate_limit_wait(&response, now) {
                 self.paused.insert(key, now + wait).await;
                 tracing::warn!(wait, url = %response.url().path(), "GitHub rate limit");
@@ -457,6 +504,24 @@ impl GitHub {
             }
         }
         Ok(all)
+    }
+
+    /// What is left of an installation's hourly allowance, as of our latest call with its current token. `None`
+    /// before the first call with it.
+    pub async fn installation_allowance(
+        &self,
+        kind: AppKind,
+        installation_id: u64,
+    ) -> Option<Allowance> {
+        let token = self
+            .installation_tokens
+            .get(&(kind, installation_id))
+            .await?;
+        let key: [u8; 32] = Sha256::digest(format!("Bearer {token}").as_bytes()).into();
+        self.allowances
+            .get(&key)
+            .await
+            .filter(|a| a.resets_at > now_secs())
     }
 
     pub async fn installation_token(

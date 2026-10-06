@@ -11,6 +11,17 @@ export interface Tenant {
 	status: TenantStatus | null;
 	trial_ends_at: string | null;
 	current_period_end: string | null;
+	/** The tighter of the organisation's two GitHub App allowances, as of our latest call; null before one. */
+	github_allowance?: GitHubAllowance | null;
+}
+
+/** An hourly GitHub API allowance: each organisation has its own, and builds and publishes use it. */
+export interface GitHubAllowance {
+	remaining: number;
+	limit: number;
+	resets_at: string;
+	/** Under a fifth left: the account page and `cargo publish` warn. */
+	running_low: boolean;
 }
 
 /**

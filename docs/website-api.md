@@ -134,7 +134,9 @@ tokens included; drops their cached permissions; clears the cookie. `204`. Other
       "plan": "trial", "monthly_price_usd": 70, "trial_ends_at": "2026-12-26T00:00:00Z", "has_payment_method": false,
       "billing_email_missing": false, "current_period_end": null, "trial_available": false,
       "tenant": { "slug": "acme", "registry_url": "https://acme.privatecrates.dev", "status": "trialing",
-                  "trial_ends_at": "2026-12-26T00:00:00Z", "current_period_end": null },
+                  "trial_ends_at": "2026-12-26T00:00:00Z", "current_period_end": null,
+                  "github_allowance": { "remaining": 4210, "limit": 5000, "resets_at": "2026-10-06T15:00:00Z",
+                                        "running_low": false } },
       "terms_accepted": true, "personal": false }
   ],
   "install_url": "https://github.com/apps/privatecrates-reader/installations/new",

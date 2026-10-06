@@ -79,6 +79,18 @@
 	const trialEnding = $derived(trialNoCard && trialDaysLeft !== null && trialDaysLeft <= TRIAL_REMINDER_DAYS);
 	/** Not the first trial: the organisation grew past the free limit again after an earlier one ended. */
 	const graceName = $derived(org.grace_period ? 'grace period' : 'free trial');
+	/** The tighter of the organisation's two GitHub App allowances, as of our latest call (null before one). */
+	const allowance = $derived(tenant.github_allowance ?? null);
+	const allowanceResets = $derived(
+		allowance
+			? new Date(allowance.resets_at).toLocaleTimeString('en-GB', {
+					hour: '2-digit',
+					minute: '2-digit',
+					timeZone: 'UTC',
+					timeZoneName: 'short'
+				})
+			: null
+	);
 	/** Free again with a subscription still running: admins may cancel it (we never cancel automatically). */
 	const freeAgain = $derived(plan === 'free' && isActive(tenant.status));
 	const portal = $derived(admin && hasSubscription(org));
@@ -109,6 +121,23 @@
 	};
 </script>
 
+{#snippet allowanceFact()}
+	{#if allowance}
+		<div>
+			<dt>GitHub API</dt>
+			<dd>
+				{allowance.remaining.toLocaleString('en-GB')} of {allowance.limit.toLocaleString('en-GB')} calls left this
+				hour.
+				<span class="detail"
+					>Each organisation has its own hourly allowance from GitHub; builds and publishes use it. <a
+						href="/docs/setup#limits">About limits</a
+					></span
+				>
+			</dd>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet memberLine()}
 	{#if members === null}
 		Free for organisations with up to {limit} members.
@@ -130,6 +159,17 @@
 				send the reminder before the trial ends.
 			</p>
 			<TrialForm org={org.login} {price} purpose="email" onstarted={() => onchange?.()} />
+		</Callout>
+	{/if}
+	{#if allowance?.running_low}
+		<Callout tone="warn" role="status" title="GitHub’s hourly allowance is running low">
+			<p>
+				{org.login} has {allowance.remaining.toLocaleString('en-GB')} of its {allowance.limit.toLocaleString(
+					'en-GB'
+				)} GitHub API calls left{allowanceResets ? `, until ${allowanceResets}` : ''}. If they run out,
+				downloads and publishing pause until GitHub refills them. Busy CI is the usual cause:
+				<a href="/docs/setup#limits">how to use fewer</a>.
+			</p>
 		</Callout>
 	{/if}
 	{#if trialNoCard}
@@ -230,6 +270,7 @@
 						>
 					</dd>
 				</div>
+				{@render allowanceFact()}
 			</dl>
 		</section>
 	{:else}
@@ -265,6 +306,7 @@
 					<dt>Members</dt>
 					<dd>{@render memberLine()}</dd>
 				</div>
+				{@render allowanceFact()}
 			</dl>
 
 			{#if freeAgain && admin}

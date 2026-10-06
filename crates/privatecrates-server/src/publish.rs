@@ -191,9 +191,33 @@ pub async fn publish(
     append_index(state, tenant, &name, &line, &message).await?;
     tracing::info!(tenant = %tenant.slug, krate = %name, version = %meta.vers, publisher = %publisher.describe(), "published");
     warnings.extend(trial_reminder(state, tenant).await);
+    warnings.extend(allowance_warning(state, tenant).await);
     Ok(Json(serde_json::json!({
         "warnings": { "invalid_categories": [], "invalid_badges": [], "other": warnings }
     })))
+}
+
+/// When the organisation's GitHub API allowance is running low, a warning for whoever publishes: once it runs out,
+/// downloads and publishing pause until GitHub refills it.
+async fn allowance_warning(state: &AppState, tenant: &Tenant) -> Option<String> {
+    let allowance = state.github_allowance(tenant).await?;
+    if !allowance.running_low() {
+        return None;
+    }
+    let resets =
+        OffsetDateTime::from_unix_timestamp(i64::try_from(allowance.resets_at).ok()?).ok()?;
+    Some(format!(
+        "{org} has used {used:.0}% of its hourly GitHub API allowance ({remaining} of {limit} calls left until {hour:02}:{minute:02} \
+         UTC). If it runs out, downloads and publishing pause until then. Busy CI is the usual cause: see \
+         {apex}/docs/setup#limits",
+        org = tenant.org_login,
+        used = allowance.used() * 100.0,
+        remaining = allowance.remaining,
+        limit = allowance.limit,
+        hour = resets.hour(),
+        minute = resets.minute(),
+        apex = state.config.apex_url(),
+    ))
 }
 
 /// While a trial or grace period has no card, a warning on every publish: developers are the people who notice, and

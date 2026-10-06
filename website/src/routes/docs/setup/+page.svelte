@@ -145,6 +145,36 @@
 	those tokens are usually far broader than the registry needs.
 </p>
 
+<h2 id="limits">GitHub’s limits</h2>
+<p>
+	Your registry works through two GitHub Apps installed on your organisation, and GitHub gives each
+	installation an hourly allowance of API calls: 5,000 to start with, more for large organisations. It is your
+	organisation’s own, not shared with other customers. Crate downloads come from GitHub’s file servers and use
+	none of it, but the short-lived link to each download does, as do publishing and checking a new token’s
+	permissions.
+</p>
+<p>
+	When less than a fifth is left, the <a href="/account">account page</a> and every <code>cargo publish</code> say
+	so. If it runs out, downloads and publishing pause until GitHub refills it, at most an hour later; Cargo is told
+	when to try again and retries by itself. To use less:
+</p>
+<ul>
+	<li>
+		Cache Cargo’s registry between CI runs (<code>~/.cargo/registry</code>, which
+		<code>Swatinem/rust-cache</code> does). A fresh runner fetches every crate again; a cached one mostly asks whether
+		anything changed, which costs no GitHub calls.
+	</li>
+	<li>
+		Build once and share the artifacts between jobs, rather than every job of a large matrix downloading the
+		same crates.
+	</li>
+</ul>
+<p>
+	GitHub also limits how quickly releases and commits can be created. A publish makes about four such
+	requests, so only very large releases of many crates at once come near it; when they do, the publish is told
+	to wait and retry.
+</p>
+
 <h2 id="sso">SAML single sign-on</h2>
 <p>
 	If your organisation enforces SAML SSO, GitHub requires an active SSO session for the token. When it is
