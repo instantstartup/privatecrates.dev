@@ -4,7 +4,7 @@ import {
 	FREE_MEMBER_LIMIT,
 	GA_TARGET,
 	PREVIEW,
-	PRICE_USD,
+	PRICE_PHRASE,
 	SITE_URL,
 	TERMS_PATH,
 	TERMS_VERSION,
@@ -30,8 +30,8 @@ const SLUG = '<name>';
 const TERMS_URL = `${SITE_URL}${TERMS_PATH}`;
 
 const pricing = PREVIEW
-	? `- **Private preview, by invitation only:** only organisations PrivateCrates has invited can have a registry. Anyone else asks for an invitation on ${SITE_URL}/account (signed in with GitHub; a person does this). It is free and billing is off: there is no trial, no card and nothing to pay, whatever the organisation's size. It is provided as is, at the user's own risk, under the private preview terms (${TERMS_URL}, version \`${TERMS_VERSION}\`). Planned pricing from general availability (${GA_TARGET}): free up to ${FREE_MEMBER_LIMIT} members, then $${PRICE_USD} per organisation per month.`
-	: `- Free for organisations with up to ${FREE_MEMBER_LIMIT} members. Larger ones start a ${TRIAL_MONTHS}-month free trial with no card, then pay $${PRICE_USD} per organisation per month.`;
+	? `- **Private preview, by invitation only:** only organisations PrivateCrates has invited can have a registry. Anyone else asks for an invitation on ${SITE_URL}/account (signed in with GitHub; a person does this). It is free and billing is off: there is no trial, no card and nothing to pay, whatever the organisation's size. It is provided as is, at the user's own risk, under the private preview terms (${TERMS_URL}, version \`${TERMS_VERSION}\`). Planned pricing from general availability (${GA_TARGET}): ${PRICE_PHRASE}, per organisation.`
+	: `- Free for organisations with up to ${FREE_MEMBER_LIMIT} members. Larger ones start a ${TRIAL_MONTHS}-month free trial with no card. Pricing per organisation: ${PRICE_PHRASE}.`;
 
 const trialFlag = PREVIEW
 	? ''

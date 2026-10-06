@@ -134,7 +134,7 @@ impl FakeStripe {
             "trial_end": (status == "trialing").then_some(now + 14 * DAY),
             "ended_at": null,
             "default_payment_method": null,
-            "items": { "data": [{ "current_period_end": now + 30 * DAY }] },
+            "items": { "data": [{ "id": format!("si_{n}"), "quantity": 1, "current_period_end": now + 30 * DAY }] },
             "metadata": metadata,
         }));
         id
@@ -236,6 +236,12 @@ impl FakeStripe {
         );
         let n = self.world().id();
         self.update_subscription(&id, json!({ "default_payment_method": format!("pm_{n}") }));
+        let quantity: u64 = checkout["line_items[0][quantity]"]
+            .parse()
+            .expect("a quantity");
+        let mut w = self.world();
+        w.subscription_mut(&id)["items"]["data"][0]["quantity"] = json!(quantity);
+        drop(w);
         json!({ "id": "cs_test", "object": "checkout.session", "subscription": id })
     }
 }
@@ -271,7 +277,10 @@ fn router(fake: FakeStripe) -> Router {
             "/v1/subscriptions",
             get(list_subscriptions).post(create_subscription),
         )
-        .route("/v1/subscriptions/{id}", get(subscription))
+        .route(
+            "/v1/subscriptions/{id}",
+            get(subscription).post(update_subscription_quantity),
+        )
         .route("/v1/checkout/sessions", post(create_checkout))
         .route("/v1/billing_portal/sessions", post(create_portal))
         .layer(middleware::from_fn_with_state(fake.clone(), count))
@@ -418,7 +427,11 @@ async fn create_subscription(
             "trial_end": trial_end,
             "ended_at": null,
             "default_payment_method": null,
-            "items": { "data": [{ "current_period_end": trial_end.unwrap_or(now) }] },
+            "items": { "data": [{
+                "id": format!("si_{n}"),
+                "quantity": form.get("items[0][quantity]").and_then(|q| q.parse::<u64>().ok()).unwrap_or(1),
+                "current_period_end": trial_end.unwrap_or(now),
+            }] },
             "metadata": metadata(form),
         });
         w.subscriptions.push(subscription.clone());
@@ -498,6 +511,37 @@ async fn subscription(
         Some(s) => Json(w.render(s, expand)).into_response(),
         None => error(StatusCode::NOT_FOUND, "No such subscription"),
     }
+}
+
+/// `POST /v1/subscriptions/{id}`: changes the quantity of the subscription's item, the one update we make.
+async fn update_subscription_quantity(
+    State(fake): State<FakeStripe>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Form(form): Form<HashMap<String, String>>,
+) -> Response {
+    if let Err(e) = authorised(&headers) {
+        return e;
+    }
+    let mut w = fake.world();
+    let Some(index) = w.subscriptions.iter().position(|s| s["id"] == id) else {
+        return error(StatusCode::NOT_FOUND, "No such subscription");
+    };
+    let item = &w.subscriptions[index]["items"]["data"][0]["id"];
+    if form.get("items[0][id]").map(String::as_str) != item.as_str() {
+        return error(StatusCode::BAD_REQUEST, "No such subscription item");
+    }
+    let Some(quantity) = form
+        .get("items[0][quantity]")
+        .and_then(|q| q.parse::<u64>().ok())
+    else {
+        return error(StatusCode::BAD_REQUEST, "Invalid quantity");
+    };
+    w.subscriptions[index]["items"]["data"][0]["quantity"] = json!(quantity);
+    w.subscription_requests.push(form.clone());
+    let expand = form.get("expand[]").is_some_and(|e| e == "customer");
+    let rendered = w.render(&w.subscriptions[index], expand);
+    Json(rendered).into_response()
 }
 
 async fn create_checkout(

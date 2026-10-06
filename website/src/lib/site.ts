@@ -16,10 +16,20 @@ export const OPERATOR = 'Bryn Dyllan Cooke';
 /** When general availability, and so billing, is planned. */
 export const GA_TARGET = '2027, subject to demand';
 
-/** Price per GitHub organisation per month, in US dollars. */
-export const PRICE_USD = 100;
 /** Organisations with this many active members or fewer are free (FREE_MEMBER_LIMIT on the server). */
 export const FREE_MEMBER_LIMIT = 5;
+/** Price per month of each member past the free limit, in US dollars (MEMBER_PRICE_USD on the server). */
+export const MEMBER_PRICE_USD = 10;
+/** The most an organisation pays per month, in US dollars, however many members it has. */
+export const PRICE_CAP_USD = 100;
+/** The pricing in one phrase, for sentences such as "Free for personal accounts; organisations are …". */
+export const PRICE_PHRASE = `free up to ${FREE_MEMBER_LIMIT} members, then $${MEMBER_PRICE_USD} a member a month, never more than $${PRICE_CAP_USD}`;
+
+/** The monthly price for an organisation with this many members (the server's `monthly_price_usd`). */
+export function monthlyPriceUsd(members: number): number {
+	const billed = Math.min(Math.max(members - FREE_MEMBER_LIMIT, 0), PRICE_CAP_USD / MEMBER_PRICE_USD);
+	return billed * MEMBER_PRICE_USD;
+}
 /** Length of the no-card free trial for larger organisations (TRIAL_DAYS on the server). */
 export const TRIAL_DAYS = 90;
 export const TRIAL_MONTHS = 3;

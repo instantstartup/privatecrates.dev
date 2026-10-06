@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Sets up Stripe for one PrivateCrates environment, idempotently:
 #   - product "PrivateCrates" (fixed ID `privatecrates`)
-#   - recurring price, USD 100.00 per month, lookup key `privatecrates_org_monthly`
+#   - recurring price, USD 10.00 per member per month, lookup key `privatecrates_member_monthly`. The server sets each
+#     subscription's quantity to the members past the free limit, at most 10, so an organisation pays at most $100.
 #   - webhook endpoint https://{apex}/webhooks/stripe for the subscription events the server handles
 #   - the default customer portal configuration (cancel at period end, update payment method, invoices)
 # and prints the values to put in Railway.
@@ -24,8 +25,8 @@ STRIPE_API="${STRIPE_API_URL:-https://api.stripe.com}"
 STRIPE_API_VERSION="${STRIPE_API_VERSION:-2026-08-26.dahlia}"
 
 PRODUCT_ID="privatecrates"
-LOOKUP_KEY="privatecrates_org_monthly"
-UNIT_AMOUNT=10000 # cents
+LOOKUP_KEY="privatecrates_member_monthly"
+UNIT_AMOUNT=1000 # cents, per member
 CURRENCY="usd"
 EVENTS=(
   checkout.session.completed
@@ -136,7 +137,7 @@ else
       -d currency="$CURRENCY" \
       -d "recurring[interval]=month" \
       -d lookup_key="$LOOKUP_KEY" \
-      -d nickname="Per organisation, monthly" \
+      -d nickname="Per member past the free limit, monthly" \
       -d "metadata[app]=privatecrates" | jq -r .id
   )"
   note "price: created $PRICE_ID"

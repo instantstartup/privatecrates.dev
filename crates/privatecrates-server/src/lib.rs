@@ -179,13 +179,23 @@ impl AppState {
     }
 
     /// Starts the trial of a registered organisation that is over the member limit and has never had a
-    /// subscription, so that growing past the limit never breaks its registry. Called from webhooks and the periodic
+    /// subscription, so that growing past the limit never breaks its registry; for one that has a subscription,
+    /// keeps the members it pays for in step with its member count. Called from webhooks and the periodic
     /// refresh, never while serving a request: a failure is logged, and the next refresh tries again.
     pub async fn start_trial_if_grown(&self, tenant: &Tenant) {
         let plan = self
             .plan(tenant.org_id, &tenant.org_login, tenant.personal)
             .await;
         if !plan.trial_available {
+            // Already subscribed: what it pays for follows the member count.
+            if !tenant.personal
+                && let Err(e) = self
+                    .billing
+                    .sync_quantity(tenant.org_id, &tenant.org_login, plan.members)
+                    .await
+            {
+                tracing::warn!(org = %tenant.org_login, error = %e, "updating the billed members failed");
+            }
             return;
         }
         tracing::info!(org = %tenant.org_login, members = ?plan.members, "over the free member limit; starting the trial");

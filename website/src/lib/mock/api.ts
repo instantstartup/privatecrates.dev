@@ -42,6 +42,7 @@
 // (comma-separated for several, e.g. ?org=acme&mock_done=storage_repo,storage_app). The billing portal comes back
 // with ?mock_done=card, which adds a card.
 
+import { monthlyPriceUsd } from '$lib/site';
 import { verifyWorkflow } from '$lib/snippets';
 import type {
 	AuditEntry,
@@ -84,7 +85,6 @@ type Scenario = (typeof SIGNED_IN)[number] | (typeof BILLING)[number];
 const GITHUB_STEPS = ['reader_app', 'storage_repo', 'storage_app'];
 const LIMIT = 5;
 const TRIAL_DAYS = 90;
-const PRICE_USD = 100;
 const TERMS_VERSION = 'private-preview-2026-09-28-2';
 
 /** A Stripe subscription; dates are offsets in days from now. */
@@ -358,6 +358,7 @@ function toOrg(o: OrgModel): Org {
 		members: o.members,
 		free_member_limit: LIMIT,
 		plan: planOf(o),
+		monthly_price_usd: o.personal ? 0 : monthlyPriceUsd(o.members),
 		trial_ends_at: iso(o.sub?.trialEnd ?? null),
 		has_payment_method: o.sub?.card ?? false,
 		billing_email_missing: !previewOn && !!o.sub && o.billingEmail === '',
@@ -418,7 +419,7 @@ function planStep(o: OrgModel, status: (done: boolean) => Step['status']): Step 
 	return {
 		id: 'plan',
 		status: status(false),
-		detail: `${o.login} has had its free trial. Subscribe to use the registry: $${PRICE_USD} per month, card required.`
+		detail: `${o.login} has had its free trial. Subscribe to use the registry: $${monthlyPriceUsd(o.members ?? 0)} a month, card required.`
 	};
 }
 

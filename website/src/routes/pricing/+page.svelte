@@ -7,7 +7,9 @@
 		FREE_MEMBER_LIMIT,
 		GA_TARGET,
 		PREVIEW,
-		PRICE_USD,
+		MEMBER_PRICE_USD,
+		PRICE_CAP_USD,
+		PRICE_PHRASE,
 		READ_GRACE_DAYS,
 		TERMS_PATH,
 		TRIAL_MONTHS,
@@ -34,8 +36,8 @@
 	];
 
 	const description = PREVIEW
-		? `PrivateCrates is free during the private preview. Planned pricing from general availability: always free for personal GitHub accounts, free for organisations with up to ${FREE_MEMBER_LIMIT} members, $${PRICE_USD} per organisation per month for larger ones, with unlimited users and SSO included.`
-		: `PrivateCrates is always free for personal GitHub accounts, and free for organisations with up to ${FREE_MEMBER_LIMIT} members. Larger organisations pay $${PRICE_USD} per month, with unlimited users, SSO included and a ${TRIAL_MONTHS}-month free trial that needs no card.`;
+		? `PrivateCrates is free during the private preview. Planned pricing from general availability: always free for personal GitHub accounts, and for organisations ${PRICE_PHRASE}, with unlimited users and SSO included.`
+		: `PrivateCrates is always free for personal GitHub accounts, and for organisations ${PRICE_PHRASE}, with unlimited users, SSO included and a ${TRIAL_MONTHS}-month free trial that needs no card.`;
 </script>
 
 <Seo title="Pricing" {description} path="/pricing" />
@@ -49,10 +51,11 @@
 				plan to charge then, so you can judge it now. Billing starts only after at least 30 days’ notice.
 			</p>
 		{:else}
-			<h1>Free for small teams, one price for the rest</h1>
+			<h1>Free for small teams, never more than ${PRICE_CAP_USD} a month</h1>
 			<p class="lede">
-				No per-seat maths and no enterprise tier to unlock SSO. Both plans have every feature; the only
-				difference is how many people are in your GitHub organisation.
+				No enterprise tier to unlock SSO, and a price that stops growing: ${MEMBER_PRICE_USD} a month for each member
+				past {FREE_MEMBER_LIMIT}, and never more than ${PRICE_CAP_USD} a month however large your organisation.
+				Both plans have every feature.
 			</p>
 		{/if}
 	</header>
@@ -99,17 +102,17 @@
 					Team{#if PREVIEW}<span class="stamp">Planned</span>{/if}
 				</h2>
 				<p class="price">
-					<span class="figure">${PRICE_USD}</span>
+					<span class="figure">${MEMBER_PRICE_USD}</span>
 					<span class="per"
-						>per GitHub organisation per month, for more than {FREE_MEMBER_LIMIT} members. Unlimited users.</span
+						>a month for each member past {FREE_MEMBER_LIMIT}, never more than ${PRICE_CAP_USD} a month per organisation.
+						Unlimited users.</span
 					>
 				</p>
 				{#if PREVIEW}
 					<a class="btn btn-primary" href="/account">Ask for an invitation</a>
 					<p class="small">
 						Free during the private preview. From general availability, {TRIAL_MONTHS} months free with no card,
-						then ${PRICE_USD}
-						per month.
+						then at most ${PRICE_CAP_USD} a month.
 					</p>
 				{:else}
 					<a class="btn btn-primary" href="/account">Start {TRIAL_MONTHS}-month free trial</a>
@@ -160,9 +163,10 @@
 				</FaqItem>
 				<FaqItem question="What will organisations with more than {FREE_MEMBER_LIMIT} members pay?">
 					<p>
-						The plan is ${PRICE_USD} per organisation per month, with unlimited users, after a {TRIAL_MONTHS}-month
-						free trial that needs no card. Organisations with {FREE_MEMBER_LIMIT} members or fewer will stay free.
-						The notice before billing starts confirms the details.
+						${MEMBER_PRICE_USD} a month for each member past {FREE_MEMBER_LIMIT}, and never more than ${PRICE_CAP_USD}
+						a month per organisation, with unlimited users, after a {TRIAL_MONTHS}-month free trial that needs
+						no card. Organisations with {FREE_MEMBER_LIMIT} members or fewer will stay free. The notice before billing
+						starts confirms the details.
 					</p>
 				</FaqItem>
 				<FaqItem question="Who counts as a member?">

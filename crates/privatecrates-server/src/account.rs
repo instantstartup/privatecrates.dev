@@ -106,6 +106,8 @@ fn org_json(
         "members": plan.members,
         "free_member_limit": state.billing.free_member_limit(),
         "plan": plan.plan,
+        // What the organisation pays (or would pay) a month at its member count: 0 when free.
+        "monthly_price_usd": if membership.personal { 0 } else { state.billing.monthly_price_usd(plan.members) },
         "trial_ends_at": rfc3339(subscription.and_then(Subscription::trial_ends_at)),
         "has_payment_method": subscription.is_some_and(Subscription::has_payment_method),
         "billing_email_missing": subscription.is_some_and(Subscription::billing_email_missing),
@@ -562,8 +564,9 @@ fn plan_step(state: &AppState, plan: &OrgPlan, personal: bool) -> Step {
                 "billing is not set up on this server.".to_owned()
             } else if plan.trial_available {
                 format!(
-                    "start your {} free trial, no card needed.",
-                    trial_length(billing.trial_days())
+                    "start your {} free trial, no card needed. After it, ${} a month.",
+                    trial_length(billing.trial_days()),
+                    billing.monthly_price_usd(plan.members)
                 )
             } else {
                 format!(

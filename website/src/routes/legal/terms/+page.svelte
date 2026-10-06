@@ -2,7 +2,7 @@
 	import Seo from '$lib/components/Seo.svelte';
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
-	import { GA_TARGET, OPERATOR, PRICE_USD, TERMS_DATE, TERMS_VERSION } from '$lib/site';
+	import { GA_TARGET, OPERATOR, PRICE_CAP_USD, TERMS_DATE, TERMS_VERSION } from '$lib/site';
 	import { CONTACT_EMAIL, SECURITY_EMAIL, STATUS_URL } from '$lib/trust';
 
 	// The ids are stable: the account page and agents link to them.
@@ -133,9 +133,10 @@
 				</p>
 				<p>
 					The <a href="/pricing">pricing page</a> shows what we plan to charge from general availability,
-					planned for {GA_TARGET}: free for small organisations, ${PRICE_USD} per organisation per month for larger
-					ones. Billing starts only after general availability, and only after at least 30 days’ notice. Paying
-					will need new terms with the company, and no charge is ever taken without a card that an admin has added.
+					planned for {GA_TARGET}: free for small organisations, and at most ${PRICE_CAP_USD} per organisation per
+					month for larger ones. Billing starts only after general availability, and only after at least 30 days’
+					notice. Paying will need new terms with the company, and no charge is ever taken without a card that an
+					admin has added.
 				</p>
 
 				<h2 id="your-data">5. Your data</h2>

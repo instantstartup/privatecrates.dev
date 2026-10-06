@@ -5,12 +5,19 @@
 		hasSubscription,
 		isActive,
 		planOf,
+		priceOf,
 		type Org,
 		type Tenant,
 		type Terms
 	} from '$lib/api';
 	import Callout from '$lib/components/Callout.svelte';
-	import { FREE_MEMBER_LIMIT, PRICE_USD, READ_GRACE_DAYS, TRIAL_REMINDER_DAYS } from '$lib/site';
+	import {
+		FREE_MEMBER_LIMIT,
+		MEMBER_PRICE_USD,
+		PRICE_CAP_USD,
+		READ_GRACE_DAYS,
+		TRIAL_REMINDER_DAYS
+	} from '$lib/site';
 	import ErrorNotice from './ErrorNotice.svelte';
 	import { addDays, daysUntil, formatDate, plural } from './format';
 	import { page } from '$app/state';
@@ -56,6 +63,7 @@
 
 	const admin = $derived(org.role === 'admin');
 	const plan = $derived(planOf(org));
+	const price = $derived(priceOf(org));
 	const limit = $derived(org.free_member_limit ?? FREE_MEMBER_LIMIT);
 	const members = $derived(org.members ?? null);
 	const trialEndsIso = $derived(org.trial_ends_at ?? tenant.trial_ends_at);
@@ -119,7 +127,7 @@
 				{org.login}’s free trial started by itself when it grew past {limit} members. Stripe needs an address to
 				send the reminder before the trial ends.
 			</p>
-			<TrialForm org={org.login} purpose="email" onstarted={() => onchange?.()} />
+			<TrialForm org={org.login} {price} purpose="email" onstarted={() => onchange?.()} />
 		</Callout>
 	{/if}
 	{#if trialEnding}
@@ -229,13 +237,16 @@
 						{:else if plan === 'trial'}
 							Free trial{trialEnds ? ` until ${trialEnds}` : ''}{trialDaysLeft !== null
 								? ` (${plural(trialDaysLeft, 'day')} left)`
-								: ''}. Then ${PRICE_USD} per month{hasCard
+								: ''}. Then ${price} a month{hasCard
 								? ', charged to the card on file'
 								: ' once you add a card'}.
 						{:else if plan === 'paid'}
-							${PRICE_USD} per month{periodEnd ? `, renews ${periodEnd}` : ''}.
+							${price} a month{periodEnd ? `, renews ${periodEnd}` : ''}.
+							<span class="fine"
+								>${MEMBER_PRICE_USD} for each member past {FREE_MEMBER_LIMIT}, never more than ${PRICE_CAP_USD}.</span
+							>
 						{:else if plan === 'past_due'}
-							${PRICE_USD} per month. Payment overdue: Stripe is retrying the card.
+							${price} a month. Payment overdue: Stripe is retrying the card.
 						{:else if live}
 							No subscription needed.
 						{:else}
@@ -266,7 +277,7 @@
 			{/if}
 
 			{#if admin && !live && org.trial_available}
-				<TrialForm org={org.login} onstarted={() => onchange?.()} />
+				<TrialForm org={org.login} {price} onstarted={() => onchange?.()} />
 			{/if}
 			{#if admin && (portal || (!live && !org.trial_available))}
 				<div class="row">
@@ -277,7 +288,7 @@
 							onclick={() => go('checkout')}
 							disabled={busy !== null}
 						>
-							{busy === 'checkout' ? 'Opening Stripe Checkout…' : `Subscribe, $${PRICE_USD} per month`}
+							{busy === 'checkout' ? 'Opening Stripe Checkout…' : `Subscribe, $${price} a month`}
 						</button>
 					{/if}
 					{#if portal}

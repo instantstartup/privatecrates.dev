@@ -1,5 +1,7 @@
 // Client for the account API described in docs/website-api.md. Same origin, cookie session.
 
+import { monthlyPriceUsd } from './site';
+
 export type TenantStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | string;
 
 export interface Tenant {
@@ -30,6 +32,8 @@ export interface Org {
 	trial_ends_at?: string | null;
 	has_payment_method?: boolean;
 	current_period_end?: string | null;
+	/** What the organisation pays, or would pay, per month at its member count: 0 when free. See priceOf(). */
+	monthly_price_usd?: number;
 	/** Whether POST /trial will work (over the limit, never had a trial, billing configured). */
 	trial_available?: boolean;
 	/** A trial started by itself (the organisation grew past the free limit) and Stripe has no address to remind. */
@@ -331,6 +335,11 @@ export function loginUrl(returnTo = '/account'): string {
 /** Subscription states in which the registry works (docs/website-api.md, billing model). */
 export function isActive(status: TenantStatus | null): boolean {
 	return status === 'trialing' || status === 'active' || status === 'past_due';
+}
+
+/** What the organisation pays, or would pay, per month: from the server, or worked out from its member count. */
+export function priceOf(org: Org): number {
+	return org.monthly_price_usd ?? monthlyPriceUsd(org.members ?? 0);
 }
 
 /** The organisation's plan, derived from the subscription for servers that do not send it. */

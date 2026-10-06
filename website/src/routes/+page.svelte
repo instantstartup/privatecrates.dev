@@ -5,7 +5,16 @@
 	import Crate from '$lib/illustrations/Crate.svelte';
 	import Harbour from '$lib/illustrations/Harbour.svelte';
 	import Lighthouse from '$lib/illustrations/Lighthouse.svelte';
-	import { FREE_MEMBER_LIMIT, GA_TARGET, PREVIEW, PRICE_USD, TERMS_PATH, TRIAL_MONTHS } from '$lib/site';
+	import {
+		FREE_MEMBER_LIMIT,
+		GA_TARGET,
+		MEMBER_PRICE_USD,
+		PREVIEW,
+		PRICE_CAP_USD,
+		PRICE_PHRASE,
+		TERMS_PATH,
+		TRIAL_MONTHS
+	} from '$lib/site';
 	import { cargoConfig, pushTag } from '$lib/snippets';
 </script>
 
@@ -34,11 +43,11 @@
 		<p class="terms">
 			{#if PREVIEW}
 				In private preview, by invitation only. Free, and provided as is with no warranty:
-				<a href={TERMS_PATH}>read the terms</a>. From general availability, free for organisations with up to
-				{FREE_MEMBER_LIMIT} members, then ${PRICE_USD} per organisation per month. SSO included.
+				<a href={TERMS_PATH}>read the terms</a>. From general availability, {PRICE_PHRASE}. SSO included.
 			{:else}
 				Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months free
-				with no card, then ${PRICE_USD} per organisation per month. SSO included.
+				with no card, then ${MEMBER_PRICE_USD} a member a month past {FREE_MEMBER_LIMIT}, never more than ${PRICE_CAP_USD}.
+				SSO included.
 			{/if}
 		</p>
 	</div>
@@ -205,7 +214,7 @@
 				<h2 id="price">Free during the private preview</h2>
 				<p class="planned">Planned pricing from general availability ({GA_TARGET})</p>
 			{:else}
-				<h2 id="price">Free for small teams, one price for the rest</h2>
+				<h2 id="price">Free for small teams, never more than ${PRICE_CAP_USD} a month</h2>
 			{/if}
 			<dl class="tiers">
 				<div class="tier">
@@ -213,8 +222,12 @@
 					<dd>up to {FREE_MEMBER_LIMIT} members</dd>
 				</div>
 				<div class="tier">
-					<dt class="figure">${PRICE_USD}</dt>
-					<dd>per GitHub organisation per month, above {FREE_MEMBER_LIMIT} members</dd>
+					<dt class="figure">${MEMBER_PRICE_USD}</dt>
+					<dd>a month for each member past {FREE_MEMBER_LIMIT}</dd>
+				</div>
+				<div class="tier">
+					<dt class="figure">${PRICE_CAP_USD}</dt>
+					<dd>a month at most, however many members</dd>
 				</div>
 			</dl>
 			<ul class="includes">

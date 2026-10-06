@@ -21,7 +21,7 @@
 	import Callout from '$lib/components/Callout.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import Crane from '$lib/illustrations/Crane.svelte';
-	import { FREE_MEMBER_LIMIT, PREVIEW, PRICE_USD, TERMS_PATH, TRIAL_MONTHS } from '$lib/site';
+	import { PREVIEW, PRICE_PHRASE, TERMS_PATH, TRIAL_MONTHS } from '$lib/site';
 
 	type View = { kind: 'loading' } | { kind: 'failed'; error: ApiError } | { kind: 'ready'; session: Session };
 
@@ -244,8 +244,7 @@
 							>private preview terms</a
 						>.
 					{:else}
-						Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months
-						free, no card needed, then ${PRICE_USD} per organisation per month.
+						Organisations are {PRICE_PHRASE}, after {TRIAL_MONTHS} months free with no card.
 					{/if}
 					The sign-in lasts 8 hours and is kept only in an encrypted cookie.
 				</p>

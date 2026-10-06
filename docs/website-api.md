@@ -28,8 +28,13 @@ loading, trials, Checkout or portal, and `/webhooks/stripe` answers 404), and `/
   customer, no card. Members are the organisation's active members (`GET /orgs/{org}/members` with the reader App's
   installation token, which has Members read); outside collaborators and pending invitations do not count. The count
   is cached for 24 hours and kept current by the `organization` member_added/member_removed webhooks.
-- **Larger organisations: $100 per organisation per month**, unlimited users, after a **3-month free trial with no
-  card** (`TRIAL_DAYS`, default 90). The trial is one click: the server creates the Stripe customer and subscription
+- **Larger organisations: $10 a month for each member past 5, never more than $100 a month**, unlimited users, after
+  a **3-month free trial with no card**. The Stripe price is $10 per unit; a subscription's quantity is the members past
+  the free limit, at most 10 (`billing::billed_members`), set when it starts and kept in step with the member count by
+  the membership webhooks and the periodic refresh, with `proration_behavior=none` (the next invoice uses it). A
+  subscription of an organisation back at 5 or fewer members drops to quantity 0, and so costs nothing, rather than
+  being cancelled. `GET /api/session` reports each organisation's `monthly_price_usd`. The trial (`TRIAL_DAYS`,
+  default 90) is one click: the server creates the Stripe customer and subscription
   directly (`trial_period_days`, `payment_settings[save_default_payment_method]=on_subscription`,
   `trial_settings[end_behavior][missing_payment_method]=cancel`); no Checkout page. A card is added any time through
   the customer portal. Each organisation gets one trial (a returning organisation subscribes through Checkout, with
@@ -118,7 +123,7 @@ tokens included; drops their cached permissions; clears the cookie. `204`. Other
   "orgs": [
     { "id": 100, "login": "acme", "avatar_url": "https://…", "role": "admin",
       "members": 12, "free_member_limit": 5,
-      "plan": "trial", "trial_ends_at": "2026-12-26T00:00:00Z", "has_payment_method": false,
+      "plan": "trial", "monthly_price_usd": 70, "trial_ends_at": "2026-12-26T00:00:00Z", "has_payment_method": false,
       "billing_email_missing": false, "current_period_end": null, "trial_available": false,
       "tenant": { "slug": "acme", "registry_url": "https://acme.privatecrates.dev", "status": "trialing",
                   "trial_ends_at": "2026-12-26T00:00:00Z", "current_period_end": null },

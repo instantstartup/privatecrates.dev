@@ -5,13 +5,14 @@
 		ApiError,
 		hasSubscription,
 		planOf,
+		priceOf,
 		type Onboarding,
 		type Org,
 		type Step,
 		type Terms
 	} from '$lib/api';
 	import AgentPrompt from '$lib/components/AgentPrompt.svelte';
-	import { FREE_MEMBER_LIMIT, PRICE_USD, TRIAL_MONTHS } from '$lib/site';
+	import { FREE_MEMBER_LIMIT, TRIAL_MONTHS } from '$lib/site';
 	import { setupPrompt } from '$lib/snippets';
 	import ErrorNotice from './ErrorNotice.svelte';
 	import { baseDomain, formatDate, plural } from './format';
@@ -140,7 +141,7 @@
 				title: 'Subscribe',
 				body:
 					step.detail ??
-					`This organisation has had its free trial. Subscribe to use the registry: $${PRICE_USD} per month.`
+					`This organisation has had its free trial. Subscribe to use the registry: $${priceOf(org)} a month.`
 			};
 		return { title: 'Choose a plan', body: step.detail ?? '' };
 	}
@@ -292,7 +293,7 @@
 									<ErrorNotice error={planError} title={planErrorTitle} />
 								{/if}
 								{#if planAction === 'trial'}
-									<TrialForm org={doc.org.login} onstarted={trialStarted} />
+									<TrialForm org={doc.org.login} price={priceOf(org)} onstarted={trialStarted} />
 								{:else if planAction === 'checkout'}
 									<div class="row">
 										<button
@@ -303,7 +304,7 @@
 										>
 											{busy === 'checkout'
 												? 'Opening Stripe Checkout…'
-												: `Subscribe, $${PRICE_USD} per month`}
+												: `Subscribe, $${priceOf(org)} a month`}
 										</button>
 										<span class="fine"
 											>You enter card details on Stripe. The first charge is taken today.</span

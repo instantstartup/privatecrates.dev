@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { api, ApiError, type Onboarding } from '$lib/api';
-	import { PRICE_USD, TRIAL_MONTHS } from '$lib/site';
+	import { TRIAL_MONTHS } from '$lib/site';
 	import ErrorNotice from './ErrorNotice.svelte';
 
 	interface Props {
 		org: string;
+		/** What the organisation will pay per month after the trial, at its member count. */
+		price: number;
 		/**
 		 * `trial` starts the no-card trial with the address; `email` only saves it, for a trial that started by
 		 * itself when the organisation grew past the free limit.
@@ -14,7 +16,7 @@
 		onstarted: (doc: Onboarding) => void;
 	}
 
-	let { org, purpose = 'trial', onstarted }: Props = $props();
+	let { org, price, purpose = 'trial', onstarted }: Props = $props();
 
 	// Prefilled with nothing: we do not know the user's email, and the billing contact may be someone else.
 	let email = $state('');
@@ -97,7 +99,7 @@
 		</button>
 		{#if purpose === 'trial'}
 			<span class="fine"
-				>No card needed. Afterwards ${PRICE_USD} per organisation per month; add a card any time under Manage billing.
+				>No card needed. Afterwards ${price} a month at your current size; add a card any time under Manage billing.
 				One free trial per organisation.</span
 			>
 		{/if}

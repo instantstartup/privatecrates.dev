@@ -184,8 +184,10 @@ async fn over_the_limit_without_a_subscription_is_inactive() {
     assert_eq!(step["status"], "todo");
     assert_eq!(
         step["detail"],
-        "12 members: start your 3-month free trial, no card needed."
+        "12 members: start your 3-month free trial, no card needed. After it, $70 a month."
     );
+    // $10 for each of the 7 members past the free 5.
+    assert_eq!(org["monthly_price_usd"], 70);
 
     // The trial comes first; Checkout is for organisations that already had one.
     let response = post(&h, &session, "checkout").await;
@@ -214,6 +216,7 @@ async fn the_trial_starts_without_a_card() {
     let [request]: [_; 1] = stripe.subscription_requests().try_into().unwrap();
     assert_eq!(request["customer"], customer["id"].as_str().unwrap());
     assert_eq!(request["items[0][price]"], stripe::PRICE_ID);
+    assert_eq!(request["items[0][quantity]"], "7");
     assert_eq!(request["trial_period_days"], "90");
     assert_eq!(
         request["payment_settings[save_default_payment_method]"],
@@ -502,10 +505,50 @@ async fn growing_past_the_limit_starts_the_trial() {
     );
     publish_warnings(&h, repo, "0.1.0").await;
 
-    // Only the first time: more members start nothing more.
+    assert_eq!(subscription["items"]["data"][0]["quantity"], 1);
+    assert_eq!(org["monthly_price_usd"], 10);
+
+    // Only the first time: more members start nothing more, and are billed from the next invoice.
     h.fake.add_org_members(&h.org, 1);
     membership_changed(&h, "member_added", "d-2").await;
-    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+    let [subscription]: [Value; 1] = stripe.subscriptions(h.org.id).try_into().unwrap();
+    assert_eq!(subscription["items"]["data"][0]["quantity"], 2);
+    let update = stripe.subscription_requests().pop().unwrap();
+    assert_eq!(update["proration_behavior"], "none");
+    assert_eq!(session_org(&h, &session).await["monthly_price_usd"], 20);
+}
+
+#[tokio::test]
+async fn the_price_follows_the_members_and_stops_at_100() {
+    let (h, stripe) = start().await;
+    let (session, _, _) = setup_large(&h).await;
+    assert_eq!(post(&h, &session, "trial").await.status(), 200);
+    let quantity = || stripe.subscriptions(h.org.id)[0]["items"]["data"][0]["quantity"].clone();
+    assert_eq!(quantity(), 7);
+
+    // GitHub sends one webhook per member. 15 members pay for 10: $100 a month, the cap.
+    for n in 0..3 {
+        h.fake.add_org_members(&h.org, 1);
+        membership_changed(&h, "member_added", &format!("add-{n}")).await;
+    }
+    assert_eq!(quantity(), 10);
+    assert_eq!(session_org(&h, &session).await["monthly_price_usd"], 100);
+    // More members change nothing, and nothing is sent to Stripe.
+    let sent = stripe.subscription_requests().len();
+    h.fake.add_org_members(&h.org, 1);
+    membership_changed(&h, "member_added", "add-3").await;
+    assert_eq!(quantity(), 10);
+    assert_eq!(stripe.subscription_requests().len(), sent);
+
+    // Back to 5 members: free, and the subscription costs nothing until it grows again.
+    for n in 0..11 {
+        h.fake.remove_org_members(&h.org, 1);
+        membership_changed(&h, "member_removed", &format!("remove-{n}")).await;
+    }
+    assert_eq!(quantity(), 0);
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["plan"], "free");
+    assert_eq!(org["monthly_price_usd"], 0);
 }
 
 #[tokio::test]
@@ -570,7 +613,8 @@ async fn a_returning_organisation_subscribes_through_checkout() {
     let org_id = h.org.id.to_string();
     assert_eq!(checkout["mode"], "subscription");
     assert_eq!(checkout["line_items[0][price]"], stripe::PRICE_ID);
-    assert_eq!(checkout["line_items[0][quantity]"], "1");
+    // The members past the free 5: 12 members pay for 7.
+    assert_eq!(checkout["line_items[0][quantity]"], "7");
     assert_eq!(checkout["customer"], format!("cus_{}", h.org.id));
     assert!(!checkout.contains_key("subscription_data[trial_period_days]"));
     assert_eq!(

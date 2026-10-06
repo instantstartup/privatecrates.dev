@@ -1,5 +1,8 @@
-//! Billing with Stripe (docs/website-api.md): free for organisations with few members; otherwise $100 per
-//! organisation per month, after a no-card trial.
+//! Billing with Stripe (docs/website-api.md): free for organisations with few members; above that, $10 a month for
+//! each member past the free limit, never more than $100 a month, after a no-card trial.
+//!
+//! The Stripe price is $10 per unit per month; a subscription's quantity is the number of members it pays for
+//! ([`billed_members`]), kept in step with the member count. Changes apply from the next invoice, without proration.
 //!
 //! Stripe is the source of truth and there is no database. Each subscription's metadata names its GitHub
 //! organisation; subscriptions are listed at start-up and kept current by Stripe's webhooks, with a periodic reload
@@ -44,6 +47,10 @@ pub const TRIAL_REMINDER: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 pub const REFRESH: Duration = Duration::from_secs(10 * 60);
 /// How far a webhook's timestamp may be from our clock, against replays (Stripe's own libraries use 5 minutes).
 const WEBHOOK_TOLERANCE_SECS: u64 = 5 * 60;
+/// The most members an organisation pays for: past this, the price stays at its cap ($100 a month).
+pub const MAX_BILLED_MEMBERS: u64 = 10;
+/// The price of each member past the free limit, per month: the Stripe price (`scripts/stripe-setup.sh`).
+pub const MEMBER_PRICE_USD: u64 = 10;
 /// The Stripe API version of our requests, and of the webhook endpoint (`scripts/stripe-setup.sh`).
 const API_VERSION: &str = "2026-08-26.dahlia";
 const ORG_ID_KEY: &str = "github_org_id";
@@ -119,7 +126,19 @@ struct Items {
 #[derive(Debug, Clone, Deserialize)]
 struct Item {
     #[serde(default)]
+    id: String,
+    #[serde(default)]
+    quantity: Option<u64>,
+    #[serde(default)]
     current_period_end: Option<u64>,
+}
+
+/// How many members an organisation pays for: those past the free limit, up to [`MAX_BILLED_MEMBERS`]. Zero for a
+/// free organisation, whose subscription (if it has one) then costs nothing until it grows again.
+pub fn billed_members(members: u64, free_member_limit: u64) -> u64 {
+    members
+        .saturating_sub(free_member_limit)
+        .min(MAX_BILLED_MEMBERS)
 }
 
 impl Subscription {
@@ -172,6 +191,12 @@ impl Subscription {
                 .filter_map(|i| i.current_period_end)
                 .max()
         })
+    }
+
+    /// The subscription's one item and the quantity it pays for.
+    fn item(&self) -> Option<(&str, u64)> {
+        let item = self.items.data.first()?;
+        Some((item.id.as_str(), item.quantity.unwrap_or(1)))
     }
 
     /// When the service stopped being paid for, from which the read grace period runs.
@@ -496,6 +521,64 @@ impl Billing {
         members.is_none_or(|n| n <= self.free_member_limit)
     }
 
+    /// How many members the organisation pays for (see [`billed_members`]).
+    fn billed(&self, members: Option<u64>) -> u64 {
+        members.map_or(0, |n| billed_members(n, self.free_member_limit))
+    }
+
+    /// The monthly price in US dollars for an organisation with this many members.
+    pub fn monthly_price_usd(&self, members: Option<u64>) -> u64 {
+        self.billed(members) * MEMBER_PRICE_USD
+    }
+
+    /// Brings the subscription's quantity in line with the member count, when they differ: the new price applies
+    /// from the next invoice. An unknown count changes nothing.
+    pub async fn sync_quantity(
+        &self,
+        org_id: u64,
+        org_login: &str,
+        members: Option<u64>,
+    ) -> Result<(), ApiError> {
+        let Some(stripe) = &self.stripe else {
+            return Ok(());
+        };
+        if members.is_none() {
+            return Ok(());
+        }
+        let Some(subscription) = self.subscription(org_id).filter(Subscription::is_active) else {
+            return Ok(());
+        };
+        let Some((item, quantity)) = subscription.item() else {
+            return Ok(());
+        };
+        let billed = self.billed(members);
+        if quantity == billed || item.is_empty() {
+            return Ok(());
+        }
+        let id: String = subscription
+            .id
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        let billed_text = billed.to_string();
+        let updated: Subscription = stripe
+            .call(
+                Method::POST,
+                &format!("/v1/subscriptions/{id}"),
+                &[
+                    ("items[0][id]", item),
+                    ("items[0][quantity]", &billed_text),
+                    ("proration_behavior", "none"),
+                    ("expand[]", "customer"),
+                ],
+                None,
+            )
+            .await?;
+        tracing::info!(org = %org_login, from = quantity, to = billed, "billed members changed");
+        self.record(updated);
+        Ok(())
+    }
+
     /// A personal account's plan: always free, whatever the limit or Stripe says.
     pub fn personal_plan(&self) -> OrgPlan {
         OrgPlan {
@@ -595,6 +678,7 @@ impl Billing {
             )
             .await?;
         let trial_days = self.trial_days.to_string();
+        let quantity = self.billed(members).to_string();
         let subscription: Subscription = stripe
             .call(
                 Method::POST,
@@ -602,6 +686,7 @@ impl Billing {
                 &[
                     ("customer", &customer.id),
                     ("items[0][price]", &stripe.config.price_id),
+                    ("items[0][quantity]", &quantity),
                     ("trial_period_days", &trial_days),
                     (
                         "payment_settings[save_default_payment_method]",
@@ -647,10 +732,11 @@ impl Billing {
             Some(previous) => previous,
         };
         let org_id = org_id.to_string();
+        let quantity = self.billed(members).to_string();
         let form = [
             ("mode", "subscription"),
             ("line_items[0][price]", stripe.config.price_id.as_str()),
-            ("line_items[0][quantity]", "1"),
+            ("line_items[0][quantity]", &quantity),
             ("client_reference_id", &org_id),
             ("success_url", success_url),
             ("cancel_url", cancel_url),
@@ -871,6 +957,15 @@ mod tests {
             price_id: "price".into(),
         });
         Billing::new(&config).unwrap()
+    }
+
+    #[test]
+    fn the_price_ramps_to_its_cap() {
+        let price = |members| billed_members(members, 5) * MEMBER_PRICE_USD;
+        assert_eq!(
+            [0, 5, 6, 10, 15, 16, 500].map(price),
+            [0, 0, 10, 50, 100, 100, 100]
+        );
     }
 
     #[test]

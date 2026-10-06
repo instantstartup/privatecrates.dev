@@ -71,8 +71,9 @@ The set of tenants is derived at start-up and kept current by webhooks (§7). Th
   general availability.
 - **Free for organisations with 5 or fewer members**, with every feature and no card. Growth-led: developers adopt it
   on small teams and bring it to the companies that pay.
-- **Larger organisations: $100 per month per GitHub organisation, no user limit**, after a **3-month free trial that
-  needs no card**. An organisation that grows past 5 members has its trial started automatically, so growth never
+- **Larger organisations: $10 a month for each member past 5, never more than $100 a month per GitHub organisation,
+  no user limit**, after a **3-month free trial that needs no card**. The ramp avoids a cliff at the sixth member;
+  the cap keeps it a flat price for any real company. An organisation that grows past 5 members has its trial started automatically, so growth never
   breaks anything. SSO and every other feature are included at every level: no SSO tax.
 - Billed through **Stripe**. Stripe is the source of truth: each subscription's metadata names the GitHub
   organisation, and the server loads subscriptions at start-up and keeps them current from Stripe webhooks, so
