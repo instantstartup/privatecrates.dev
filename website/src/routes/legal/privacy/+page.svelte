@@ -59,8 +59,9 @@
 			</li>
 			<li>
 				<strong>Request logs:</strong> our hosting provider records each request’s IP address, time, path and browser
-				or Cargo version; our own logs record GitHub logins, organisation names, request paths and error codes,
-				never tokens.
+				or Cargo version; our own logs record GitHub logins, organisation names, crate names, request paths and
+				error codes, never tokens. Our traces record what kind of request each was and how long it took, not which
+				crate or organisation it named.
 			</li>
 			<li>
 				<strong>Crates:</strong> crate files pass through the service while being published and are stored in your
@@ -85,15 +86,16 @@
 			<li>
 				Cloudflare, for DNS, the status page, and forwarding email sent to our privatecrates.dev addresses.
 			</li>
+			<li>Grafana Labs (Grafana Cloud, EU region), which keeps our service logs, traces and metrics.</li>
 		</ul>
 
 		<h2>5. Retention</h2>
 		<p>
-			Service logs are deleted after 30 days. Terms acceptances are kept for as long as the organisation uses
-			PrivateCrates, then for 6 years, as evidence of the agreement. Invitation requests are deleted once we
-			have told you the preview is open, and at the latest 12 months after you asked. Nothing else about you
-			is stored by us: caches live in memory and expire within minutes. No billing records exist during the
-			preview.
+			Service logs, at Railway and Grafana Cloud, are deleted after 30 days at the latest. Terms acceptances
+			are kept for as long as the organisation uses PrivateCrates, then for 6 years, as evidence of the
+			agreement. Invitation requests are deleted once we have told you the preview is open, and at the latest
+			12 months after you asked. Nothing else about you is stored by us: caches live in memory and expire
+			within minutes. No billing records exist during the preview.
 		</p>
 
 		<h2>6. Your rights</h2>

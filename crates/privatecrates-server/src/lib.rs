@@ -325,20 +325,50 @@ pub fn router(state: Arc<AppState>) -> Router {
         }))
         .layer(middleware::from_fn(record_status))
         .layer(
-            // A server span per request, started when the work starts. The path only: query strings carry OAuth
-            // codes and states, which have no place in telemetry.
+            // A server span per request, started when the work starts. The route only, never the path or the query
+            // string: paths name customers' crates and organisations, and queries carry OAuth codes and states.
             tower::ServiceBuilder::new().traced(
                 apollo_opentelemetry::default_instrumentation_scope!(),
                 |request: &Request| {
-                    SpanBuilder::from_name(format!("{} {}", request.method(), request.uri().path()))
+                    let route = route(request.uri().path());
+                    SpanBuilder::from_name(format!("{} {route}", request.method()))
                         .with_kind(SpanKind::Server)
                         .with_attributes([
                             KeyValue::new("http.request.method", request.method().to_string()),
-                            KeyValue::new("url.path", request.uri().path().to_owned()),
+                            KeyValue::new("http.route", route),
                         ])
                 },
             ),
         )
+}
+
+/// The route a path belongs to, for telemetry: what kind of request it was, never which crate, version or
+/// organisation it named.
+fn route(path: &str) -> &'static str {
+    let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
+    match parts.as_slice() {
+        ["index", "config.json"] => "/index/config.json",
+        ["index", ..] => "/index/{crate}",
+        ["api", "v1", "crates"] => "/api/v1/crates",
+        ["api", "v1", "crates", "new"] => "/api/v1/crates/new",
+        ["api", "v1", "crates", _, _, "download"] => "/api/v1/crates/{crate}/{version}/download",
+        ["api", "v1", "crates", _, _, "yank"] => "/api/v1/crates/{crate}/{version}/yank",
+        ["api", "v1", "crates", _, _, "unyank"] => "/api/v1/crates/{crate}/{version}/unyank",
+        ["api", "v1", "oidc", "exchange"] => "/api/v1/oidc/exchange",
+        ["api", "orgs", _, "compliance", "audit.csv"] => "/api/orgs/{org}/compliance/audit.csv",
+        ["api", "orgs", _, "compliance"] => "/api/orgs/{org}/compliance",
+        ["api", "orgs", _, _] => "/api/orgs/{org}/{action}",
+        ["api", "session"] => "/api/session",
+        ["api", "status"] => "/api/status",
+        ["api", ..] => "/api/{other}",
+        ["auth", ..] => "/auth/{action}",
+        ["webhooks", "github"] => "/webhooks/github",
+        ["webhooks", "stripe"] => "/webhooks/stripe",
+        ["healthz"] => "/healthz",
+        ["login"] => "/login",
+        ["_app", ..] => "/_app/{asset}",
+        _ => "/{page}",
+    }
 }
 
 /// Records the response status on the request's span.
@@ -478,6 +508,30 @@ pub fn spawn_refresh(state: Arc<AppState>) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::route;
+
+    #[test]
+    fn telemetry_never_names_a_crate_or_organisation() {
+        assert_eq!(route("/index/st/or/story_engine"), "/index/{crate}");
+        assert_eq!(route("/index/config.json"), "/index/config.json");
+        assert_eq!(
+            route("/api/v1/crates/story_engine/0.2.0/download"),
+            "/api/v1/crates/{crate}/{version}/download"
+        );
+        assert_eq!(
+            route("/api/orgs/acme/onboarding"),
+            "/api/orgs/{org}/{action}"
+        );
+        assert_eq!(
+            route("/api/orgs/acme/compliance/audit.csv"),
+            "/api/orgs/{org}/compliance/audit.csv"
+        );
+        assert_eq!(route("/pricing"), "/{page}");
+    }
 }
 
 #[cfg(test)]

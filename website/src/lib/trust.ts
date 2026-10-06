@@ -50,5 +50,13 @@ export const subprocessors: Subprocessor[] = [
 		data: 'DNS lookups for our domains. The status page probes only our public endpoints and holds no customer data. Email you send us passes through Cloudflare Email Routing on its way to our inbox.',
 		location: 'Global network',
 		url: 'https://www.cloudflare.com/privacypolicy/'
+	},
+	{
+		name: 'Grafana Labs',
+		purpose:
+			'Grafana Cloud keeps the service’s logs, traces and metrics, so we can see how it is running and investigate problems.',
+		data: 'Service logs (GitHub logins, organisation and crate names, error codes; never tokens), and traces and metrics that record the kind of each request, its timing and status, never which crate or organisation it named.',
+		location: 'EU',
+		url: 'https://grafana.com/legal/privacy-policy/'
 	}
 ];

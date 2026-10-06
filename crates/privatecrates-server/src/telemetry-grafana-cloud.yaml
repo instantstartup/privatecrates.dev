@@ -1,0 +1,44 @@
+# Telemetry with Grafana Cloud (src/telemetry.rs uses this when GRAFANA_CLOUD_API_KEY is set): logs, request spans
+# and metrics over OTLP to the stack named by GRAFANA_CLOUD_OTLP_ENDPOINT (e.g.
+# https://otlp-gateway-prod-eu-west-2.grafana.net/otlp), and logs to standard output for Railway too.
+#
+# Everything is rate limited before export: a flood of requests must not become a flood of telemetry, or a bill.
+resource:
+  attributes:
+    - name: service.name
+      value: privatecrates-server
+    - name: deployment.environment.name
+      value: ${env.RAILWAY_ENVIRONMENT_NAME:-local}
+logger_provider:
+  processors:
+    - rate_limited:
+        max_rate: 20
+        exporter:
+          console:
+            format: json
+    - rate_limited:
+        max_rate: 20
+        exporter:
+          grafana_cloud:
+            instance_id: "${env.GRAFANA_CLOUD_INSTANCE_ID}"
+            api_key: "${env.GRAFANA_CLOUD_API_KEY}"
+            endpoint: "${env.GRAFANA_CLOUD_OTLP_ENDPOINT}"
+tracer_provider:
+  processors:
+    # One span per request: past 20 a second, spans are dropped and counted.
+    - rate_limited:
+        max_rate: 20
+        exporter:
+          grafana_cloud:
+            instance_id: "${env.GRAFANA_CLOUD_INSTANCE_ID}"
+            api_key: "${env.GRAFANA_CLOUD_API_KEY}"
+            endpoint: "${env.GRAFANA_CLOUD_OTLP_ENDPOINT}"
+meter_provider:
+  readers:
+    - periodic:
+        interval: 60000
+        exporter:
+          grafana_cloud:
+            instance_id: "${env.GRAFANA_CLOUD_INSTANCE_ID}"
+            api_key: "${env.GRAFANA_CLOUD_API_KEY}"
+            endpoint: "${env.GRAFANA_CLOUD_OTLP_ENDPOINT}"

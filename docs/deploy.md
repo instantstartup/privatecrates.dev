@@ -366,6 +366,7 @@ Leave these unset (the defaults are right for both environments):
 | `STRIPE_API_URL` | Stripe's API | Tests point this at a fake. |
 | `PREVIEW` | `true` | The preview (docs/preview.md): free for everyone, billing off whatever Stripe configuration is set. `false` from general availability. |
 | `TELEMETRY_CONFIG` | built in | A YAML file for apollo-opentelemetry that replaces the built-in configuration (`crates/privatecrates-server/src/telemetry.yaml`: JSON logs to standard output, at most 20 a second). Use it to export logs, spans and metrics over OTLP. |
+| `GRAFANA_CLOUD_INSTANCE_ID`, `GRAFANA_CLOUD_API_KEY`, `GRAFANA_CLOUD_OTLP_ENDPOINT` | none | With the API key set (a sealed variable), logs, request spans and metrics also go to Grafana Cloud (`telemetry-grafana-cloud.yaml`). The endpoint is the stack's OTLP gateway, e.g. `https://otlp-gateway-prod-eu-west-2.grafana.net/otlp`. |
 | `RUST_LOG` | `info` | Which logs are kept, by level and module, e.g. `info,privatecrates_server=debug`. |
 | `FREE_MEMBER_LIMIT` | 5 | Organisations with at most this many members (active members, from the reader App; not outside collaborators or pending invitations) are free. |
 | `TRIAL_DAYS` | 90 | Length of the no-card trial larger organisations get once. |

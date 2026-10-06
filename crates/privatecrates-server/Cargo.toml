@@ -13,7 +13,7 @@ homepage.workspace = true
 aes-gcm = "0.11.1"
 apollo-configuration = "0.7.1"
 apollo-errors = "0.8.0"
-apollo-opentelemetry = { version = "0.11.1", default-features = false, features = ["otlp", "tower"] }
+apollo-opentelemetry = { version = "0.11.1", default-features = false, features = ["grafana-cloud", "tower"] }
 async-trait = "0.1.92"
 axum = "0.8.9"
 base64 = "0.23.1"
