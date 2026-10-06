@@ -570,10 +570,15 @@ pub enum ApiError {
     },
 
     // --- GitHub and internal ---
-    #[error("GitHub's rate limit was reached; please try again in a few minutes")]
+    #[error("GitHub's rate limit was reached; please try again in {seconds} seconds")]
     #[diagnostic(code(github::rate_limited))]
     #[http_status(503)]
-    GitHubRateLimited,
+    GitHubRateLimited {
+        seconds: u64,
+        /// The same, for Cargo, which retries a 503 by itself.
+        #[http_header("Retry-After")]
+        retry_after: HeaderValue,
+    },
 
     #[error("a request to GitHub failed; please try again")]
     #[diagnostic(code(github::request_failed))]
@@ -618,7 +623,10 @@ impl From<GitHubError> for ApiError {
         match e {
             GitHubError::Sso { url } => Self::SsoRequired { url },
             GitHubError::Unauthorized => Self::TokenRejected,
-            GitHubError::RateLimited => Self::GitHubRateLimited,
+            GitHubError::RateLimited { retry_after } => Self::GitHubRateLimited {
+                seconds: retry_after,
+                retry_after: HeaderValue::from(retry_after),
+            },
             source => Self::GitHub { source },
         }
     }

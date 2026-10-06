@@ -188,6 +188,17 @@ struct World {
     refresh_tokens: HashMap<String, String>,
     web: Web,
     calls: Vec<String>,
+    /// Answers to give instead of the real ones, to the next requests whose path contains the pattern.
+    faults: Vec<Fault>,
+    /// The rate-limit allowance every answer reports, as `(remaining, limit)`.
+    allowance: Option<(u64, u64)>,
+}
+
+struct Fault {
+    path_part: String,
+    status: StatusCode,
+    headers: Vec<(String, String)>,
+    body: String,
 }
 
 impl World {
@@ -577,6 +588,26 @@ impl FakeGitHub {
 
     /// Makes the device flow sign in as the user holding `token`.
     /// Makes the next `count` OIDC token requests from the fake Actions runtime fail with 504.
+    /// The next request whose path contains `path_part` gets this answer instead, as GitHub's rate limits and
+    /// outages answer. Queued faults for the same path are used in order.
+    pub fn fail_next(&self, path_part: &str, status: u16, headers: &[(&str, &str)], body: &str) {
+        self.world().faults.push(Fault {
+            path_part: path_part.into(),
+            status: StatusCode::from_u16(status).expect("a status"),
+            headers: headers
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect(),
+            body: body.into(),
+        });
+    }
+
+    /// Every answer from now on reports this much of the hourly allowance left, as GitHub's `x-ratelimit-*`
+    /// headers do.
+    pub fn set_allowance(&self, remaining: u64, limit: u64) {
+        self.world().allowance = Some((remaining, limit));
+    }
+
     pub fn fail_actions_tokens(&self, count: u32) {
         self.world().actions_token_failures = count;
     }
@@ -1286,8 +1317,41 @@ async fn record_call(
     next: axum::middleware::Next,
 ) -> Response {
     let call = format!("{} {}", request.method(), request.uri().path());
-    fake.world().calls.push(call);
-    next.run(request).await
+    let (fault, allowance) = {
+        let mut w = fake.world();
+        w.calls.push(call);
+        let path = request.uri().path();
+        let fault = w
+            .faults
+            .iter()
+            .position(|f| path.contains(&f.path_part))
+            .map(|i| w.faults.remove(i));
+        (fault, w.allowance)
+    };
+    let mut response = match fault {
+        Some(fault) => {
+            let mut response = (fault.status, fault.body).into_response();
+            for (name, value) in fault.headers {
+                response.headers_mut().insert(
+                    header::HeaderName::try_from(name).expect("a header name"),
+                    value.parse().expect("a header value"),
+                );
+            }
+            response
+        }
+        None => next.run(request).await,
+    };
+    if let Some((remaining, limit)) = allowance {
+        let headers = response.headers_mut();
+        headers
+            .entry("x-ratelimit-remaining")
+            .or_insert(remaining.into());
+        headers.entry("x-ratelimit-limit").or_insert(limit.into());
+        headers
+            .entry("x-ratelimit-reset")
+            .or_insert((now() + 3600).into());
+    }
+    response
 }
 
 async fn app_installations(

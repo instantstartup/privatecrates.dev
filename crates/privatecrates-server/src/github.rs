@@ -13,11 +13,12 @@ use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use miette::Diagnostic;
 use reqwest::{Method, RequestBuilder, Response, StatusCode, header};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use sha2::{Digest, Sha256};
 use url::Url;
 
 use crate::{
     config::{AppConfig, Config},
-    metrics::{Metrics, SendRecorded},
+    metrics::{Metrics, Outcome},
 };
 
 const USER_AGENT: &str = "privatecrates (https://privatecrates.dev)";
@@ -38,9 +39,10 @@ pub enum GitHubError {
     #[error("conflict")]
     #[diagnostic(code(github::conflict))]
     Conflict,
-    #[error("rate limited")]
+    /// GitHub asked us to wait this many seconds before calling again with that token.
+    #[error("rate limited for {retry_after} s")]
     #[diagnostic(code(github::rate_limited))]
-    RateLimited,
+    RateLimited { retry_after: u64 },
     #[error("GitHub answered {status}: {body}")]
     #[diagnostic(code(github::status))]
     Status { status: StatusCode, body: String },
@@ -109,6 +111,9 @@ pub struct GitHub {
     reader: App,
     storage: App,
     installation_tokens: moka::future::Cache<(AppKind, u64), String>,
+    /// When GitHub will take calls again from each token it rate-limited (Unix seconds), by the token's hash: calls
+    /// before then fail at once rather than adding to the limit.
+    paused: moka::future::Cache<[u8; 32], u64>,
     metrics: Metrics,
 }
 
@@ -329,8 +334,85 @@ impl GitHub {
                 // Installation tokens last an hour; refresh well before that.
                 .time_to_live(Duration::from_secs(45 * 60))
                 .build(),
+            paused: moka::future::Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(Duration::from_secs(60 * 60))
+                .build(),
             metrics: Metrics::default(),
         })
+    }
+
+    /// Sends a request to GitHub, honouring its rate limits: a token GitHub asked to wait is not used again until
+    /// then, a wait of a few seconds is taken inside the request, and a longer one fails with
+    /// [`GitHubError::RateLimited`], which reaches Cargo as 503 with `Retry-After`. A 502, 503 or 504 is retried
+    /// with backoff, for methods that are safe to repeat. Every attempt is recorded in the metrics.
+    async fn send(&self, request: RequestBuilder) -> Result<Response, GitHubError> {
+        let (client, request) = request.build_split();
+        let mut request = Some(request?);
+        let key: [u8; 32] = Sha256::digest(
+            request
+                .as_ref()
+                .expect("built")
+                .headers()
+                .get(header::AUTHORIZATION)
+                .map(|v| v.as_bytes())
+                .unwrap_or_default(),
+        )
+        .into();
+        let repeatable = matches!(
+            *request.as_ref().expect("built").method(),
+            Method::GET | Method::HEAD | Method::PUT | Method::DELETE
+        );
+        let mut backoff = SERVER_ERROR_BACKOFF.iter();
+        let mut waited = false;
+        loop {
+            let now = now_secs();
+            if let Some(until) = self.paused.get(&key).await.filter(|&until| until > now) {
+                let wait = until - now;
+                if waited || wait > MAX_INLINE_WAIT_SECS {
+                    return Err(GitHubError::RateLimited { retry_after: wait });
+                }
+                waited = true;
+                tokio::time::sleep(Duration::from_secs(wait)).await;
+                continue;
+            }
+            // A body that cannot be copied (none of ours) is sent once, without retries.
+            let original = request.as_ref().expect("kept until a last attempt");
+            let (attempt, last) = match original.try_clone() {
+                Some(copy) => (copy, false),
+                None => (request.take().expect("present"), true),
+            };
+            let started = std::time::Instant::now();
+            let result = client.execute(attempt).await;
+            self.metrics.record(
+                result.as_ref().map_or(Outcome::Error, Outcome::of),
+                started.elapsed(),
+            );
+            let response = secondary_limit_checked(result?).await?;
+            if let Some(wait) = rate_limit_wait(&response, now) {
+                self.paused.insert(key, now + wait).await;
+                tracing::warn!(wait, url = %response.url().path(), "GitHub rate limit");
+                // GitHub did not act on a rate-limited request, so sending it again is safe whatever its method.
+                if !last && !waited && wait <= MAX_INLINE_WAIT_SECS {
+                    waited = true;
+                    tokio::time::sleep(Duration::from_secs(wait)).await;
+                    continue;
+                }
+                return Err(GitHubError::RateLimited { retry_after: wait });
+            }
+            let status = response.status();
+            let flaky = matches!(status.as_u16(), 502..=504);
+            if flaky
+                && repeatable
+                && !last
+                && let Some(delay) = backoff.next()
+            {
+                tracing::warn!(%status, url = %response.url().path(), "GitHub server error; retrying");
+                tokio::time::sleep(*delay).await;
+                continue;
+            }
+            return Ok(response);
+        }
     }
 
     /// The outcomes and latencies of our recent calls to GitHub.
@@ -364,7 +446,7 @@ impl GitHub {
             let batch: Vec<Installation> = json(
                 self.request(Method::GET, "/app/installations", &jwt)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send_recorded(&self.metrics)
+                    .send_via(self)
                     .await?,
             )
             .await?;
@@ -396,7 +478,7 @@ impl GitHub {
                 &format!("/app/installations/{installation_id}/access_tokens"),
                 &jwt,
             )
-            .send_recorded(&self.metrics)
+            .send_via(self)
             .await?,
         )
         .await?;
@@ -446,13 +528,7 @@ impl GitHub {
         path: &str,
     ) -> Result<Option<Installation>, GitHubError> {
         let jwt = self.app(kind).jwt()?;
-        match json(
-            self.request(Method::GET, path, &jwt)
-                .send_recorded(&self.metrics)
-                .await?,
-        )
-        .await
-        {
+        match json(self.request(Method::GET, path, &jwt).send_via(self).await?).await {
             Ok(installation) => Ok(Some(installation)),
             Err(GitHubError::NotFound) => Ok(None),
             Err(e) => Err(e),
@@ -471,7 +547,7 @@ impl GitHub {
             let batch: Page = json(
                 self.request(Method::GET, "/installation/repositories", token)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send_recorded(&self.metrics)
+                    .send_via(self)
                     .await?,
             )
             .await?;
@@ -492,7 +568,7 @@ impl GitHub {
             let batch: Vec<serde::de::IgnoredAny> = json(
                 self.request(Method::GET, &format!("/orgs/{org}/members"), token)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send_recorded(&self.metrics)
+                    .send_via(self)
                     .await?,
             )
             .await?;
@@ -518,7 +594,7 @@ impl GitHub {
                 &format!("/repos/{repo}/collaborators/{username}/permission"),
                 token,
             )
-            .send_recorded(&self.metrics)
+            .send_via(self)
             .await?,
         )
         .await
@@ -534,7 +610,7 @@ impl GitHub {
     pub async fn user(&self, token: &str) -> Result<User, GitHubError> {
         json(
             self.request(Method::GET, "/user", token)
-                .send_recorded(&self.metrics)
+                .send_via(self)
                 .await?,
         )
         .await
@@ -547,7 +623,7 @@ impl GitHub {
             let batch: Vec<Organization> = json(
                 self.request(Method::GET, "/user/orgs", token)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send_recorded(&self.metrics)
+                    .send_via(self)
                     .await?,
             )
             .await?;
@@ -588,7 +664,7 @@ impl GitHub {
                     ("code", code),
                     ("redirect_uri", redirect_uri),
                 ])
-                .send_recorded(&self.metrics)
+                .send_via(self)
                 .await?,
         )
         .await?;
@@ -620,7 +696,7 @@ impl GitHub {
             .header(header::ACCEPT, "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .json(&serde_json::json!({ "access_token": token }))
-            .send_recorded(&self.metrics)
+            .send_via(self)
             .await?;
         if matches!(
             response.status(),
@@ -652,7 +728,7 @@ impl GitHub {
                     token,
                 )
                 .query(&[("per_page", PER_PAGE), ("page", page)])
-                .send_recorded(&self.metrics)
+                .send_via(self)
                 .await?,
             )
             .await;
@@ -678,7 +754,7 @@ impl GitHub {
     ) -> Result<Option<Repo>, GitHubError> {
         match json(
             self.request(Method::GET, &format!("/repos/{full_name}"), token)
-                .send_recorded(&self.metrics)
+                .send_via(self)
                 .await?,
         )
         .await
@@ -697,7 +773,7 @@ impl GitHub {
     ) -> Result<Option<Repo>, GitHubError> {
         match json(
             self.request(Method::GET, &format!("/repositories/{id}"), token)
-                .send_recorded(&self.metrics)
+                .send_via(self)
                 .await?,
         )
         .await
@@ -717,7 +793,7 @@ impl GitHub {
     ) -> Result<Option<Membership>, GitHubError> {
         match json(
             self.request(Method::GET, &format!("/user/memberships/orgs/{org}"), token)
-                .send_recorded(&self.metrics)
+                .send_via(self)
                 .await?,
         )
         .await
@@ -752,7 +828,7 @@ impl GitHub {
         if let Some(etag) = etag {
             request = request.header(header::IF_NONE_MATCH, etag);
         }
-        let response = request.send_recorded(&self.metrics).await?;
+        let response = request.send_via(self).await?;
         if response.status() == StatusCode::NOT_MODIFIED {
             return Ok(Conditional::NotModified);
         }
@@ -788,7 +864,7 @@ impl GitHub {
                 &format!("/repos/{repo}/git/blobs/{sha}"),
                 token,
             )
-            .send_recorded(&self.metrics)
+            .send_via(self)
             .await?,
         )
         .await?;
@@ -818,7 +894,7 @@ impl GitHub {
             if let Some(path) = path {
                 request = request.query(&[("path", path)]);
             }
-            let batch: Vec<Commit> = match json(request.send_recorded(&self.metrics).await?).await {
+            let batch: Vec<Commit> = match json(request.send_via(self).await?).await {
                 Ok(batch) => batch,
                 // An empty repository has no commits: GitHub answers 409 "Git Repository is empty".
                 Err(GitHubError::Status {
@@ -876,7 +952,7 @@ impl GitHub {
                 branch,
                 sha: write.sha,
             })
-            .send_recorded(&self.metrics)
+            .send_via(self)
             .await?;
         let status = response.status();
         if status == StatusCode::CONFLICT || status == StatusCode::UNPROCESSABLE_ENTITY {
@@ -900,7 +976,7 @@ impl GitHub {
                 &format!("/repos/{repo}/releases/tags/{tag}"),
                 token,
             )
-            .send_recorded(&self.metrics)
+            .send_via(self)
             .await?,
         )
         .await
@@ -923,7 +999,7 @@ impl GitHub {
             let batch: Vec<Release> = json(
                 self.request(Method::GET, &format!("/repos/{repo}/releases"), token)
                     .query(&[("per_page", PER_PAGE), ("page", page)])
-                    .send_recorded(&self.metrics)
+                    .send_via(self)
                     .await?,
             )
             .await?;
@@ -953,7 +1029,7 @@ impl GitHub {
                     "body": body,
                     "draft": true,
                 }))
-                .send_recorded(&self.metrics)
+                .send_via(self)
                 .await?,
         )
         .await
@@ -980,7 +1056,7 @@ impl GitHub {
                 .query(&[("name", name)])
                 .header(header::CONTENT_TYPE, "application/octet-stream")
                 .body(content)
-                .send_recorded(&self.metrics)
+                .send_via(self)
                 .await?,
         )
         .await
@@ -999,7 +1075,7 @@ impl GitHub {
                 token,
             )
             .json(&serde_json::json!({ "draft": false }))
-            .send_recorded(&self.metrics)
+            .send_via(self)
             .await?,
         )
         .await
@@ -1017,7 +1093,7 @@ impl GitHub {
                 &format!("/repos/{repo}/releases/{release_id}"),
                 token,
             )
-            .send_recorded(&self.metrics)
+            .send_via(self)
             .await?,
         )
         .await
@@ -1037,7 +1113,7 @@ impl GitHub {
             token,
             "application/octet-stream",
         )
-        .send_recorded(&self.metrics)
+        .send_via(self)
         .await?;
         if !response.status().is_redirection() {
             check(response).await?;
@@ -1057,12 +1133,10 @@ impl GitHub {
 
     /// Fetches a signed URL from [`Self::asset_download_url`]. No credentials: the signature authorises it.
     pub async fn download(&self, url: &str) -> Result<Bytes, GitHubError> {
-        Ok(
-            check(self.http.get(url).send_recorded(&self.metrics).await?)
-                .await?
-                .bytes()
-                .await?,
-        )
+        Ok(check(self.http.get(url).send_via(self).await?)
+            .await?
+            .bytes()
+            .await?)
     }
 }
 
@@ -1075,6 +1149,82 @@ fn with_accept(request: RequestBuilder, token: &str, accept: &str) -> RequestBui
         .bearer_auth(token)
         .header(header::ACCEPT, accept)
         .header("X-GitHub-Api-Version", "2022-11-28")
+}
+
+/// The longest wait for GitHub's rate limit taken inside a request; longer waits fail with `Retry-After`.
+const MAX_INLINE_WAIT_SECS: u64 = 3;
+/// Delays before retrying a request GitHub answered with 502, 503 or 504.
+const SERVER_ERROR_BACKOFF: [Duration; 2] = [Duration::from_millis(500), Duration::from_secs(1)];
+/// GitHub's advice when a secondary rate limit gives no time: wait at least a minute.
+const SECONDARY_LIMIT_WAIT_SECS: u64 = 60;
+
+trait SendVia {
+    async fn send_via(self, gh: &GitHub) -> Result<Response, GitHubError>;
+}
+
+impl SendVia for RequestBuilder {
+    async fn send_via(self, gh: &GitHub) -> Result<Response, GitHubError> {
+        gh.send(self).await
+    }
+}
+
+/// How long GitHub asks us to wait, if the response is a rate limit (GitHub's REST API docs, "Rate limits"): the
+/// `Retry-After` it gives; or, with no calls left, until `x-ratelimit-reset`; or a minute for any other 429.
+fn rate_limit_wait(response: &Response, now: u64) -> Option<u64> {
+    let status = response.status();
+    if status != StatusCode::FORBIDDEN && status != StatusCode::TOO_MANY_REQUESTS {
+        return None;
+    }
+    let headers = response.headers();
+    let number = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<u64>().ok())
+    };
+    if let Some(seconds) = number("retry-after") {
+        return Some(seconds.max(1));
+    }
+    if headers
+        .get("x-ratelimit-remaining")
+        .is_some_and(|v| v.as_bytes() == b"0")
+    {
+        return Some(
+            number("x-ratelimit-reset").map_or(SECONDARY_LIMIT_WAIT_SECS, |reset| {
+                reset.saturating_sub(now).max(1)
+            }),
+        );
+    }
+    (status == StatusCode::TOO_MANY_REQUESTS).then_some(SECONDARY_LIMIT_WAIT_SECS)
+}
+
+/// A 403 is either a permission refusal or a secondary rate limit that came without `Retry-After`; only the body
+/// tells them apart. Such a limit is given a `Retry-After` of a minute, so [`rate_limit_wait`] sees it; anything
+/// else comes back unchanged.
+async fn secondary_limit_checked(response: Response) -> Result<Response, GitHubError> {
+    let headers = response.headers();
+    if response.status() != StatusCode::FORBIDDEN
+        || headers.contains_key("retry-after")
+        || headers.contains_key("x-ratelimit-remaining") && headers["x-ratelimit-remaining"] == "0"
+    {
+        return Ok(response);
+    }
+    let status = response.status();
+    let mut headers = response.headers().clone();
+    let body = response.bytes().await?;
+    if String::from_utf8_lossy(&body)
+        .to_ascii_lowercase()
+        .contains("secondary rate limit")
+    {
+        headers.insert(
+            "retry-after",
+            header::HeaderValue::from(SECONDARY_LIMIT_WAIT_SECS),
+        );
+    }
+    let mut rebuilt = axum::http::Response::new(body);
+    *rebuilt.status_mut() = status;
+    *rebuilt.headers_mut() = headers;
+    Ok(Response::from(rebuilt))
 }
 
 /// Maps GitHub's error responses to [`GitHubError`].
@@ -1101,8 +1251,12 @@ async fn check(response: Response) -> Result<Response, GitHubError> {
     match status {
         StatusCode::UNAUTHORIZED => Err(GitHubError::Unauthorized),
         StatusCode::NOT_FOUND => Err(GitHubError::NotFound),
-        StatusCode::TOO_MANY_REQUESTS => Err(GitHubError::RateLimited),
-        StatusCode::FORBIDDEN if rate_limited => Err(GitHubError::RateLimited),
+        StatusCode::TOO_MANY_REQUESTS => Err(GitHubError::RateLimited {
+            retry_after: SECONDARY_LIMIT_WAIT_SECS,
+        }),
+        StatusCode::FORBIDDEN if rate_limited => Err(GitHubError::RateLimited {
+            retry_after: SECONDARY_LIMIT_WAIT_SECS,
+        }),
         _ => {
             let body = response.text().await.unwrap_or_default();
             Err(GitHubError::Status {
