@@ -103,8 +103,9 @@
 			<p>
 				PrivateCrates runs the Cargo registry protocol in front of a repository your organisation owns. The
 				index and every crate file are stored there, by GitHub, as commits and immutable releases. The service
-				itself keeps one kind of record, terms acceptances, and the last of the invitation requests from when
-				the preview was by invitation; everything else it knows is on GitHub, or can be rebuilt from it.
+				itself keeps records of terms acceptances, fingerprints of the provenance it has verified, and the
+				last of the invitation requests from when the preview was by invitation; everything else it knows is
+				on GitHub, or can be rebuilt from it.
 			</p>
 			<h3>Stored: terms acceptances</h3>
 			<p>
@@ -117,6 +118,13 @@
 				It is kept in a Postgres database in the same Railway project and region as the service (US East),
 				with Railway’s backups, for as long as the organisation uses PrivateCrates and then for 6 years, as
 				evidence of the agreement.
+			</p>
+			<h3>Stored: fingerprints of verified provenance</h3>
+			<p>
+				The compliance dashboard checks each version’s signed provenance once, and remembers that it passed as
+				a SHA-256 fingerprint of the version, its checksum and its files, in the same database. A fingerprint
+				names no crate and cannot be turned back into one; it only spares the dashboard downloading the same
+				file again.
 			</p>
 			<h3>Stored: invitation requests</h3>
 			<p>

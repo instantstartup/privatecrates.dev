@@ -574,20 +574,34 @@ async fn reports_are_cached_until_the_storage_repository_changes() {
     let github = h.fake.calls();
     assert!(!github.iter().any(|c| c.contains("/commits")), "{github:?}");
 
-    // The push GitHub sends for the new version discards the report; versions that passed are not checked again.
+    // The push GitHub sends for the new version discards the report. The next lists the releases once, whatever the
+    // number of versions, and downloads only the new version's provenance: 0.1.0's was verified before.
     pushed(&h, "d-1").await;
     h.fake.clear_calls();
     let fresh = report(&h, &session).await;
     assert_eq!(fresh["integrity"]["versions"], 2);
     assert_eq!(fresh["integrity"]["provenance"], 2);
     let github = h.fake.calls();
-    let releases: Vec<&String> = github
+    let count = |part: &str| github.iter().filter(|c| c.contains(part)).count();
+    let listings = github
         .iter()
-        .filter(|c| c.contains("/releases/tags/"))
-        .collect();
-    assert_eq!(
-        releases,
-        ["GET /repos/acme/crates-store/releases/tags/story_engine-0.2.0"]
+        .filter(|c| *c == "GET /repos/acme/crates-store/releases")
+        .count();
+    assert_eq!(listings, 1, "{github:?}");
+    assert_eq!(count("/releases/tags/"), 0, "{github:?}");
+    assert_eq!(count("/releases/assets/"), 1, "{github:?}");
+
+    // A release deleted later is still noticed, although its provenance was verified: releases are listed afresh.
+    h.fake
+        .delete_release(h.org.storage_repo, "story_engine-0.1.0");
+    pushed(&h, "d-2").await;
+    let after = report(&h, &session).await;
+    let problems = after["integrity"]["problems"].as_array().unwrap();
+    assert!(
+        problems
+            .iter()
+            .any(|p| p["code"] == "release_missing" && p["version"] == "0.1.0"),
+        "{problems:?}"
     );
 }
 

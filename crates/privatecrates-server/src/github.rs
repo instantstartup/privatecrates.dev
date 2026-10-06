@@ -950,6 +950,20 @@ impl GitHub {
         branch: &str,
         path: Option<&str>,
     ) -> Result<Vec<Commit>, GitHubError> {
+        Ok(self.commits_since(token, repo, branch, path, None).await?.0)
+    }
+
+    /// Like [`Self::commits`], but stops at `known`, a commit already seen: returns the newer commits, newest first,
+    /// and whether `known` was reached. Not reached (history rewritten, or `known` is `None`) means the list is the
+    /// whole history.
+    pub async fn commits_since(
+        &self,
+        token: &str,
+        repo: &str,
+        branch: &str,
+        path: Option<&str>,
+        known: Option<&str>,
+    ) -> Result<(Vec<Commit>, bool), GitHubError> {
         let mut all = Vec::new();
         for page in 1.. {
             let mut request = self
@@ -969,12 +983,17 @@ impl GitHub {
                 Err(e) => return Err(e),
             };
             let done = batch.len() < PER_PAGE;
-            all.extend(batch);
+            for commit in batch {
+                if known == Some(commit.sha.as_str()) {
+                    return Ok((all, true));
+                }
+                all.push(commit);
+            }
             if done {
                 break;
             }
         }
-        Ok(all)
+        Ok((all, false))
     }
 
     /// Creates or updates one file in one commit. A mismatch between `write.sha` and the file's current blob sha
@@ -1059,7 +1078,17 @@ impl GitHub {
         repo: &str,
         tag: &str,
     ) -> Result<Vec<Release>, GitHubError> {
-        let mut drafts = Vec::new();
+        Ok(self
+            .releases(token, repo)
+            .await?
+            .into_iter()
+            .filter(|r| r.draft && r.tag_name == tag)
+            .collect())
+    }
+
+    /// Every release of the repository, drafts included, with their assets: one call per 100.
+    pub async fn releases(&self, token: &str, repo: &str) -> Result<Vec<Release>, GitHubError> {
+        let mut all = Vec::new();
         for page in 1.. {
             let batch: Vec<Release> = json(
                 self.request(Method::GET, &format!("/repos/{repo}/releases"), token)
@@ -1069,12 +1098,12 @@ impl GitHub {
             )
             .await?;
             let done = batch.len() < PER_PAGE;
-            drafts.extend(batch.into_iter().filter(|r| r.draft && r.tag_name == tag));
+            all.extend(batch);
             if done {
                 break;
             }
         }
-        Ok(drafts)
+        Ok(all)
     }
 
     pub async fn create_draft_release(

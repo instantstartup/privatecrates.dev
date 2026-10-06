@@ -22,7 +22,7 @@ use bytes::Bytes;
 use jsonwebtoken::jwk::JwkSet;
 use privatecrates_common::{
     index::{IndexFile, name_from_path},
-    storage::{INDEX_DIR, OWNERS_DIR, SETTINGS_PATH, release_tag},
+    storage::{INDEX_DIR, OWNERS_DIR, SETTINGS_PATH, owner_path, release_tag},
 };
 use privatecrates_verify::{
     Options,
@@ -63,9 +63,9 @@ pub fn routes() -> Router<Arc<AppState>> {
 pub struct Compliance {
     /// Storage repository ID → its latest report.
     reports: moka::future::Cache<u64, Arc<Report>>,
-    /// (storage repository ID, lowercase crate name, version) → a check that passed. Releases are immutable, so a
-    /// pass never goes stale.
-    passed: moka::future::Cache<(u64, String, String), Arc<VersionCheck>>,
+    /// (storage repository ID, path or "" for every commit) → its commits, newest first: each report asks GitHub
+    /// only for those newer than the first. In memory only: after a restart the first report lists them all again.
+    commits: moka::future::Cache<(u64, &'static str), Arc<Vec<Commit>>>,
 }
 
 impl Default for Compliance {
@@ -75,8 +75,9 @@ impl Default for Compliance {
                 .max_capacity(10_000)
                 .time_to_live(REPORT_TTL)
                 .build(),
-            passed: moka::future::Cache::builder()
-                .max_capacity(1_000_000)
+            commits: moka::future::Cache::builder()
+                .max_capacity(10_000)
+                .time_to_idle(Duration::from_secs(24 * 60 * 60))
                 .build(),
         }
     }
@@ -371,16 +372,6 @@ struct Version {
     first: bool,
 }
 
-impl Version {
-    fn key(&self, repo_id: u64) -> (u64, String, String) {
-        (
-            repo_id,
-            self.name.to_ascii_lowercase(),
-            self.version.clone(),
-        )
-    }
-}
-
 async fn build(state: &Arc<AppState>, tenant: &Arc<Tenant>) -> Result<Report, ApiError> {
     let token = tenant.storage_token(&state.gh).await?;
     let mut integrity = Integrity::default();
@@ -612,21 +603,26 @@ async fn versions(
     Ok(versions)
 }
 
-/// Checks each version, reusing the passes already cached; in the order of `versions`.
+/// Checks each version, in the order of `versions`. Every report sees GitHub's releases afresh, listed 100 at a
+/// time, so a deleted or changed release is always reported; provenance, the one check that needs a download per
+/// version, is verified once per version and remembered (see [`provenance_fingerprint`]).
 async fn checks(
     state: &Arc<AppState>,
     tenant: &Arc<Tenant>,
     token: &str,
     versions: &[Version],
 ) -> Result<Vec<Arc<VersionCheck>>, ApiError> {
-    let repo_id = tenant.storage_repo_id;
-    let mut results: Vec<Option<Arc<VersionCheck>>> = Vec::with_capacity(versions.len());
-    for v in versions {
-        results.push(state.compliance.passed.get(&v.key(repo_id)).await);
-    }
-    if results.iter().all(Option::is_some) {
-        return Ok(results.into_iter().flatten().collect());
-    }
+    let releases: Arc<HashMap<String, github::Release>> = Arc::new(
+        state
+            .gh
+            .releases(token, &tenant.storage_repo)
+            .await?
+            .into_iter()
+            // A draft has no tag yet: it is not a published version's release.
+            .filter(|r| !r.draft)
+            .map(|r| (r.tag_name.clone(), r))
+            .collect(),
+    );
     let jwks = Arc::new(state.oidc.key_set().await?);
     let options = Arc::new(Options {
         base_url: state.config.tenant_base_url(&tenant.slug),
@@ -636,69 +632,94 @@ async fn checks(
     let limit = Arc::new(Semaphore::new(CONCURRENCY));
     let mut tasks = JoinSet::new();
     for (i, v) in versions.iter().enumerate() {
-        if results[i].is_some() {
-            continue;
-        }
         let (state, tenant, token) = (state.clone(), tenant.clone(), token.to_owned());
         let (jwks, options, limit, v) = (jwks.clone(), options.clone(), limit.clone(), v.clone());
+        let releases = releases.clone();
         tasks.spawn(async move {
             let _permit = limit.acquire_owned().await;
-            let check = check(&state, &tenant, &token, &jwks, &options, &v).await?;
+            let check = check(&state, &tenant, &token, &releases, &jwks, &options, &v).await?;
             Ok::<_, ApiError>((i, check))
         });
     }
+    let mut results: Vec<Option<Arc<VersionCheck>>> = vec![None; versions.len()];
     while let Some(joined) = tasks.join_next().await {
         let (i, check) = joined.map_err(|e| ApiError::internal(e.to_string()))??;
-        let v = &versions[i];
-        let check = Arc::new(check);
-        if check.passed() {
-            state
-                .compliance
-                .passed
-                .insert(v.key(repo_id), check.clone())
-                .await;
-        }
-        results[i] = Some(check);
+        results[i] = Some(Arc::new(check));
     }
     Ok(results.into_iter().flatten().collect())
 }
 
-/// Fetches what GitHub holds for one version and runs the verifier's checks on it. The owners in force are the
-/// crate's current ones: owners files are created at a crate's first publish and changed only by people.
+/// Stands for one verified provenance file, without naming the crate: a SHA-256 of the storage repository, the
+/// version, its checksum, the provenance file's digest (or asset ID) and the owners file's blob. A release's files
+/// are immutable, so the verdict holds while all of these stay the same; a changed owners file means checking again.
+fn provenance_fingerprint(
+    repo_id: u64,
+    v: &Version,
+    asset: &remote::Asset,
+    owners_blob: Option<&str>,
+) -> [u8; 32] {
+    use sha2::{Digest as _, Sha256};
+    let mut hash = Sha256::new();
+    for part in [
+        repo_id.to_string().as_str(),
+        &v.name.to_ascii_lowercase(),
+        &v.version,
+        &v.cksum,
+        asset.digest.as_deref().unwrap_or(""),
+        &asset.id.to_string(),
+        owners_blob.unwrap_or(""),
+    ] {
+        hash.update(part.as_bytes());
+        hash.update([0]);
+    }
+    hash.finalize().into()
+}
+
+/// Runs the verifier's checks on what GitHub holds for one version. The owners in force are the crate's current
+/// ones: owners files are created at a crate's first publish and changed only by people.
 async fn check(
     state: &AppState,
     tenant: &Tenant,
     token: &str,
+    releases: &HashMap<String, github::Release>,
     jwks: &JwkSet,
     options: &Options,
     v: &Version,
 ) -> Result<VersionCheck, ApiError> {
-    let release = state
-        .gh
-        .release_by_tag(
-            token,
-            &tenant.storage_repo,
-            &release_tag(&v.name, &v.version),
-        )
-        .await?
+    let release = releases
+        .get(&release_tag(&v.name, &v.version))
         .map(|r| remote::Release {
             draft: r.draft,
             immutable: r.immutable,
             assets: r
                 .assets
-                .into_iter()
+                .iter()
                 .map(|a| remote::Asset {
                     id: a.id,
-                    name: a.name,
-                    digest: a.digest,
+                    name: a.name.clone(),
+                    digest: a.digest.clone(),
                 })
                 .collect(),
         });
+    let records = state.terms.records();
     let mut provenance = None;
     let mut crate_bytes = None;
+    // The fingerprint of provenance verified before, which then needs no download; or of provenance to check now.
+    let mut verified_before = false;
+    let mut fingerprint = None;
     if let Some(release) = &release {
         if let Some(asset) = release.provenance_asset(&v.name, &v.version) {
-            provenance = Some(asset_bytes(state, tenant, token, asset.id).await?);
+            let owners_blob = tenant.file_sha(&owner_path(&v.name));
+            let fp =
+                provenance_fingerprint(tenant.storage_repo_id, v, asset, owners_blob.as_deref());
+            verified_before = records.provenance_verified(&fp).await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "looking up verified provenance failed; checking again");
+                false
+            });
+            if !verified_before {
+                provenance = Some(asset_bytes(state, tenant, token, asset.id).await?);
+                fingerprint = Some(fp);
+            }
         }
         if let Some(asset) = release
             .crate_asset(&v.name, &v.version)
@@ -722,14 +743,24 @@ async fn check(
         provenance: provenance.as_deref().map(|jwt| (jwt, jwks)),
         crate_bytes: crate_bytes.as_deref(),
     };
-    Ok(check_version(
+    let mut result = check_version(
         &v.name,
         &v.version,
         &v.cksum,
         Some(published),
         &evidence,
         options,
-    ))
+    );
+    if verified_before {
+        // The same file, verified against the same owners: what the check would find again.
+        result.provenance = Provenance::Valid;
+    } else if let Some(fp) = fingerprint
+        && result.provenance == Provenance::Valid
+        && let Err(e) = records.record_provenance_verified(&fp).await
+    {
+        tracing::warn!(error = %e, "remembering verified provenance failed");
+    }
+    Ok(result)
 }
 
 async fn asset_bytes(
@@ -780,28 +811,62 @@ impl Area {
 }
 
 /// The storage repository's history of the index, owners and settings, newest first.
+/// The storage repository's commits, all or those touching `path`, newest first: the ones seen before, plus any
+/// newer from GitHub. A rewritten history, where the newest seen is gone, is listed whole again.
+async fn commits(
+    state: &AppState,
+    tenant: &Tenant,
+    token: &str,
+    path: Option<&'static str>,
+) -> Result<Arc<Vec<Commit>>, github::GitHubError> {
+    let key = (tenant.storage_repo_id, path.unwrap_or(""));
+    let seen = state.compliance.commits.get(&key).await;
+    let newest = seen.as_ref().and_then(|c| c.first()).map(|c| c.sha.clone());
+    let (newer, reached) = state
+        .gh
+        .commits_since(
+            token,
+            &tenant.storage_repo,
+            &tenant.branch,
+            path,
+            newest.as_deref(),
+        )
+        .await?;
+    let all = match seen {
+        Some(seen) if reached && newer.is_empty() => seen,
+        Some(seen) if reached => Arc::new(newer.into_iter().chain(seen.iter().cloned()).collect()),
+        _ => Arc::new(newer),
+    };
+    state.compliance.commits.insert(key, all.clone()).await;
+    Ok(all)
+}
+
 async fn audit(
     state: &AppState,
     tenant: &Tenant,
     token: &str,
     provenance: &HashMap<(String, String), bool>,
 ) -> Result<Vec<AuditEntry>, ApiError> {
-    let gh = &state.gh;
-    let (repo, branch) = (tenant.storage_repo.as_str(), tenant.branch.as_str());
     let touched = |path: &'static str| async move {
-        let commits = gh.commits(token, repo, branch, Some(path)).await?;
-        Ok::<_, github::GitHubError>(commits.into_iter().map(|c| c.sha).collect::<HashSet<_>>())
+        let commits = commits(state, tenant, token, Some(path)).await?;
+        Ok::<_, github::GitHubError>(
+            commits
+                .iter()
+                .map(|c| c.sha.clone())
+                .collect::<HashSet<_>>(),
+        )
     };
     // The full history gives the order; the listings by path say what each commit changed.
     let (all, index, owners, settings) = tokio::try_join!(
-        gh.commits(token, repo, branch, None),
+        commits(state, tenant, token, None),
         touched(INDEX_DIR.trim_end_matches('/')),
         touched(OWNERS_DIR.trim_end_matches('/')),
         touched(SETTINGS_PATH),
     )?;
     let app = format!("{}[bot]", state.config.storage_app_slug);
     Ok(all
-        .into_iter()
+        .iter()
+        .cloned()
         .filter_map(|commit| {
             let area = if index.contains(&commit.sha) {
                 Area::Index

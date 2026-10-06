@@ -101,3 +101,17 @@ async fn the_first_acceptance_is_kept() {
         "cli"
     );
 }
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn verified_provenance_is_remembered_by_fingerprint() {
+    let db = database();
+    db.migrate().await.unwrap();
+    let mut fingerprint = [0u8; 32];
+    fingerprint[..8].copy_from_slice(&fresh_org_id().to_be_bytes());
+    assert!(!db.provenance_verified(&fingerprint).await.unwrap());
+    db.record_provenance_verified(&fingerprint).await.unwrap();
+    // Recording again is a no-op.
+    db.record_provenance_verified(&fingerprint).await.unwrap();
+    assert!(db.provenance_verified(&fingerprint).await.unwrap());
+}

@@ -101,6 +101,13 @@ pub trait Records: Send + Sync {
         org_id: u64,
         version: &str,
     ) -> Result<Option<Accepted>, RecordsError>;
+
+    /// Whether the compliance dashboard has verified the provenance this fingerprint stands for
+    /// (`compliance::provenance_fingerprint`).
+    async fn provenance_verified(&self, fingerprint: &[u8; 32]) -> Result<bool, RecordsError>;
+
+    /// Notes that the provenance this fingerprint stands for verified.
+    async fn record_provenance_verified(&self, fingerprint: &[u8; 32]) -> Result<(), RecordsError>;
 }
 
 /// Postgres (`DATABASE_URL`).
@@ -180,12 +187,31 @@ impl Records for Postgres {
             statement: row.try_get("statement")?,
         }))
     }
+
+    async fn provenance_verified(&self, fingerprint: &[u8; 32]) -> Result<bool, RecordsError> {
+        let row = sqlx::query("select 1 from provenance_verdicts where fingerprint = $1")
+            .bind(fingerprint.as_slice())
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row.is_some())
+    }
+
+    async fn record_provenance_verified(&self, fingerprint: &[u8; 32]) -> Result<(), RecordsError> {
+        sqlx::query(
+            "insert into provenance_verdicts (fingerprint) values ($1) on conflict do nothing",
+        )
+        .bind(fingerprint.as_slice())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
 }
 
 /// In memory, for tests and local development without `DATABASE_URL`. Lost at every restart.
 #[derive(Default)]
 pub struct Memory {
     rows: Mutex<Vec<Accepted>>,
+    verified: Mutex<std::collections::HashSet<[u8; 32]>>,
 }
 
 #[async_trait]
@@ -227,6 +253,15 @@ impl Records for Memory {
             .iter()
             .find(|r| r.org_id == org_id && r.version == version)
             .cloned())
+    }
+
+    async fn provenance_verified(&self, fingerprint: &[u8; 32]) -> Result<bool, RecordsError> {
+        Ok(self.verified.lock().await.contains(fingerprint))
+    }
+
+    async fn record_provenance_verified(&self, fingerprint: &[u8; 32]) -> Result<(), RecordsError> {
+        self.verified.lock().await.insert(*fingerprint);
+        Ok(())
     }
 }
 

@@ -500,6 +500,12 @@ impl FakeGitHub {
     }
 
     /// Makes a published release mutable, as it would be had immutable releases been off.
+    /// Deletes a published release, as a repository admin can.
+    pub fn delete_release(&self, repo: u64, tag: &str) {
+        let mut w = self.world();
+        w.releases.retain(|_, r| !(r.repo == repo && r.tag == tag));
+    }
+
     pub fn make_release_mutable(&self, repo: u64, tag: &str) {
         let mut w = self.world();
         let release = w
