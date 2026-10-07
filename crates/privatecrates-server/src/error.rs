@@ -569,6 +569,15 @@ pub enum ApiError {
         account_url: String,
     },
 
+    #[error("too many sign-ins with new tokens at once; please try again in {seconds} seconds")]
+    #[diagnostic(code(auth::too_many_new_tokens))]
+    #[http_status(429)]
+    TooManyNewTokens {
+        seconds: u64,
+        #[http_header("Retry-After")]
+        retry_after: HeaderValue,
+    },
+
     // --- GitHub and internal ---
     #[error("GitHub's rate limit was reached; please try again in {seconds} seconds")]
     #[diagnostic(code(github::rate_limited))]

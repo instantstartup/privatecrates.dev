@@ -1,0 +1,28 @@
+# Gives a job read access to the worldbuilding-dev PrivateCrates registry, where the server's private dependency
+# privatecrates-qos is published: installs cargo-credential-privatecrates (checksummed and attested, as our own
+# generated workflows do), which turns the job's OIDC token into a registry token. The job needs
+# `permissions: id-token: write`; no secrets.
+name: Private registry access
+description: Install cargo-credential-privatecrates for the worldbuilding-dev registry
+inputs:
+  version:
+    description: The cargo-credential-privatecrates release to install
+    default: "0.2.9"
+runs:
+  using: composite
+  steps:
+    - name: Install cargo-credential-privatecrates (checksummed and attested)
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        cd "$(mktemp -d)"
+        name=cargo-credential-privatecrates-$(uname -m)-unknown-linux-gnu
+        base=https://github.com/worldbuilding-dev/privatecrates.dev/releases/download/v$VERSION
+        curl -fsSL --remote-name-all "$base/$name.tgz" "$base/SHA256SUMS"
+        sha256sum --check --ignore-missing SHA256SUMS
+        gh attestation verify "$name.tgz" --repo worldbuilding-dev/privatecrates.dev \
+          --signer-workflow worldbuilding-dev/privatecrates.dev/.github/workflows/release.yml --source-ref refs/tags/v$VERSION
+        tar -xzf "$name.tgz"
+        install -D "$name/cargo-credential-privatecrates" ~/.cargo/bin/cargo-credential-privatecrates

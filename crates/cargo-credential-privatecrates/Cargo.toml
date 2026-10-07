@@ -32,15 +32,4 @@ pkg-fmt = "tgz"
 [package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
 pkg-fmt = "zip"
 
-[dev-dependencies]
-axum = "0.8.9"
-base64 = "0.23.1"
-bytes = "1.12.1"
-flate2 = "1.1.10"
-privatecrates-server = { path = "../privatecrates-server" }
-privatecrates-testkit = { path = "../privatecrates-testkit" }
-reqwest = "0.13.5"
-serde_json = "1.0.151"
-tar = "0.4.46"
-tempfile = "3.27.0"
-tokio = { version = "1.53.1", features = ["full"] }
+# Its tests against a real server are in privatecrates-server/tests/credential_e2e.rs, in the server's workspace.

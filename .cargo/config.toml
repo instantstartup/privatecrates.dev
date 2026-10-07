@@ -1,0 +1,9 @@
+# The worldbuilding-dev PrivateCrates registry, where the server's private dependencies (privatecrates-qos) are
+# published: PrivateCrates depends on itself. Building the server needs read access to it:
+# - on a developer machine, cargo-credential-privatecrates (it signs you in with GitHub on first use);
+# - in GitHub Actions, the job's OIDC token, through the same provider (permissions: id-token: write);
+# - in the Docker build, the read-only token in PRIVATECRATES_TOKEN (see Dockerfile).
+# The client tools (cargo-credential-privatecrates, cargo-privatecrates, privatecrates-verify) depend on nothing here.
+[registries.worldbuilding-dev]
+index = "sparse+https://worldbuilding-dev.privatecrates.dev/index/"
+credential-provider = ["cargo-credential-privatecrates"]

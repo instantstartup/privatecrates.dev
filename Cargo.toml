@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
+# Its own workspace: the only crate that needs the private worldbuilding-dev registry (see its Cargo.toml).
+exclude = ["crates/privatecrates-server"]
 
 [workspace.package]
 edition = "2024"

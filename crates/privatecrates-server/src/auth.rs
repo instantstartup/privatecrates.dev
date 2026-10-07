@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use axum::http::{HeaderMap, header};
+use axum::http::{HeaderMap, HeaderValue, header};
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -43,15 +43,31 @@ impl Credential {
             return None;
         }
         let token = token.to_owned();
-        Some(if token.starts_with("ghu_") {
-            Self::AppUser(token)
-        } else if token.starts_with(REGISTRY_TOKEN_PREFIX) {
-            Self::Registry(token)
-        } else if token.starts_with("eyJ") && token.matches('.').count() == 2 {
-            Self::Oidc(token)
+        if token.starts_with(REGISTRY_TOKEN_PREFIX) {
+            return Some(Self::Registry(token));
+        }
+        if token.starts_with("eyJ") && token.matches('.').count() == 2 {
+            return Some(Self::Oidc(token));
+        }
+        // Checking a GitHub token costs a call to GitHub, so only what can be one is: its prefixes, and letters,
+        // digits and underscores (GitHub's token formats). Anything else is no credential at all.
+        let github_shaped = token.len() <= 255
+            && token
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_');
+        if !github_shaped {
+            return None;
+        }
+        if token.starts_with("ghu_") {
+            Some(Self::AppUser(token))
+        } else if ["gho_", "ghp_", "github_pat_"]
+            .iter()
+            .any(|prefix| token.starts_with(prefix))
+        {
+            Some(Self::GitHub(token))
         } else {
-            Self::GitHub(token)
-        })
+            None
+        }
     }
 }
 
@@ -106,7 +122,20 @@ pub struct PermissionCache {
     live_repos: moka::future::Cache<u64, Arc<HashSet<u64>>>,
     /// (repository ID, actor ID) → whether the actor of a workflow run can create releases there (SPEC §6.4).
     actors: moka::future::Cache<(u64, u64), bool>,
+    /// How fast tokens not seen before are checked with GitHub, across the server. Each costs GitHub calls, so a
+    /// flood of made-up tokens would otherwise become a flood of bad-credential requests to GitHub, which can block
+    /// us for everyone. Per client IP once the client IP can be trusted.
+    new_tokens: privatecrates_qos::rate_limit::RateLimiter,
 }
+
+/// Tokens not seen before that may be checked with GitHub: a burst, then a steady rate. Far above what real use
+/// needs (a token is checked once per cache period), far below what would worry GitHub.
+const NEW_TOKENS: privatecrates_qos::rate_limit::RateLimitConfig =
+    privatecrates_qos::rate_limit::RateLimitConfig {
+        burst: 200,
+        per_second: 20.0,
+        max_keys: 16,
+    };
 
 const DENIAL_TTL: Duration = Duration::from_secs(30);
 /// How long a workflow actor's permission is trusted: at most a minute, so that revoking someone's Write access
@@ -157,6 +186,7 @@ impl PermissionCache {
                 .max_capacity(10_000)
                 .time_to_live(ttl)
                 .build(),
+            new_tokens: privatecrates_qos::rate_limit::RateLimiter::new("new-tokens", NEW_TOKENS),
             actors: moka::future::Cache::builder()
                 .max_capacity(100_000)
                 .time_to_live(ttl.min(ACTOR_TTL))
@@ -186,6 +216,21 @@ impl PermissionCache {
                 Arc::new(keys)
             })
             .await;
+    }
+
+    /// Whether one more token not seen before may be checked with GitHub now ([`NEW_TOKENS`]).
+    fn admit_new_token(&self) -> Result<(), ApiError> {
+        self.new_tokens
+            .check("all")
+            .map_err(|rejection| match rejection {
+                privatecrates_qos::QosError::RateLimited { seconds, .. } => {
+                    ApiError::TooManyNewTokens {
+                        seconds,
+                        retry_after: HeaderValue::from(seconds),
+                    }
+                }
+                other => ApiError::internal(other.to_string()),
+            })
     }
 
     /// Drops what is cached about one user's access, for a webhook saying it changed (SPEC §7): their repository
@@ -294,6 +339,7 @@ impl Resolver<'_> {
         if let Some(cached) = self.cache.users.get(&key).await {
             return cached.map_err(Into::into);
         }
+        self.cache.admit_new_token()?;
         let lookup = async {
             let user = self.gh.user(token).await?;
             let repos = self
@@ -328,6 +374,7 @@ impl Resolver<'_> {
         if let Some(cached) = self.cache.repos.get(&key).await {
             return cached.map_err(Into::into);
         }
+        self.cache.admit_new_token()?;
         let value = match self.gh.repository_by_id(token, repository_id).await {
             Ok(repo) => Ok(repo.map(|r| r.permissions.is_some_and(|p| p.push || p.admin))),
             Err(e) => Err(denial(e)?),
@@ -507,7 +554,6 @@ impl Resolver<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::HeaderValue;
 
     fn classify(value: &str) -> Option<&'static str> {
         let mut headers = HeaderMap::new();
@@ -530,5 +576,10 @@ mod tests {
         assert_eq!(classify("pcr_eyJ.a.b"), Some("registry"));
         assert_eq!(classify("eyJhbGc.eyJzdWI.sig"), Some("oidc"));
         assert_eq!(classify("Bearer "), None);
+        // Nothing GitHub could have issued: refused without a call to GitHub.
+        assert_eq!(classify("hunter2"), None);
+        assert_eq!(classify("gho_abc-def"), None);
+        assert_eq!(classify("ghp_<script>"), None);
+        assert_eq!(classify(&format!("ghp_{}", "a".repeat(300))), None);
     }
 }

@@ -50,7 +50,12 @@ impl Website {
         Self {
             files: dir.map(|dir| Files {
                 dir: dir.to_owned(),
-                serve: ServeDir::new(dir).not_found_service(ServeFile::new(dir.join("404.html"))),
+                // The build writes Brotli and gzip copies beside each file (website/scripts/precompress.js):
+                // served as they are, they cost no CPU per request.
+                serve: ServeDir::new(dir)
+                    .precompressed_br()
+                    .precompressed_gzip()
+                    .not_found_service(ServeFile::new(dir.join("404.html"))),
             }),
             csp: content_security_policy(&hashes),
         }

@@ -300,10 +300,21 @@ impl PublishLimiter {
 
 /// Routes each request by its `Host`: the apex serves the website and account API, `www.` redirects to the apex,
 /// and `{slug}.` serves that tenant's registry. `/healthz` answers on any host.
+/// Requests in flight at once; past this, more are answered 503 with `Retry-After` rather than queued.
+const MAX_CONCURRENT_REQUESTS: std::num::NonZeroUsize = std::num::NonZeroUsize::new(512).unwrap();
+/// The longest a request may take, a publish's upload to GitHub included.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+/// The longest wait for the next part of a request body: a client that stops sending is cut off.
+const BODY_CHUNK_TIMEOUT: Duration = Duration::from_secs(20);
+/// A publish's body beyond the `.crate` itself: the metadata JSON and the framing.
+const PUBLISH_OVERHEAD: u64 = 1024 * 1024;
+
 pub fn router(state: Arc<AppState>) -> Router {
     let apex = apex_router(state.clone());
     let tenant = tenant_router(state.clone());
     let https = state.config.public_scheme == "https";
+    let max_body =
+        u64::try_from(state.config.max_crate_bytes).unwrap_or(u64::MAX) + PUBLISH_OVERHEAD;
     Router::new()
         .route("/healthz", get(routes::healthz))
         .fallback(move |request: Request| {
@@ -320,6 +331,27 @@ pub fn router(state: Arc<AppState>) -> Router {
                 response
             }
         })
+        // Quality of service (privatecrates-qos), innermost first: compression on the way out, then load shedding,
+        // the whole request's deadline, and the request body's limits on the way in.
+        .layer(privatecrates_qos::compression::response_compression())
+        .layer(privatecrates_qos::concurrency::ConcurrencyLimitLayer::new(
+            "server",
+            MAX_CONCURRENT_REQUESTS,
+        ))
+        .layer(privatecrates_qos::timeout::TimeoutLayer::new(
+            "server",
+            REQUEST_TIMEOUT,
+        ))
+        .layer(privatecrates_qos::body::RequestBodyLayer::new(
+            "server",
+            privatecrates_qos::body::RequestBodyConfig {
+                // The largest body anything here accepts: a publish, its metadata and framing included. Each route
+                // may accept less (axum's own limit is 2 MiB unless a route raises it).
+                max_bytes: max_body,
+                chunk_timeout: BODY_CHUNK_TIMEOUT,
+                total_timeout: REQUEST_TIMEOUT,
+            },
+        ))
         .layer(middleware::from_fn(move |request: Request, next: Next| {
             transport_headers(https, request, next)
         }))

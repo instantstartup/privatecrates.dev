@@ -399,7 +399,7 @@ pub async fn oidc_exchange(
     State(state): State<Arc<AppState>>,
     TenantHost(tenant): TenantHost,
     headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<Response, ApiError> {
     let Credential::Oidc(token) = credential(&state, &tenant, &headers)? else {
         return Err(ApiError::OidcTokenRequired);
     };
@@ -422,9 +422,12 @@ pub async fn oidc_exchange(
         state
             .registry_tokens
             .issue(&tenant.slug, tenant.org_id, repository_id);
-    Ok(Json(
-        serde_json::json!({ "token": token, "expires_at": expires_at }),
-    ))
+    // A credential: never cached, and never compressed (privatecrates_qos::compression).
+    Ok((
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(serde_json::json!({ "token": token, "expires_at": expires_at })),
+    )
+        .into_response())
 }
 
 /// The /login page's own policy: plain HTML and inline styles, no scripts, no framing.

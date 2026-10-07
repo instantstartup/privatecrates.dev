@@ -1,7 +1,6 @@
 //! The whole flow for a crate repository: `cargo privatecrates init`, a publish from (simulated) GitHub Actions
 //! with the credential provider, then `cargo privatecrates doctor`.
 
-#[path = "../../privatecrates-server/tests/common/mod.rs"]
 mod common;
 
 use std::{
@@ -14,27 +13,13 @@ use common::Harness;
 use privatecrates_testkit::{ACTIONS_REQUEST_TOKEN, FakeGitHub};
 use serde_json::Value;
 
-const CLI: &str = env!("CARGO_BIN_EXE_cargo-privatecrates");
-const PROVIDER: &str = "cargo-credential-privatecrates";
+/// Both client tools, built from the root workspace for this run: the CLI, and the credential provider beside it.
+static CLI: std::sync::LazyLock<PathBuf> =
+    std::sync::LazyLock::new(|| common::client_binary("cargo-privatecrates"));
 
-/// The directory holding the credential provider's binary, next to this crate's: built with the workspace, or
-/// built here when only this crate's tests are run.
+/// The directory holding the credential provider's binary, next to the CLI's.
 fn provider_dir() -> PathBuf {
-    let dir = Path::new(CLI).parent().unwrap().to_owned();
-    let exe = dir.join(format!("{PROVIDER}{}", std::env::consts::EXE_SUFFIX));
-    if !exe.is_file() {
-        let profile = match dir.file_name().and_then(|n| n.to_str()) {
-            Some("debug") | None => "dev",
-            Some(other) => other,
-        };
-        let status = std::process::Command::new(env!("CARGO"))
-            .args(["build", "--profile", profile, "-p", PROVIDER])
-            .status()
-            .unwrap();
-        assert!(status.success());
-    }
-    assert!(exe.is_file(), "{} is missing", exe.display());
-    dir
+    CLI.parent().unwrap().to_owned()
 }
 
 /// `PATH` with the credential provider on it.
@@ -51,7 +36,7 @@ struct Env<'a> {
 }
 
 impl Env<'_> {
-    fn command(&self, program: &str, dir: &Path) -> tokio::process::Command {
+    fn command(&self, program: impl AsRef<std::ffi::OsStr>, dir: &Path) -> tokio::process::Command {
         let mut command = tokio::process::Command::new(program);
         command
             .current_dir(dir)
@@ -71,7 +56,7 @@ impl Env<'_> {
     }
 
     async fn cli(&self, dir: &Path, args: &[&str]) -> Output {
-        self.command(CLI, dir)
+        self.command(CLI.as_path(), dir)
             .arg("privatecrates")
             .args(args)
             .output()

@@ -7,7 +7,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"dev:mock": "VITE_MOCK_API=1 vite dev",
-		"build": "vite build && node scripts/externalise-inline.js",
+		"build": "vite build && node scripts/externalise-inline.js && node scripts/precompress.js",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

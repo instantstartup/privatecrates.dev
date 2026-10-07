@@ -182,3 +182,74 @@ async fn a_developer_with_many_repositories_reads_crates_on_every_page() {
         .count();
     assert_eq!(pages, 3);
 }
+
+/// Made-up tokens cost us GitHub calls to check; past a burst, the rest are refused without asking GitHub, so a
+/// flood of them cannot make GitHub block us.
+#[tokio::test]
+async fn a_flood_of_made_up_tokens_does_not_reach_github() {
+    let h = Harness::start().await;
+    h.repo("story-engine");
+    h.fake.clear_calls();
+    let mut refused = 0;
+    for i in 0..250 {
+        let response = h
+            .get("/index/config.json", Some(&format!("gho_madeup{i:04}")))
+            .await;
+        if response.status() == 429 {
+            assert!(response.headers().contains_key("retry-after"));
+            assert_eq!(error_code(response).await, "auth::too_many_new_tokens");
+            refused += 1;
+        }
+    }
+    assert!(refused >= 40, "{refused}");
+    // Only the burst's worth went to GitHub.
+    let user_calls = h.fake.calls().iter().filter(|c| *c == "GET /user").count();
+    assert!(user_calls <= 210, "{user_calls}");
+
+    // A string that cannot be a GitHub token never reaches it at all.
+    h.fake.clear_calls();
+    let response = h.get("/index/config.json", Some("not a token!")).await;
+    assert_eq!(response.status(), 401);
+    assert!(h.fake.calls().is_empty(), "{:?}", h.fake.calls());
+}
+
+/// The server's own stack: compressed uploads are refused before anything reads them, and large responses go out
+/// compressed when the client accepts it.
+#[tokio::test]
+async fn compressed_uploads_are_refused_and_large_responses_compressed() {
+    let h = Harness::start().await;
+    let response = h
+        .client
+        .put(h.url("/api/v1/crates/new"))
+        .header("Authorization", "gho_whoever")
+        .header("Content-Encoding", "gzip")
+        .body(vec![0u8; 64])
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 415);
+    assert_eq!(error_code(response).await, "qos::compressed_body");
+
+    // The registry's sign-in page is a few kilobytes of HTML.
+    let response = h
+        .client
+        .get(h.url("/login"))
+        .header("Accept-Encoding", "gzip")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.headers()["content-encoding"], "gzip");
+
+    // The account API marks its answers no-store, as they concern a signed-in person: never compressed, so a
+    // secret in one cannot leak through its compressed length.
+    let response = h
+        .client
+        .get(h.apex("/api/errors"))
+        .header("Accept-Encoding", "gzip")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    assert!(response.headers().get("content-encoding").is_none());
+}

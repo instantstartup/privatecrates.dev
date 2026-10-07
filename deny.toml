@@ -19,14 +19,22 @@ allow = [
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
+    "MIT-0",
     "Unicode-3.0",
     "Zlib",
 ]
 confidence-threshold = 0.9
 
+# option-ext (through apollo-opentelemetry's configuration, in the server only): MPL-2.0, file-level copyleft. The
+# server is not distributed, and the crate is used unmodified.
+[[licenses.exceptions]]
+crate = "option-ext"
+allow = ["MPL-2.0"]
+
 # Our unpublished crates (the server, under the Business Source Licence) are not checked.
 [licenses.private]
 ignore = true
+registries = ["worldbuilding-dev"]
 
 [bans]
 multiple-versions = "allow"
@@ -36,3 +44,8 @@ allow-wildcard-paths = true
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+# The server's private dependencies (privatecrates-qos) come from our own registry; nothing else may.
+allow-registry = [
+    "https://github.com/rust-lang/crates.io-index",
+    "sparse+https://worldbuilding-dev.privatecrates.dev/index/",
+]

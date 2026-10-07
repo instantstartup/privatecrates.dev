@@ -1,6 +1,5 @@
 //! Real `cargo` with this credential provider against a real server and a fake GitHub.
 
-#[path = "../../privatecrates-server/tests/common/mod.rs"]
 mod common;
 
 use std::{path::Path, process::Output};
@@ -10,7 +9,8 @@ use common::Harness;
 use privatecrates_testkit::{ACTIONS_REQUEST_TOKEN, FakeGitHub};
 use serde_json::Value;
 
-const PROVIDER: &str = env!("CARGO_BIN_EXE_cargo-credential-privatecrates");
+static PROVIDER: std::sync::LazyLock<std::path::PathBuf> =
+    std::sync::LazyLock::new(|| common::client_binary("cargo-credential-privatecrates"));
 
 /// Where cargo runs: a simulated GitHub Actions job, or a developer's machine.
 enum Env<'a> {
@@ -83,7 +83,7 @@ fn project(h: &Harness, dir: &Path, manifest: &str) {
         format!(
             "[registries.acme]\nindex = \"sparse+{}/index/\"\ncredential-provider = [{:?}]\n",
             h.base(),
-            PROVIDER
+            PROVIDER.to_str().unwrap()
         ),
     )
     .unwrap();

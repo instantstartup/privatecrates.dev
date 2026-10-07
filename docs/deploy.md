@@ -365,6 +365,7 @@ Leave these unset (the defaults are right for both environments):
 | `GITHUB_API_URL`, `GITHUB_WEB_URL` | `https://api.github.com`, `https://github.com` | Tests point these at a fake. |
 | `STRIPE_API_URL` | Stripe's API | Tests point this at a fake. |
 | `PREVIEW` | `true` | The preview (docs/preview.md): free for everyone, billing off whatever Stripe configuration is set. `false` from general availability. |
+| `PRIVATECRATES_TOKEN` | none (**required to build**) | A read-only fine-grained GitHub token (Metadata: Read-only on `worldbuilding-dev/privatecrates-qos`), as a sealed variable. Railway passes it to the Docker build, where Cargo uses it to read `privatecrates-qos` from the `worldbuilding-dev` PrivateCrates registry. The running server never reads it. |
 | `TELEMETRY_CONFIG` | built in | A YAML file for apollo-opentelemetry that replaces the built-in configuration (`crates/privatecrates-server/src/telemetry.yaml`: JSON logs to standard output, at most 20 a second). Use it to export logs, spans and metrics over OTLP. |
 | `GRAFANA_CLOUD_INSTANCE_ID`, `GRAFANA_CLOUD_API_KEY`, `GRAFANA_CLOUD_OTLP_ENDPOINT` | none | With the API key set (a sealed variable), logs, request spans and metrics also go to Grafana Cloud (`telemetry-grafana-cloud.yaml`). The endpoint is the stack's OTLP gateway, e.g. `https://otlp-gateway-prod-eu-west-2.grafana.net/otlp`. |
 | `RUST_LOG` | `info` | Which logs are kept, by level and module, e.g. `info,privatecrates_server=debug`. |

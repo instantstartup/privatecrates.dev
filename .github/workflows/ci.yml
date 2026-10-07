@@ -21,7 +21,7 @@ env:
 
 jobs:
   rust:
-    name: Rust (fmt, clippy, test)
+    name: Rust, open-source crates (fmt, clippy, test)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -45,10 +45,47 @@ jobs:
       - name: Package the publishable crates
         run: cargo publish --dry-run --locked -p privatecrates-common -p privatecrates-auth -p cargo-credential-privatecrates -p cargo-privatecrates -p privatecrates-verify
 
+  server:
+    name: Rust, server (fmt, clippy, test)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write # reads privatecrates-qos from the worldbuilding-dev registry
+    defaults:
+      run:
+        working-directory: crates/privatecrates-server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-09-12
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            crates/privatecrates-server
+            .
+      - uses: ./.github/actions/private-registry
+      - name: Configure git for the tests
+        run: |
+          git config --global user.name "PrivateCrates CI"
+          git config --global user.email "ci@privatecrates.dev"
+          git config --global init.defaultBranch main
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      # Includes the full-system tests of the client tools, which build them from the root workspace.
+      - run: cargo test --locked
+
   advisories:
     name: Dependencies (RustSec advisories, licences, sources, notices)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # the server's workspace reads the worldbuilding-dev registry
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -58,7 +95,10 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo install cargo-deny --version 0.20.2 --locked
+      - uses: ./.github/actions/private-registry
       - run: cargo deny --locked check
+      - name: The server's workspace too
+        run: cargo deny --locked --manifest-path crates/privatecrates-server/Cargo.toml --config deny.toml check
       # The release ships these with each binary; a dependency whose licence they cannot cover fails here first.
       - run: cargo install cargo-about --version 0.9.2 --locked --features cli
       - name: Third-party licence notices generate
@@ -83,9 +123,12 @@ jobs:
       - run: cargo build --locked -p cargo-credential-privatecrates -p cargo-privatecrates -p privatecrates-verify
 
   postgres:
-    name: Rust (Postgres records)
+    name: Rust, server (Postgres records)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # reads privatecrates-qos from the worldbuilding-dev registry
     services:
       postgres:
         image: postgres:18@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
@@ -108,8 +151,12 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      # The SQL of the terms acceptances: migrations, inserts, the conflict no-op and lookups.
-      - run: cargo test -p privatecrates-server --test records --locked -- --ignored
+        with:
+          workspaces: crates/privatecrates-server
+      - uses: ./.github/actions/private-registry
+      # The SQL of our records: migrations, inserts, the conflict no-ops and lookups.
+      - run: cargo test --test records --locked -- --ignored
+        working-directory: crates/privatecrates-server
         env:
           DATABASE_URL: postgres://privatecrates:privatecrates@localhost:5432/privatecrates
 
@@ -208,6 +255,9 @@ jobs:
     name: Docker image builds
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write # a one-hour registry token for the build, as Railway's build has PRIVATECRATES_TOKEN
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -215,6 +265,17 @@ jobs:
       - name: Skip when there is no website yet
         if: hashFiles('website/package.json') == ''
         run: echo "::notice::website/ does not exist; the image needs it, so the Docker build is skipped."
+      - name: A read-only registry token for the build (the job's OIDC token, exchanged; masked, one hour)
+        id: registry
+        if: hashFiles('website/package.json') != ''
+        env:
+          REGISTRY: https://worldbuilding-dev.privatecrates.dev
+        run: |
+          oidc="$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$REGISTRY" | jq -r .value)"
+          token="$(curl -fsS -X POST -H "Authorization: Bearer $oidc" "$REGISTRY/api/v1/oidc/exchange" | jq -r .token)"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         if: hashFiles('website/package.json') != ''
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -224,6 +285,7 @@ jobs:
           push: false
           load: true
           tags: privatecrates:ci
+          build-args: PRIVATECRATES_TOKEN=${{ steps.registry.outputs.token }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: The image starts and refuses to run without configuration

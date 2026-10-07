@@ -1,6 +1,5 @@
 //! `cargo privatecrates login` and `setup` against a real server and a fake GitHub.
 
-#[path = "../../privatecrates-server/tests/common/mod.rs"]
 mod common;
 
 use std::{path::Path, process::Output};
@@ -10,7 +9,8 @@ use privatecrates_common::TERMS_VERSION;
 use privatecrates_testkit::{READER_APP_ID, STORAGE_APP_ID};
 use serde_json::{Value, json};
 
-const CLI: &str = env!("CARGO_BIN_EXE_cargo-privatecrates");
+static CLI: std::sync::LazyLock<std::path::PathBuf> =
+    std::sync::LazyLock::new(|| common::client_binary("cargo-privatecrates"));
 
 /// Runs `cargo privatecrates …` with its tokens in `config`, and a stand-in for `gh` that reports immutable releases
 /// as on.
@@ -23,7 +23,7 @@ async fn cli_with_immutable_releases(config: &Path, args: &[&str], enabled: &str
     let gh = config.join("gh");
     std::fs::write(&gh, format!("#!/bin/sh\necho {enabled}\n")).unwrap();
     std::fs::set_permissions(&gh, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
-    tokio::process::Command::new(CLI)
+    tokio::process::Command::new(&*CLI)
         .arg("privatecrates")
         .args(args)
         .env("PRIVATECRATES_CREDENTIAL_STORE", "file")

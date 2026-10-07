@@ -31,17 +31,34 @@ RUN cargo install cargo-chef --version 0.1.78 --locked
 WORKDIR /src
 
 FROM chef AS planner
+# The server is its own Cargo workspace (crates/privatecrates-server), depending by path on crates beside it, which
+# inherit settings from the root Cargo.toml: all of them are copied.
 COPY Cargo.toml Cargo.lock ./
+COPY .cargo ./.cargo
 COPY crates ./crates
-RUN cargo chef prepare --recipe-path recipe.json
+RUN cd crates/privatecrates-server && cargo chef prepare --recipe-path /src/recipe.json
 
 FROM chef AS server
-COPY --from=planner /src/recipe.json recipe.json
-# Builds only the dependencies; this layer is cached until Cargo.toml/Cargo.lock change.
-RUN cargo chef cook --release --locked -p privatecrates-server --recipe-path recipe.json
+# A read-only GitHub token for the worldbuilding-dev PrivateCrates registry, where privatecrates-qos is published:
+# a sealed Railway variable, which Railway passes to builds as a build argument. Declared in this stage only, so the
+# image that runs has no trace of it; Cargo uses it as a plain token for that registry.
+ARG PRIVATECRATES_TOKEN
+ENV CARGO_REGISTRIES_WORLDBUILDING_DEV_CREDENTIAL_PROVIDER=cargo:token
 COPY Cargo.toml Cargo.lock ./
+COPY .cargo ./.cargo
+COPY crates/privatecrates-server/Cargo.toml crates/privatecrates-server/Cargo.lock crates/privatecrates-server/
+# Path dependencies outside the server's workspace, which cargo-chef does not stub: small, so copied whole.
+COPY crates/privatecrates-common crates/privatecrates-common
+COPY crates/privatecrates-verify crates/privatecrates-verify
+COPY crates/privatecrates-testkit crates/privatecrates-testkit
+COPY --from=planner /src/recipe.json recipe.json
+# Builds only the dependencies; this layer is cached until the server's Cargo.toml/Cargo.lock change.
+RUN cd crates/privatecrates-server \
+    && CARGO_REGISTRIES_WORLDBUILDING_DEV_TOKEN="$PRIVATECRATES_TOKEN" \
+       cargo chef cook --release --locked --recipe-path /src/recipe.json
 COPY crates ./crates
-RUN cargo build --release --locked -p privatecrates-server \
+RUN cd crates/privatecrates-server \
+    && CARGO_REGISTRIES_WORLDBUILDING_DEV_TOKEN="$PRIVATECRATES_TOKEN" cargo build --release --locked \
     && install -D -m 0755 target/release/privatecrates-server /out/privatecrates-server
 
 # ---- Runtime: glibc + CA certificates, non-root, no shell ------------------------------------------
@@ -52,7 +69,7 @@ COPY --from=website /website/build /app/website
 # PORT is overridden by Railway at run time; the server binds 0.0.0.0:$PORT.
 ENV PORT=8080 \
     WEBSITE_DIR=/app/website \
-    RUST_LOG=info,tower_http=info
+    RUST_LOG=info
 EXPOSE 8080
 # distroless ":nonroot" runs as uid/gid 65532.
 USER nonroot:nonroot

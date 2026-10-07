@@ -1,7 +1,12 @@
 //! A running PrivateCrates server against a fake GitHub.
 #![allow(dead_code)] // Each test binary uses a different part of the harness.
 
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use bytes::Bytes;
 use privatecrates_common::{audience, sha256_hex};
@@ -426,4 +431,31 @@ pub async fn error_detail(response: reqwest::Response) -> String {
         .as_str()
         .unwrap_or_default()
         .to_owned()
+}
+
+/// One of the open-source client tools (`cargo-privatecrates`, `cargo-credential-privatecrates`), built from the
+/// root workspace, which needs no private registry, once per test run. They live in another workspace from the
+/// server, so the full-system tests here build them rather than depending on them.
+pub fn client_binary(name: &str) -> PathBuf {
+    static BUILT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    let dir = BUILT.get_or_init(|| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let status = std::process::Command::new(env!("CARGO"))
+            .args([
+                "build",
+                "--locked",
+                "-p",
+                "cargo-privatecrates",
+                "-p",
+                "cargo-credential-privatecrates",
+            ])
+            .current_dir(&root)
+            .status()
+            .expect("cargo runs");
+        assert!(status.success(), "building the client tools failed");
+        let target =
+            std::env::var_os("CARGO_TARGET_DIR").map_or_else(|| root.join("target"), PathBuf::from);
+        target.join("debug")
+    });
+    dir.join(format!("{name}{}", std::env::consts::EXE_SUFFIX))
 }
