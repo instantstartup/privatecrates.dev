@@ -305,8 +305,17 @@ async fn init_publish_from_ci_then_doctor() {
         "{text}"
     );
 
+    // PATH without any directory holding a credential provider: CI installs the real one in ~/.cargo/bin.
+    let provider = format!(
+        "cargo-credential-privatecrates{}",
+        std::env::consts::EXE_SUFFIX
+    );
+    let path = std::env::var_os("PATH").unwrap_or_default();
     let without_provider = Env {
-        path: std::env::var_os("PATH").unwrap_or_default(),
+        path: std::env::join_paths(
+            std::env::split_paths(&path).filter(|dir| !dir.join(&provider).is_file()),
+        )
+        .unwrap(),
         ..env
     };
     let output = without_provider.cli(dir, &["doctor", "--json"]).await;
