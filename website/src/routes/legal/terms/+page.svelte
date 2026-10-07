@@ -2,7 +2,7 @@
 	import Seo from '$lib/components/Seo.svelte';
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
-	import { GA_TARGET, OPERATOR, PRICE_CAP_USD, TERMS_DATE, TERMS_VERSION } from '$lib/site';
+	import { COMPANY, GA_TARGET, OPERATOR, PRICE_CAP_USD, TERMS_DATE, TERMS_VERSION } from '$lib/site';
 	import { CONTACT_EMAIL, SECURITY_EMAIL, STATUS_URL } from '$lib/trust';
 
 	// The ids are stable: the account page and agents link to them.
@@ -28,7 +28,7 @@
 
 <Seo
 	title="Preview terms"
-	description="The terms for the PrivateCrates preview: open to any GitHub organisation, free, provided as is with no warranty or guarantee, and at your own risk, run by an individual until a company takes over."
+	description="The terms for the PrivateCrates preview: open to any GitHub organisation, free, provided as is with no warranty or guarantee, and at your own risk, operated by INSTANTSTARTUP LTD."
 	path="/legal/terms"
 />
 
@@ -47,7 +47,7 @@
 				</div>
 				<div>
 					<dt>Operator</dt>
-					<dd>{OPERATOR}, an individual</dd>
+					<dd>{OPERATOR}, company number {COMPANY.number}</dd>
 				</div>
 			</dl>
 			<p class="lede">
@@ -76,10 +76,6 @@
 				<li>
 					<strong>Your crates stay yours,</strong> in a repository your GitHub organisation owns, not with us.
 				</li>
-				<li>
-					<strong>Run by one person</strong> for now. A company takes over before general availability, with new
-					terms for you to accept.
-				</li>
 			</ul>
 		</section>
 
@@ -87,10 +83,9 @@
 			<TocLayout {toc}>
 				<h2 id="operator">1. Who runs PrivateCrates</h2>
 				<p>
-					PrivateCrates is operated by <strong>{OPERATOR}, an individual</strong> (“we” and “us” in these terms).
-					There is no company yet. A company will be formed before general availability, and its name, number and
-					address will be published here. Moving the service to that company will come with new terms, which you
-					can accept or decline (section 13).
+					PrivateCrates is operated by <strong>{OPERATOR}</strong> (“we” and “us” in these terms), a private
+					company limited by shares, registered in {COMPANY.registeredIn} with company number {COMPANY.number}.
+					Its registered office is {COMPANY.registeredOffice}.
 				</p>
 				<p>
 					“You” means the GitHub organisation that uses PrivateCrates, and the people who use its registry.
@@ -134,8 +129,7 @@
 					The <a href="/pricing">pricing page</a> shows what we plan to charge from general availability,
 					planned for {GA_TARGET}: free for small organisations, and at most ${PRICE_CAP_USD} per organisation per
 					month for larger ones. Billing starts only after general availability, and only after at least 30 days’
-					notice. Paying will need new terms with the company, and no charge is ever taken without a card that an
-					admin has added.
+					notice. Paying will need new terms, and no charge is ever taken without a card that an admin has added.
 				</p>
 
 				<h2 id="your-data">5. Your data</h2>
@@ -297,6 +291,7 @@
 							>{CONTACT_EMAIL}</a
 						>.
 					</li>
+					<li>Formal notices by post: {OPERATOR}, {COMPANY.registeredOffice}.</li>
 				</ul>
 			</TocLayout>
 		</div>

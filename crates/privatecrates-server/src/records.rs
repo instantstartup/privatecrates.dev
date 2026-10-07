@@ -1,5 +1,5 @@
 //! Our own records (docs/preview.md §2): which organisation admin accepted which version of the terms, and when;
-//! and, until the table is dropped, the requests made while the preview was by invitation (§5).
+//! and fingerprints of provenance the compliance dashboard has verified.
 //!
 //! Everything else PrivateCrates knows comes from GitHub or Stripe. Acceptances are the exception: they are our
 //! evidence, so they are kept in our own Postgres rather than in the customer's storage repository, which the
@@ -131,13 +131,6 @@ impl Postgres {
 impl Records for Postgres {
     async fn migrate(&self) -> Result<(), RecordsError> {
         sqlx::migrate!().run(&self.pool).await?;
-        // Requests to join the invitation-only preview, which has ended: kept for at most 12 months, as the privacy
-        // notice says, until the table is dropped.
-        sqlx::query(
-            "delete from invitation_requests where requested_at < now() - interval '12 months'",
-        )
-        .execute(&self.pool)
-        .await?;
         Ok(())
     }
 

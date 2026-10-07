@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { COMPANY } from '$lib/site';
 	import Callout from '$lib/components/Callout.svelte';
 	import DraftBanner from '$lib/components/DraftBanner.svelte';
 	import Seo from '$lib/components/Seo.svelte';
@@ -32,9 +33,9 @@
 			<DraftBanner />
 			<Callout title="A template for legal review">
 				<p>
-					This sets out the structure and the facts of how PrivateCrates processes data. The legal wording,
-					the company details and every highlighted gap need review by a lawyer before anyone signs it. The
-					facts it relies on are on the <a href="/trust">trust centre</a>.
+					This sets out the structure and the facts of how PrivateCrates processes data. The legal wording and
+					every highlighted gap need review by a lawyer before anyone signs it. The facts it relies on are on
+					the <a href="/trust">trust centre</a>.
 				</p>
 			</Callout>
 		</div>
@@ -47,9 +48,8 @@
 				</li>
 				<li>
 					<strong>The processor:</strong>
-					PrivateCrates: during the preview, the operator named in the
-					<a href="/legal/terms">preview terms</a>; from general availability, the company that runs
-					PrivateCrates, whose name, number and registered address will be given here.
+					{COMPANY.name}, company number {COMPANY.number}, registered in {COMPANY.registeredIn}, of
+					{COMPANY.registeredOffice}, which runs PrivateCrates.
 				</li>
 			</ul>
 			<p>

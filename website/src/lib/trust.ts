@@ -22,8 +22,8 @@ export const subprocessors: Subprocessor[] = [
 	{
 		name: 'Railway',
 		purpose:
-			'Hosts the PrivateCrates service: it runs the server, terminates TLS for our domains, keeps its logs, and runs the Postgres database (with backups) that holds terms acceptances and invitation requests.',
-		data: 'Everything in transit through the service (tokens, crate files during publishing), the in-memory caches, the service’s logs, the terms acceptance records, and invitation requests.',
+			'Hosts the PrivateCrates service: it runs the server, terminates TLS for our domains, keeps its logs, and runs the Postgres database (with backups) that holds terms acceptances and fingerprints of verified provenance.',
+		data: 'Everything in transit through the service (tokens, crate files during publishing), the in-memory caches, the service’s logs, the terms acceptance records, and the provenance fingerprints.',
 		location: 'United States, US East (Virginia) region',
 		url: 'https://railway.com/legal/privacy'
 	},

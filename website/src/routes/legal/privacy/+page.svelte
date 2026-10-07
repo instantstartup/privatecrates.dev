@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
-	import { OPERATOR } from '$lib/site';
+	import { COMPANY, OPERATOR } from '$lib/site';
 	import { CONTACT_EMAIL } from '$lib/trust';
 </script>
 
@@ -13,15 +13,12 @@
 <div class="page">
 	<article class="prose legal">
 		<h1>Privacy notice</h1>
-		<p class="lede">
-			For the preview. It will be reviewed by a lawyer and reissued by the company that runs PrivateCrates
-			before general availability.
-		</p>
+		<p class="lede">For the preview. It will be reviewed by a lawyer before general availability.</p>
 
 		<h2>1. Controller</h2>
 		<p>
-			During the preview, PrivateCrates is run by {OPERATOR}, as an individual, who decides how the personal
-			data below is used. A company will take this over before general availability. For anything about your
+			PrivateCrates is run by {OPERATOR}, company number {COMPANY.number}, registered in {COMPANY.registeredIn},
+			of {COMPANY.registeredOffice}. It decides how the personal data below is used. For anything about your
 			data, email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.
 		</p>
 
@@ -44,12 +41,6 @@
 				GitHub ID and login, the admin’s GitHub ID and login, the terms version, the time, whether they accepted
 				on the website or with the CLI, and the exact statement accepted. It is stored in a Postgres database at
 				Railway (US East), with Railway’s backups, and is never shared.
-			</li>
-			<li>
-				<strong>Invitation requests:</strong> while the preview was by invitation, until 6 October 2026, people
-				who asked to join it gave their GitHub ID and login, the organisation they named, an email address and a
-				note, which are in the same database. We use them only to tell those people that the preview is open, and
-				never share them. We no longer collect them.
 			</li>
 			<li>
 				<strong>Billing:</strong> we count your organisation’s active members through GitHub, to tell whether it
@@ -79,10 +70,7 @@
 		<ul>
 			<li>GitHub, which stores your crates and provides identity.</li>
 			<li>Stripe, for payments, from general availability; not used during the preview.</li>
-			<li>
-				Railway, which hosts the service, its logs and the database of terms acceptances and invitation
-				requests.
-			</li>
+			<li>Railway, which hosts the service, its logs and its database.</li>
 			<li>
 				Cloudflare, for DNS, the status page, and forwarding email sent to our privatecrates.dev addresses.
 			</li>
@@ -93,9 +81,8 @@
 		<p>
 			Service logs, at Railway and Grafana Cloud, are deleted after 30 days at the latest. Terms acceptances
 			are kept for as long as the organisation uses PrivateCrates, then for 6 years, as evidence of the
-			agreement. Invitation requests are deleted once we have told you the preview is open, and at the latest
-			12 months after you asked. Nothing else about you is stored by us: caches live in memory and expire
-			within minutes. No billing records exist during the preview.
+			agreement. Nothing else about you is stored by us: caches live in memory and expire within minutes. No
+			billing records exist during the preview.
 		</p>
 
 		<h2>6. Your rights</h2>
@@ -104,10 +91,9 @@
 			personal data we hold about you, have it corrected or deleted, restrict or object to its use, and
 			receive it in a portable form. Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a> from, or naming,
 			your GitHub account; we answer within one month. We use your data because it is needed to run the service
-			you or your organisation asked for, and, for terms acceptances, to keep evidence of the agreement. For an
-			invitation request, we use your data because you asked us to consider an invitation, and only to answer it.
-			A terms acceptance made on behalf of an organisation is kept for its retention period even after a deletion
-			request, because it is the record of that agreement.
+			you or your organisation asked for, and, for terms acceptances, to keep evidence of the agreement. A terms
+			acceptance made on behalf of an organisation is kept for its retention period even after a deletion request,
+			because it is the record of that agreement.
 		</p>
 		<p>
 			You can also complain to a data protection authority: in the UK, the Information Commissioner’s Office (<a

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { COMPANY } from '$lib/site';
 	import Callout from '$lib/components/Callout.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import type { TocItem } from '$lib/components/Toc.svelte';
@@ -96,9 +97,8 @@
 				authorised.
 			</p>
 			<p>
-				During the preview this commitment is given by the operator named in the
-				<a href="/legal/terms">preview terms</a>. It will be reviewed by a lawyer, and given by the company
-				that runs PrivateCrates, before general availability.
+				This commitment is given by {COMPANY.name} (company number {COMPANY.number}), which runs
+				PrivateCrates. It will be reviewed by a lawyer before general availability.
 			</p>
 
 			<h2 id="report">What to include</h2>

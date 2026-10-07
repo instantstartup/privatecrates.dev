@@ -3,16 +3,23 @@ export const SITE_URL = 'https://privatecrates.dev';
 export const SITE_NAME = 'PrivateCrates';
 
 /**
- * The preview (docs/preview.md): free, as is, at your own risk, operated by an individual until a company exists.
+ * The preview (docs/preview.md): free, as is, at your own risk, operated by INSTANTSTARTUP LTD.
  * Static pages read this; the account page follows the server's `session.preview`.
  */
 export const PREVIEW = true;
 /** The current preview terms: the version an admin accepts, and when it was published. */
-export const TERMS_VERSION = 'preview-2026-10-06';
-export const TERMS_DATE = '6 October 2026';
+export const TERMS_VERSION = 'preview-2026-10-07';
+export const TERMS_DATE = '7 October 2026';
 export const TERMS_PATH = '/legal/terms';
-/** The operator during the preview. */
-export const OPERATOR = 'Bryn Dyllan Cooke';
+/** The company that operates PrivateCrates: named as Companies House registered it. */
+export const OPERATOR = 'INSTANTSTARTUP LTD';
+/** What UK law requires the website to say about the company (Companies (Trading Disclosures) Regulations). */
+export const COMPANY = {
+	name: OPERATOR,
+	number: '17505349',
+	registeredIn: 'England and Wales',
+	registeredOffice: '71-75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom'
+} as const;
 /** When general availability, and so billing, is planned. */
 export const GA_TARGET = '2027, subject to demand';
 

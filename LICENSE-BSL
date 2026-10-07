@@ -2,12 +2,12 @@ Business Source License 1.1
 
 Parameters
 
-Licensor:             Bryn Dyllan Cooke
+Licensor:             INSTANTSTARTUP LTD (company number 17505349)
 Licensed Work:        The PrivateCrates service: the privatecrates-server crate
                       (crates/privatecrates-server), the website it serves
                       (website/) and the status page (status/) in this
                       repository, in each version released by the Licensor.
-                      The Licensed Work is (c) 2026 Bryn Dyllan Cooke.
+                      The Licensed Work is (c) 2026 INSTANTSTARTUP LTD.
 Additional Use Grant: You may make production use of the Licensed Work to run a
                       private Cargo registry for your own organisation(s),
                       including your affiliates and the GitHub organisations

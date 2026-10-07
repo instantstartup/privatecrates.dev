@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Anchor from '$lib/illustrations/Anchor.svelte';
-	import { docsNav } from '$lib/site';
+	import { COMPANY, docsNav } from '$lib/site';
 	import { STATUS_URL } from '$lib/trust';
 </script>
 
@@ -41,9 +41,18 @@
 			</ul>
 		</nav>
 	</div>
+	<!-- Required of a UK company on its website (Companies (Trading Disclosures) Regulations 2008). -->
+	<p class="page company">
+		PrivateCrates is operated by {COMPANY.name}, a private company limited by shares registered in
+		{COMPANY.registeredIn}, company number {COMPANY.number}. Registered office: {COMPANY.registeredOffice}.
+	</p>
 </footer>
 
 <style>
+	.company {
+		margin-top: 2rem;
+		color: var(--ink-soft);
+	}
 	.site-footer {
 		margin-top: 5rem;
 		border-top: 2px solid var(--line);

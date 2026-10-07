@@ -83,7 +83,7 @@ type Scenario = (typeof SIGNED_IN)[number] | (typeof BILLING)[number];
 const GITHUB_STEPS = ['reader_app', 'storage_repo', 'storage_app'];
 const LIMIT = 5;
 const TRIAL_DAYS = 90;
-const TERMS_VERSION = 'preview-2026-10-06';
+const TERMS_VERSION = 'preview-2026-10-07';
 
 /** A Stripe subscription; dates are offsets in days from now. */
 interface Sub {

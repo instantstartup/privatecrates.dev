@@ -8,7 +8,6 @@
 
 	/** docs/preview.md §4, in order: [item, why]. */
 	const roadmap: [string, string][] = [
-		['Form a company; publish its name, number and address', 'The operator for terms, DPA and billing'],
 		[
 			'Legal review of the terms, privacy notice and DPA (governed by the law of England and Wales)',
 			'Terms fit for paying customers'
@@ -103,9 +102,8 @@
 			<p>
 				PrivateCrates runs the Cargo registry protocol in front of a repository your organisation owns. The
 				index and every crate file are stored there, by GitHub, as commits and immutable releases. The service
-				itself keeps records of terms acceptances, fingerprints of the provenance it has verified, and the
-				last of the invitation requests from when the preview was by invitation; everything else it knows is
-				on GitHub, or can be rebuilt from it.
+				itself keeps records of terms acceptances and fingerprints of the provenance it has verified;
+				everything else it knows is on GitHub, or can be rebuilt from it.
 			</p>
 			<h3>Stored: terms acceptances</h3>
 			<p>
@@ -125,13 +123,6 @@
 				a SHA-256 fingerprint of the version, its checksum and its files, in the same database. A fingerprint
 				names no crate and cannot be turned back into one; it only spares the dashboard downloading the same
 				file again.
-			</p>
-			<h3>Stored: invitation requests</h3>
-			<p>
-				Until 6 October 2026 the preview was by invitation, and people who asked to join gave their GitHub ID
-				and login, the organisation they named, an email address and a note, kept in the same database. We use
-				them only to tell those people the preview is open, then delete them; at the latest, each is deleted
-				12 months after it was made. We no longer collect them.
 			</p>
 			<h3>Passes through, not kept</h3>
 			<ul>
@@ -355,9 +346,9 @@
 
 			<h2 id="roadmap">Roadmap to general availability: {GA_TARGET}</h2>
 			<p>
-				PrivateCrates is in <a href={TERMS_PATH}>preview</a>: free, run by one person, and provided as is.
-				This is what has to happen before general availability, in order. We will do it if there is enough
-				interest.
+				PrivateCrates is in <a href={TERMS_PATH}>preview</a>: free, and provided as is. It is operated by
+				INSTANTSTARTUP LTD, incorporated in England and Wales on 7 October 2026. This is what has to happen
+				before general availability, in order. We will do it if there is enough interest.
 			</p>
 			<div class="table-scroll">
 				<table class="roadmap table-cards">
