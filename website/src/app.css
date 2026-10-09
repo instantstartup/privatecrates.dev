@@ -51,7 +51,7 @@
 	--space-12: 4rem; /* 64px */
 	/* Space roles: lengths that are a role of their own rather than a step. */
 	--space-section: 5rem; /* between the home page's sections, and above the footer: open water */
-	--space-section-inset: 4.5rem; /* inside a full-width band, above its content */
+	--space-section-inset: 4.5rem; /* a section's own padding above its content: a full-width band, the home hero on wide screens, a split or FAQ section */
 	--space-break: 3.5rem; /* a clear break within a page: above a page's intro, above the docs pager */
 	--space-gutter: 3.5rem; /* between a sidebar and the content beside it */
 	--space-heading: 2.75rem; /* above an h2 in long-form text */
