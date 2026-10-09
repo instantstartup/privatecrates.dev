@@ -36,11 +36,11 @@
 		overflow: hidden;
 	}
 	.back {
-		fill: var(--water-2);
+		fill: var(--illustration-fill-muted);
 		animation: drift 14s linear infinite;
 	}
 	.front {
-		fill: var(--water);
+		fill: var(--illustration-fill);
 		animation: drift 9s linear infinite reverse;
 	}
 	@keyframes drift {

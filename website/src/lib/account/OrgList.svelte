@@ -86,7 +86,7 @@
 	}
 	.row.selected {
 		border-color: var(--ink);
-		background: var(--deck);
+		background: var(--surface-raised);
 	}
 	a {
 		color: var(--ink);
@@ -108,8 +108,8 @@
 		height: 2.1rem;
 		border: 2px solid var(--line);
 		border-radius: 4px;
-		background: var(--signal);
-		color: var(--signal-ink);
+		background: var(--primary);
+		color: var(--primary-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-lg);
@@ -123,7 +123,7 @@
 	}
 	.meta {
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.badges {
 		display: flex;
@@ -147,18 +147,18 @@
 	.badge.warn {
 		color: var(--ink);
 		background: var(--warn-bg);
-		border-color: var(--signal);
+		border-color: var(--primary);
 	}
 	.badge.danger {
 		color: var(--danger);
 		background: var(--danger-bg);
 	}
 	.badge.live {
-		color: var(--signal-ink);
-		background: var(--signal);
+		color: var(--primary-ink);
+		background: var(--primary);
 		border-color: var(--ink);
 	}
 	.badge.idle {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 </style>

@@ -508,7 +508,7 @@
 	.fine {
 		margin-top: 1rem;
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		max-width: 38rem;
 	}
 
@@ -524,7 +524,7 @@
 		max-width: 46rem;
 		margin-top: 3rem;
 		padding-top: 1.5rem;
-		border-top: 1px solid var(--rule);
+		border-top: 1px solid var(--divider);
 	}
 	.devices h2 {
 		margin-bottom: 0.5rem;
@@ -543,8 +543,8 @@
 		margin: 0;
 	}
 	.btn-danger {
-		background: var(--container);
-		color: var(--container-ink);
+		background: var(--danger-strong);
+		color: var(--danger-strong-ink);
 	}
 	.btn-danger:hover {
 		filter: brightness(1.1);
@@ -562,7 +562,7 @@
 		gap: 0.5rem;
 	}
 	.login {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.avatar {
 		display: inline-grid;
@@ -571,8 +571,8 @@
 		height: 2rem;
 		border: 2px solid var(--line);
 		border-radius: 50%;
-		background: var(--signal);
-		color: var(--signal-ink);
+		background: var(--primary);
+		color: var(--primary-ink);
 		font-weight: 700;
 	}
 	.orgs {
@@ -622,7 +622,7 @@
 		overflow-wrap: anywhere;
 	}
 	.role {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		margin-top: -0.75rem;
 	}
 </style>

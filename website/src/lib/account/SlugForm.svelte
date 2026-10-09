@@ -177,7 +177,7 @@
 	}
 	.hint {
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.host {
 		color: var(--ink);
@@ -188,7 +188,7 @@
 		padding: 0.5rem 0.75rem;
 		border: 2px solid var(--line);
 		border-radius: 6px;
-		background: var(--deck);
+		background: var(--surface-raised);
 		color: var(--ink);
 		font-family: var(--font-mono);
 	}
@@ -203,7 +203,7 @@
 	}
 	.wait {
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.publishing {
 		display: grid;
@@ -222,24 +222,24 @@
 		gap: 0.7rem;
 		align-items: start;
 		padding: 0.75rem 1rem;
-		border: 2px solid var(--rule);
+		border: 2px solid var(--divider);
 		border-radius: 8px;
 		cursor: pointer;
 	}
 	.choice:has(input:checked) {
 		border-color: var(--line);
-		background: var(--deck);
+		background: var(--surface-raised);
 	}
 	.choice input {
 		width: 1.2rem;
 		height: 1.2rem;
 		margin-top: 0.2rem;
-		accent-color: var(--harbour);
+		accent-color: var(--link);
 	}
 	.choice-hint {
 		display: block;
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.problem {
 		color: var(--danger);

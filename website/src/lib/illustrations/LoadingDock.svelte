@@ -37,16 +37,16 @@
 		overflow: visible;
 	}
 	.water {
-		fill: var(--water);
+		fill: var(--illustration-fill);
 	}
 	.swell {
 		fill: none;
-		stroke: var(--water-2);
+		stroke: var(--illustration-fill-muted);
 		stroke-width: 2;
 		stroke-linecap: round;
 	}
 	.quay {
-		fill: var(--rule);
+		fill: var(--divider);
 		stroke: var(--line);
 		stroke-width: 2;
 	}

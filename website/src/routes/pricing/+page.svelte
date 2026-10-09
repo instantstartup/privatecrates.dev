@@ -89,7 +89,7 @@
 				<p class="small">No card, no time limit. Outside collaborators do not count as members.</p>
 			</div>
 			<div class="stack" aria-hidden="true">
-				{#each ['signal', 'harbour', 'container'] as const as tone (tone)}
+				{#each ['primary', 'muted', 'accent'] as const as tone (tone)}
 					<Crate {tone} class="stack-crate" />
 				{/each}
 			</div>
@@ -291,9 +291,9 @@
 		display: inline-block;
 		margin-left: 0.75rem;
 		padding: 0.1rem 0.5rem 0.15rem;
-		border: 3px solid var(--harbour);
+		border: 3px solid var(--link);
 		border-radius: 4px;
-		color: var(--harbour);
+		color: var(--link);
 		font-size: var(--text-lg);
 		line-height: 1;
 		vertical-align: middle;
@@ -313,7 +313,7 @@
 	.per,
 	.small,
 	.note {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.small {
 		font-size: var(--text-sm);
@@ -355,7 +355,7 @@
 	.trust-link {
 		margin: 1.75rem 0 0;
 		padding-top: 1.25rem;
-		border-top: 1px solid var(--rule);
+		border-top: 1px solid var(--divider);
 	}
 	dl {
 		display: grid;
@@ -376,7 +376,7 @@
 		font-weight: 700;
 	}
 	dd {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.faq {
 		padding-top: 4.5rem;

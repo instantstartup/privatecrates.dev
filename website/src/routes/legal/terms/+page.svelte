@@ -315,7 +315,7 @@
 		font-size: var(--text-sm);
 	}
 	.meta dt {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.meta dd {
 		font-weight: 700;
@@ -341,7 +341,7 @@
 	}
 	.summary li {
 		padding-block: 0.6rem;
-		border-top: 1px dashed var(--rule);
+		border-top: 1px dashed var(--divider);
 	}
 	.summary li:first-child {
 		border-top: 0;

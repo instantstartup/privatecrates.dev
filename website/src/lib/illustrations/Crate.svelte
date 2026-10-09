@@ -7,7 +7,7 @@
 		label?: string;
 	}
 
-	let { tone = 'signal', label, title, class: klass, x, y, width, height }: Props = $props();
+	let { tone = 'primary', label, title, class: klass, x, y, width, height }: Props = $props();
 </script>
 
 <svg
@@ -46,17 +46,17 @@
 		stroke-width: 2;
 		stroke-linecap: round;
 	}
-	.tone-signal .body {
-		fill: var(--signal);
+	.tone-primary .body {
+		fill: var(--primary);
 	}
-	.tone-container .body {
-		fill: var(--container);
+	.tone-accent .body {
+		fill: var(--accent);
 	}
-	.tone-harbour .body {
-		fill: var(--water-2);
+	.tone-muted .body {
+		fill: var(--illustration-fill-muted);
 	}
-	.tone-deck .body {
-		fill: var(--deck);
+	.tone-raised .body {
+		fill: var(--surface-raised);
 	}
 	.label {
 		font-family: var(--font-display);
@@ -65,14 +65,14 @@
 		letter-spacing: 0.04em;
 		fill: var(--ink);
 	}
-	.tone-signal .label {
-		fill: var(--signal-ink);
+	.tone-primary .label {
+		fill: var(--primary-ink);
 	}
-	.tone-container .label {
-		fill: var(--container-ink);
+	.tone-accent .label {
+		fill: var(--accent-ink);
 	}
-	/* --water-2 is dark in both themes. */
-	.tone-harbour .label {
+	/* --illustration-fill-muted is dark in both themes. */
+	.tone-muted .label {
 		fill: #edf1ef;
 	}
 </style>

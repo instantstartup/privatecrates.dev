@@ -46,12 +46,12 @@
 	}
 	.rail ul {
 		display: grid;
-		border-left: 3px solid var(--signal);
+		border-left: 3px solid var(--primary);
 	}
 	.rail a {
 		display: block;
 		padding: 0.3rem 0.8rem;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		font-size: var(--text-sm);
 		text-decoration: none;
 	}
@@ -66,8 +66,8 @@
 		z-index: 5;
 		margin-inline: -1rem;
 		padding-inline: 1rem;
-		background: var(--fog);
-		border-bottom: 2px solid var(--rule);
+		background: var(--surface);
+		border-bottom: 2px solid var(--divider);
 	}
 	summary {
 		display: flex;

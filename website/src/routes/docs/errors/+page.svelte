@@ -126,8 +126,8 @@
 		gap: 0.35rem;
 		margin-top: 2rem !important;
 		padding-block: 0.75rem;
-		background: var(--fog);
-		border-bottom: 1px solid var(--rule);
+		background: var(--surface);
+		border-bottom: 1px solid var(--divider);
 	}
 	.search input {
 		max-width: 28rem;
@@ -140,15 +140,15 @@
 		padding: 0.5rem 0.75rem;
 		border: 2px solid var(--line);
 		border-radius: 6px;
-		background: var(--deck);
+		background: var(--surface-raised);
 		color: var(--ink);
 	}
 	input::placeholder {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		opacity: 0.8;
 	}
 	.status {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		font-size: var(--text-sm);
 	}
 	.num {
@@ -164,7 +164,7 @@
 	}
 	.field {
 		font-style: normal;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		font-family: var(--font-mono);
 		font-size: 1em;
 	}

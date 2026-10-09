@@ -411,12 +411,12 @@
 	}
 	dt {
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		padding-top: 0.15rem;
 	}
 	.detail {
 		display: block;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.row {
 		display: flex;
@@ -426,6 +426,6 @@
 	}
 	.fine {
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 </style>

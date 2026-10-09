@@ -34,7 +34,7 @@
 <style>
 	.site-header {
 		border-bottom: 2px solid var(--line);
-		background: var(--fog);
+		background: var(--surface);
 	}
 	.bar {
 		display: flex;
@@ -66,7 +66,7 @@
 	a[aria-current='page'] {
 		text-decoration: underline;
 		text-decoration-thickness: 3px;
-		text-decoration-color: var(--signal);
+		text-decoration-color: var(--primary);
 		text-underline-offset: 0.35em;
 	}
 	.account {
@@ -83,7 +83,7 @@
 			order: 3;
 			width: 100%;
 			margin-left: 0;
-			border-top: 1px solid var(--rule);
+			border-top: 1px solid var(--divider);
 			padding-top: 0.25rem;
 		}
 		ul {

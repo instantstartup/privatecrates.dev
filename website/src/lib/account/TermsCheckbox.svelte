@@ -58,13 +58,13 @@
 		padding: 0.85rem 1rem;
 		border: 2px solid var(--line);
 		border-radius: 8px;
-		background: var(--deck);
+		background: var(--surface-raised);
 	}
 	input {
 		width: 1.35rem;
 		height: 1.35rem;
 		margin-top: 0.15rem;
-		accent-color: var(--harbour);
+		accent-color: var(--link);
 		cursor: pointer;
 	}
 	label {
@@ -74,6 +74,6 @@
 	.summary {
 		grid-column: 2;
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 </style>

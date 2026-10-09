@@ -12,4 +12,4 @@ export interface IllustrationProps {
 	title?: string;
 }
 
-export type Tone = 'signal' | 'container' | 'harbour' | 'deck';
+export type Tone = 'primary' | 'accent' | 'muted' | 'raised';

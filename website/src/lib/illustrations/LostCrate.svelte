@@ -11,7 +11,7 @@
 	<path class="ripple" d="M110 176q30-8 60 0M232 180q30-8 60 0M150 196q50-10 100 0" />
 	<g class="drift">
 		<g transform="rotate(-9 200 140)">
-			<Crate x={146} y={96} width={108} height={81} tone="signal" label="404" />
+			<Crate x={146} y={96} width={108} height={81} tone="primary" label="404" />
 		</g>
 		<!-- Gull on the crate -->
 		<g class="gull" transform="translate(222 70) rotate(-9)">
@@ -46,12 +46,12 @@
 	}
 	.ripple {
 		fill: none;
-		stroke: var(--water-2);
+		stroke: var(--illustration-fill-muted);
 		stroke-width: 3;
 		stroke-linecap: round;
 	}
 	.gull-body {
-		fill: var(--deck);
+		fill: var(--surface-raised);
 		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linejoin: round;

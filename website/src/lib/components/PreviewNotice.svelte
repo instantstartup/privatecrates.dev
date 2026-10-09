@@ -15,8 +15,8 @@
 
 <style>
 	.preview-notice {
-		background: var(--band);
-		color: var(--band-ink);
+		background: var(--notice);
+		color: var(--notice-ink);
 		font-size: var(--text-sm);
 	}
 	.line {
@@ -31,8 +31,8 @@
 	.tag {
 		padding: 0.05rem 0.45rem;
 		border-radius: 4px;
-		background: var(--signal);
-		color: var(--signal-ink);
+		background: var(--primary);
+		color: var(--primary-ink);
 		font-weight: 700;
 	}
 	a {

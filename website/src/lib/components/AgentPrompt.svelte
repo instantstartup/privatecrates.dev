@@ -68,7 +68,7 @@
 		padding: 1.25rem;
 		border: 2px dashed var(--line);
 		border-radius: 10px;
-		background: var(--deck);
+		background: var(--surface-raised);
 		min-width: 0;
 	}
 	.intro {
@@ -82,7 +82,7 @@
 		line-height: 1.1;
 	}
 	.intro :global(p) {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		max-width: 40rem;
 	}
 	.prompt {

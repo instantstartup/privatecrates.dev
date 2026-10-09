@@ -99,29 +99,29 @@
 		}
 	}
 	.beam-near {
-		stop-color: var(--signal);
+		stop-color: var(--primary);
 		stop-opacity: 0.42;
 	}
 	.beam-far,
 	.glow-edge {
-		stop-color: var(--signal);
+		stop-color: var(--primary);
 		stop-opacity: 0;
 	}
 	.glow-core {
-		stop-color: var(--signal);
+		stop-color: var(--primary);
 		stop-opacity: 0.5;
 	}
 	.rock {
-		fill: var(--water-2);
+		fill: var(--illustration-fill-muted);
 		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linejoin: round;
 	}
 	.tower {
-		fill: var(--deck);
+		fill: var(--surface-raised);
 	}
 	.band {
-		fill: var(--container);
+		fill: var(--accent);
 	}
 	.tower-edge,
 	.gallery,
@@ -141,7 +141,7 @@
 		fill: var(--line);
 	}
 	.lamp {
-		fill: var(--lamp);
+		fill: var(--illustration-glow);
 	}
 	/* Light catching the glass: only by day. */
 	.pane-glint {

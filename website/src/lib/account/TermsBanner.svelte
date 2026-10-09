@@ -92,6 +92,6 @@
 	}
 	.wait {
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 </style>
