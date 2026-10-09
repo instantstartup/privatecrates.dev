@@ -521,7 +521,7 @@
 	}
 	/* The order is the plan: a large numeral per step, like the landing page's manifest. */
 	.roadmap .num {
-		width: var(--space-10);
+		width: var(--size-numeral-column);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-title);

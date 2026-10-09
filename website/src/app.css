@@ -99,6 +99,7 @@
 	--size-control-compact: 2.25rem; /* a small control inside another block: a copy button, a notice's link */
 	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
 	--size-marker-large: 2.6rem; /* a large step number in a ruled list of steps */
+	--size-numeral-column: 2.5rem; /* the column for a numbered step's large numeral, in a table */
 	--size-column-narrow: 11rem; /* a narrow column and what fills it: a tier at its narrowest, a hero's illustration */
 	--size-term-column: 10rem; /* the column of terms beside their definitions */
 	--size-illustration-small: 14rem; /* an illustration at its small size: the home page's lighthouse and crate stack */
