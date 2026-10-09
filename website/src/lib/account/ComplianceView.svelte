@@ -471,7 +471,7 @@
 		display: flex;
 		justify-content: space-between;
 		gap: var(--space-5);
-		padding: var(--space-check-y) 0 var(--space-check-y) var(--space-check-indent);
+		padding: var(--space-check-y) 0 var(--space-check-y) var(--space-list-indent-tick);
 		border-bottom: var(--border-hairline) dashed var(--divider);
 		position: relative;
 	}
@@ -549,7 +549,7 @@
 	}
 	.by {
 		overflow-wrap: anywhere;
-		min-width: var(--container-table-column);
+		min-width: var(--container-column-actor);
 		font-family: var(--font-mono);
 		font-size: var(--text-micro);
 	}
@@ -560,7 +560,7 @@
 	}
 	.risk {
 		display: grid;
-		gap: var(--space-compact);
+		gap: var(--space-item-lines);
 		padding: var(--space-callout-y) var(--space-5);
 		border-left: var(--border-bar) solid var(--action);
 		background: var(--warn-bg);

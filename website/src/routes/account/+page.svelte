@@ -571,8 +571,8 @@
 	.avatar {
 		display: inline-grid;
 		place-items: center;
-		width: var(--size-marker-round);
-		height: var(--size-marker-round);
+		width: var(--size-marker-compact);
+		height: var(--size-marker-compact);
 		border: var(--border-outline) solid var(--line);
 		border-radius: 50%;
 		background: var(--action);

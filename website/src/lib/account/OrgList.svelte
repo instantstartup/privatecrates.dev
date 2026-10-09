@@ -128,8 +128,8 @@
 	.badges {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-compact);
-		margin-top: var(--space-compact);
+		gap: var(--space-badge-gap);
+		margin-top: var(--space-badge-gap);
 	}
 	.badge {
 		flex: none;
