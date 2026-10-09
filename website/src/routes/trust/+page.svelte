@@ -442,7 +442,7 @@
 	}
 	@media (width >= theme(--breakpoint-4)) {
 		.hero {
-			grid-template-columns: minmax(0, 1fr) var(--container-art-hero);
+			grid-template-columns: minmax(0, 1fr) var(--size-illustration-hero);
 		}
 	}
 	h1 {
@@ -450,13 +450,13 @@
 		margin-bottom: var(--space-5);
 	}
 	.hero :global(.hero-art) {
-		width: var(--container-art-hero-phone);
+		width: var(--size-illustration-hero-phone);
 		height: auto;
 		justify-self: center;
 	}
 	@media (width >= theme(--breakpoint-4)) {
 		.hero :global(.hero-art) {
-			width: var(--container-art-hero);
+			width: var(--size-illustration-hero);
 		}
 	}
 
@@ -486,7 +486,7 @@
 	}
 	@media (width >= theme(--breakpoint-3)) {
 		.row {
-			grid-template-columns: var(--container-term) minmax(0, 1fr);
+			grid-template-columns: var(--size-term-column) minmax(0, 1fr);
 			align-items: baseline;
 		}
 	}

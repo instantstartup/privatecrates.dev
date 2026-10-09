@@ -103,6 +103,12 @@
 	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
 	--size-marker-large: 2.6rem; /* a large step number: the home page's steps and CI token chain */
 	--size-numeral: 2.25rem; /* the column for a roadmap step's number when its table stacks on phones */
+	--size-column-tier: 11rem; /* the narrowest a pricing tier's column gets before the tiers wrap */
+	--size-term-column: 10rem; /* a definition list's term column: the trust page's manifest */
+	--size-illustration-small: 14rem; /* an illustration at its small size: the home page's lighthouse and crate stack */
+	--size-illustration-hero: 11rem; /* a page hero's illustration beside the heading: the trust page's */
+	--size-illustration-hero-phone: 8rem; /* the same illustration above the heading on phones */
+	--size-crate: 4.5rem; /* one crate in a stack of crates: the pricing page's free plan */
 	--size-icon: 1.25rem; /* an icon beside a label */
 	--size-icon-small: 1.1rem; /* a small icon or tick in a list */
 	--size-hidden: 1px; /* a visually hidden element: present for screen readers, one pixel and clipped */
@@ -282,12 +288,6 @@
 	--container-error: 28rem; /* the message on an error page */
 	--container-aside: 16rem; /* a column beside the main content */
 	--container-sidebar: 14rem; /* a sidebar: the docs navigation, a table of contents */
-	--container-art: 14rem; /* an illustration beside or above text: the home page's lighthouse and crate stack */
-	--container-tier: 11rem; /* the narrowest a pricing tier gets before the tiers wrap */
-	--container-art-hero: 11rem; /* a page hero's illustration beside the heading: the trust page's */
-	--container-term: 10rem; /* a definition list's term column: the trust page's manifest */
-	--container-art-hero-phone: 8rem; /* the same illustration above the heading on phones */
-	--container-crate: 4.5rem; /* one crate in a stack of crates: the pricing page's free plan */
 	--container-tier-note: 22ch; /* a pricing tier's one-line description */
 
 	/*

@@ -465,7 +465,7 @@
 	}
 	.security :global(.security-art) {
 		width: 100%;
-		max-width: var(--container-art);
+		max-width: var(--size-illustration-small);
 		height: auto;
 		justify-self: center;
 		order: -1;
@@ -543,7 +543,7 @@
 	}
 	@media (width >= theme(--breakpoint-5)) {
 		.price-card {
-			grid-template-columns: var(--container-art) 1fr;
+			grid-template-columns: var(--size-illustration-small) 1fr;
 			align-items: center;
 			padding: var(--space-10);
 		}
@@ -551,7 +551,7 @@
 	.price-stack {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
-		max-width: var(--container-art);
+		max-width: var(--size-illustration-small);
 	}
 	.price-stack :global(svg) {
 		width: 100%;
@@ -575,7 +575,7 @@
 	/* The two plans side by side with equal weight; they stack on narrow screens. */
 	.tiers {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(var(--container-tier), 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(var(--size-column-tier), 1fr));
 		gap: var(--space-5) var(--space-9);
 		margin-top: var(--space-5);
 	}

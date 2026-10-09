@@ -335,7 +335,7 @@
 		padding: var(--space-5) var(--space-7) var(--space-7);
 	}
 	.stack :global(.stack-crate) {
-		width: var(--container-crate);
+		width: var(--size-crate);
 		height: auto;
 	}
 	.included {
