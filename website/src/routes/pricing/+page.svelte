@@ -244,19 +244,21 @@
 </div>
 
 <style>
+	@reference '../../app.css';
+
 	.intro {
-		padding-top: 3.5rem;
-		margin-bottom: 2.5rem;
+		padding-top: var(--space-break);
+		margin-bottom: var(--space-10);
 	}
 	h1 {
 		font-size: var(--text-headline);
-		margin-bottom: 1rem;
+		margin-bottom: var(--space-5);
 	}
 	.plans {
 		display: grid;
-		gap: 1.5rem;
+		gap: var(--space-7);
 	}
-	@media (min-width: 52rem) {
+	@media (width >= theme(--breakpoint-6)) {
 		.plans {
 			grid-template-columns: 2fr 3fr;
 		}
@@ -264,35 +266,35 @@
 	.plan {
 		display: flex;
 		flex-direction: column;
-		border: 2px solid var(--line);
+		border: var(--border-outline) solid var(--line);
 		overflow: hidden;
 	}
 	.plan.team {
-		box-shadow: 6px 6px 0 var(--line);
+		box-shadow: var(--shadow-offset-feature) var(--shadow-offset-feature) 0 var(--line);
 	}
 	.plan-head {
-		padding: 2rem 1.5rem 1rem;
+		padding: var(--space-9) var(--space-7) var(--space-5);
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 1rem;
+		gap: var(--space-5);
 	}
 	h2 {
 		font-size: var(--text-heading);
 	}
 	.planned-head {
-		margin-bottom: 1.25rem;
+		margin-bottom: var(--space-6);
 	}
 	.planned-head h2 {
-		margin-bottom: 0.4rem;
+		margin-bottom: var(--space-after-title);
 	}
 	/* Planned, not charged: stamped on each plan, like the trust centre's manifest. */
 	.stamp {
 		display: inline-block;
-		margin-left: 0.75rem;
-		padding: 0.1rem 0.5rem 0.15rem;
-		border: 3px solid var(--info);
-		border-radius: 4px;
+		margin-left: var(--space-4);
+		padding: var(--space-1) var(--space-3);
+		border: var(--border-strong) solid var(--info);
+		border-radius: var(--radius-inline);
 		color: var(--info);
 		font-size: var(--text-lead);
 		line-height: 1;
@@ -302,7 +304,7 @@
 	.price {
 		display: flex;
 		flex-direction: column;
-		gap: 0.35rem;
+		gap: var(--space-2);
 	}
 	.figure {
 		font-family: var(--font-display);
@@ -322,52 +324,52 @@
 		width: 100%;
 		height: auto;
 		margin-top: auto;
-		padding: 0 1rem 0.5rem;
+		padding: 0 var(--space-5) var(--space-3);
 	}
 	/* Three crates on the quay: a small team's cargo. */
 	.stack {
 		margin-top: auto;
 		display: flex;
 		align-items: flex-end;
-		gap: 0.25rem;
-		padding: 1rem 1.5rem 1.5rem;
+		gap: var(--space-2);
+		padding: var(--space-5) var(--space-7) var(--space-7);
 	}
 	.stack :global(.stack-crate) {
-		width: 4.5rem;
+		width: var(--container-crate);
 		height: auto;
 	}
 	.included {
-		margin-top: 2.5rem;
-		padding: 2rem 1.5rem;
+		margin-top: var(--space-10);
+		padding: var(--space-9) var(--space-7);
 	}
-	@media (min-width: 40rem) {
+	@media (width >= theme(--breakpoint-3)) {
 		.included {
-			padding: 2rem;
+			padding: var(--space-9);
 		}
 	}
 	.included h2 {
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--space-3);
 	}
 	.note {
-		margin-bottom: 1.5rem;
-		max-width: 40rem;
+		margin-bottom: var(--space-7);
+		max-width: var(--container-measure);
 	}
 	.trust-link {
-		margin: 1.75rem 0 0;
-		padding-top: 1.25rem;
-		border-top: 1px solid var(--divider);
+		margin: var(--space-8) 0 0;
+		padding-top: var(--space-6);
+		border-top: var(--border-hairline) solid var(--divider);
 	}
 	dl {
 		display: grid;
-		gap: 1.1rem;
+		gap: var(--space-definition);
 	}
-	@media (min-width: 40rem) {
+	@media (width >= theme(--breakpoint-3)) {
 		dl {
 			grid-template-columns: 1fr 1fr;
-			gap: 1.4rem 2rem;
+			gap: var(--space-definition-wide) var(--space-9);
 		}
 	}
-	@media (min-width: 64rem) {
+	@media (width >= theme(--breakpoint-9)) {
 		dl {
 			grid-template-columns: 1fr 1fr 1fr;
 		}
@@ -379,11 +381,11 @@
 		color: var(--ink-muted);
 	}
 	.faq {
-		padding-top: 4.5rem;
+		padding-top: var(--space-section-inset);
 	}
 	.faq h2 {
 		font-size: var(--text-headline);
-		margin-bottom: 1.25rem;
+		margin-bottom: var(--space-6);
 	}
 	.faq-list {
 		max-width: var(--container-prose);
