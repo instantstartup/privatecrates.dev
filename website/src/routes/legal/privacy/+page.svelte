@@ -113,7 +113,7 @@
 
 <style>
 	.legal {
-		padding-top: 2.5rem;
+		padding-top: var(--space-10);
 	}
 	h1 {
 		font-size: var(--text-headline);

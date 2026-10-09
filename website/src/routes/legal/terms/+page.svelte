@@ -299,19 +299,21 @@
 </div>
 
 <style>
+	@reference '../../../app.css';
+
 	.legal {
-		padding-top: 2.5rem;
+		padding-top: var(--space-10);
 	}
 	h1 {
 		font-size: var(--text-headline);
 	}
 	.intro > * + * {
-		margin-top: 1rem;
+		margin-top: var(--space-5);
 	}
 	.meta {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem 2rem;
+		gap: var(--space-3) var(--space-9);
 		font-size: var(--text-meta);
 	}
 	.meta dt {
@@ -323,25 +325,25 @@
 
 	/* The summary: the whole agreement at a glance, set apart like the trust centre's manifest. */
 	.summary {
-		margin-top: 2rem;
-		padding: 1.5rem 1.25rem;
-		border: 2px solid var(--line);
+		margin-top: var(--space-9);
+		padding: var(--space-7) var(--space-6);
+		border: var(--border-outline) solid var(--line);
 	}
-	@media (min-width: 40rem) {
+	@media (width >= theme(--breakpoint-3)) {
 		.summary {
-			padding: 1.75rem 2rem;
+			padding: var(--space-8) var(--space-9);
 		}
 	}
 	.summary h2 {
 		font-size: var(--text-title);
-		margin-bottom: 0.75rem;
+		margin-bottom: var(--space-4);
 	}
 	.summary ul {
 		display: grid;
 	}
 	.summary li {
-		padding-block: 0.6rem;
-		border-top: 1px dashed var(--divider);
+		padding-block: var(--space-row);
+		border-top: var(--border-hairline) dashed var(--divider);
 	}
 	.summary li:first-child {
 		border-top: 0;
@@ -349,6 +351,6 @@
 	}
 
 	.body {
-		margin-top: 3rem;
+		margin-top: var(--space-11);
 	}
 </style>

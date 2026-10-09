@@ -123,23 +123,23 @@
 		z-index: 4;
 		display: flex;
 		flex-direction: column;
-		gap: 0.35rem;
-		margin-top: 2rem !important;
-		padding-block: 0.75rem;
+		gap: var(--space-label);
+		margin-top: var(--space-9) !important;
+		padding-block: var(--space-4);
 		background: var(--surface);
-		border-bottom: 1px solid var(--divider);
+		border-bottom: var(--border-hairline) solid var(--divider);
 	}
 	.search input {
-		max-width: 28rem;
+		max-width: var(--container-field);
 	}
 	label {
 		font-weight: 700;
 	}
 	input {
-		min-height: 2.75rem;
-		padding: 0.5rem 0.75rem;
-		border: 2px solid var(--line);
-		border-radius: 6px;
+		min-height: var(--size-control);
+		padding: var(--space-3) var(--space-4);
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-control);
 		background: var(--surface-raised);
 		color: var(--ink);
 	}
@@ -166,6 +166,6 @@
 		font-style: normal;
 		color: var(--ink-muted);
 		font-family: var(--font-mono);
-		font-size: 1em;
+		font-size: inherit;
 	}
 </style>

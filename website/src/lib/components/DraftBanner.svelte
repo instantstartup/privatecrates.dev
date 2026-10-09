@@ -13,16 +13,16 @@
 
 <style>
 	.draft {
-		border: 2px dashed var(--danger-strong);
+		border: var(--border-outline) dashed var(--danger-strong);
 		background: var(--danger-bg);
-		border-radius: 8px;
-		padding: 1rem 1.1rem;
+		border-radius: var(--radius-card);
+		padding: var(--space-5) var(--space-banner-x);
 	}
 	.title {
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-title);
 		line-height: 1.1;
-		margin-bottom: 0.35rem;
+		margin-bottom: var(--space-2);
 	}
 </style>

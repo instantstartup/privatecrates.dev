@@ -64,16 +64,16 @@
 <style>
 	.agent {
 		display: grid;
-		gap: 1rem;
-		padding: 1.25rem;
-		border: 2px dashed var(--line);
-		border-radius: 10px;
+		gap: var(--space-5);
+		padding: var(--space-6);
+		border: var(--border-outline) dashed var(--line);
+		border-radius: var(--radius-panel);
 		background: var(--surface-raised);
 		min-width: 0;
 	}
 	.intro {
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--space-2);
 	}
 	h4 {
 		font-family: var(--font-display);
@@ -83,23 +83,23 @@
 	}
 	.intro :global(p) {
 		color: var(--ink-muted);
-		max-width: 40rem;
+		max-width: var(--container-measure);
 	}
 	.prompt {
 		position: relative;
-		border: 2px solid var(--line);
-		border-radius: 8px;
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-card);
 		background: var(--code-bg);
 		color: var(--code-ink);
 		/* Collapsed, the prompt is a preview: its first lines, fading out. */
-		max-height: 9.5rem;
+		max-height: var(--size-preview);
 		overflow: hidden;
 	}
 	.prompt:not(.open)::after {
 		content: '';
 		position: absolute;
 		inset: auto 0 0;
-		height: 3.5rem;
+		height: var(--size-preview-fade);
 		background: linear-gradient(transparent, var(--code-bg));
 		pointer-events: none;
 	}
@@ -108,7 +108,7 @@
 	}
 	pre {
 		margin: 0;
-		padding: 0.9rem 1rem 1rem;
+		padding: var(--space-code-block-top) var(--space-5) var(--space-5);
 		font-family: var(--font-mono);
 		font-size: var(--text-meta);
 		line-height: 1.6;
@@ -119,11 +119,11 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--space-4);
 	}
 	.btn svg {
-		width: 1.1rem;
-		height: 1.1rem;
+		width: var(--size-icon-small);
+		height: var(--size-icon-small);
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 1.75;

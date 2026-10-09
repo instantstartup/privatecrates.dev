@@ -21,18 +21,18 @@
 
 <style>
 	.faq-item {
-		border-bottom: 1px solid var(--divider);
+		border-bottom: var(--border-hairline) solid var(--divider);
 	}
 	.faq-item:first-child {
-		border-top: 1px solid var(--divider);
+		border-top: var(--border-hairline) solid var(--divider);
 	}
 	summary {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		gap: 1rem;
-		min-height: 3.25rem;
-		padding-block: 0.75rem;
+		gap: var(--space-5);
+		min-height: var(--size-disclosure);
+		padding-block: var(--space-4);
 		font-weight: 700;
 		font-size: var(--text-body);
 		cursor: pointer;
@@ -44,13 +44,13 @@
 	summary:hover span {
 		text-decoration: underline;
 		text-decoration-color: var(--action);
-		text-decoration-thickness: 2px;
-		text-underline-offset: 0.25em;
+		text-decoration-thickness: var(--border-outline);
+		text-underline-offset: var(--underline-offset);
 	}
 	svg {
 		flex: none;
-		width: 1.25rem;
-		height: 1.25rem;
+		width: var(--size-icon);
+		height: var(--size-icon);
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 2.25;
@@ -62,11 +62,11 @@
 		transform: rotate(180deg);
 	}
 	.answer {
-		padding-bottom: 1.1rem;
+		padding-bottom: var(--space-5);
 		color: var(--ink-muted);
 		max-width: var(--container-prose);
 	}
 	.answer :global(p + p) {
-		margin-top: 0.6rem;
+		margin-top: var(--space-3);
 	}
 </style>

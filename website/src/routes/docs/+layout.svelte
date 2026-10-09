@@ -44,21 +44,24 @@
 </div>
 
 <style>
+	@reference '../../app.css';
+
 	.docs {
 		display: grid;
-		gap: 2rem;
-		padding-top: 2.5rem;
+		gap: var(--space-9);
+		padding-top: var(--space-10);
 	}
-	@media (min-width: 56rem) {
+	@media (width >= theme(--breakpoint-7)) {
 		.docs {
-			grid-template-columns: 14rem minmax(0, 1fr);
-			gap: 3.5rem;
+			grid-template-columns: var(--container-sidebar) minmax(0, 1fr);
+			gap: var(--space-gutter);
 		}
 		.side {
 			position: sticky;
-			top: 1.5rem;
+			top: var(--space-7);
 			align-self: start;
-			max-height: calc(100vh - 3rem);
+			/* As tall as the screen less the gap kept above and below it. */
+			max-height: calc(var(--size-screen) - 2 * var(--space-7));
 			overflow-y: auto;
 		}
 		.bar {
@@ -66,9 +69,9 @@
 		}
 	}
 	.rail {
-		margin-top: 1.75rem;
+		margin-top: var(--space-8);
 	}
-	@media (max-width: 55.99rem) {
+	@media not (width >= theme(--breakpoint-7)) {
 		.rail {
 			display: none;
 		}
@@ -77,25 +80,26 @@
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-title);
-		margin-bottom: 0.4rem;
+		margin-bottom: var(--space-link-list-heading);
 	}
 	.side ul {
 		display: grid;
-		border-left: 2px solid var(--divider);
+		border-left: var(--border-outline) solid var(--divider);
 	}
-	@media (max-width: 55.99rem) {
+	@media not (width >= theme(--breakpoint-7)) {
 		.side ul {
-			grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+			grid-template-columns: repeat(auto-fill, minmax(var(--container-tile), 1fr));
 			border-left: 0;
-			border-top: 2px solid var(--divider);
-			padding-top: 0.25rem;
+			border-top: var(--border-outline) solid var(--divider);
+			padding-top: var(--space-2);
 		}
 	}
 	.side a {
 		display: block;
-		padding: 0.45rem 0.8rem;
-		margin-left: -2px;
-		border-left: 3px solid transparent;
+		padding: var(--space-nav-y) var(--space-nav-x);
+		/* The item's bar lies over the list's rule. */
+		margin-left: calc(-1 * var(--border-outline));
+		border-left: var(--border-strong) solid transparent;
 		color: var(--ink);
 		text-decoration: none;
 	}
@@ -118,17 +122,17 @@
 	.pager {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 1rem;
-		margin-top: 3.5rem !important;
-		padding-top: 1.5rem;
-		border-top: 2px solid var(--divider);
+		gap: var(--space-5);
+		margin-top: var(--space-break) !important;
+		padding-top: var(--space-7);
+		border-top: var(--border-outline) solid var(--divider);
 	}
 	.pager a {
 		display: flex;
 		flex-direction: column;
-		padding: 0.75rem 1rem;
-		border: 2px solid var(--divider);
-		border-radius: 8px;
+		padding: var(--space-4) var(--space-5);
+		border: var(--border-outline) solid var(--divider);
+		border-radius: var(--radius-card);
 		font-weight: 700;
 		text-decoration: none;
 	}

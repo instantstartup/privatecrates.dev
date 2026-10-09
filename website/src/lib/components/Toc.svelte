@@ -42,15 +42,15 @@
 <style>
 	.title {
 		font-weight: 700;
-		margin-bottom: 0.25rem;
+		margin-bottom: var(--space-2);
 	}
 	.rail ul {
 		display: grid;
-		border-left: 3px solid var(--action);
+		border-left: var(--border-strong) solid var(--action);
 	}
 	.rail a {
 		display: block;
-		padding: 0.3rem 0.8rem;
+		padding: var(--space-link-list) var(--space-nav-x);
 		color: var(--ink-muted);
 		font-size: var(--text-meta);
 		text-decoration: none;
@@ -64,17 +64,17 @@
 		position: sticky;
 		top: 0;
 		z-index: 5;
-		margin-inline: -1rem;
-		padding-inline: 1rem;
+		margin-inline: calc(-1 * var(--space-5));
+		padding-inline: var(--space-5);
 		background: var(--surface);
-		border-bottom: 2px solid var(--divider);
+		border-bottom: var(--border-outline) solid var(--divider);
 	}
 	summary {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		list-style: none;
-		min-height: 2.75rem;
+		min-height: var(--size-control);
 		font-weight: 700;
 		cursor: pointer;
 	}
@@ -82,8 +82,8 @@
 		display: none;
 	}
 	summary svg {
-		width: 1.25rem;
-		height: 1.25rem;
+		width: var(--size-icon);
+		height: var(--size-icon);
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 2.25;
@@ -94,10 +94,10 @@
 		transform: rotate(180deg);
 	}
 	.bar ul {
-		padding-bottom: 0.5rem;
+		padding-bottom: var(--space-3);
 	}
 	.bar a {
 		display: block;
-		padding-block: 0.45rem;
+		padding-block: var(--space-nav-y);
 	}
 </style>

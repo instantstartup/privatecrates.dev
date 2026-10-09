@@ -23,20 +23,22 @@
 </div>
 
 <style>
+	@reference '../../app.css';
+
 	.toc-layout {
 		display: grid;
-		gap: 2rem;
+		gap: var(--space-9);
 	}
-	@media (min-width: 56rem) {
+	@media (width >= theme(--breakpoint-7)) {
 		.toc-layout {
-			grid-template-columns: 14rem minmax(0, 1fr);
-			gap: 3.5rem;
+			grid-template-columns: var(--container-sidebar) minmax(0, 1fr);
+			gap: var(--space-gutter);
 		}
 		.side {
 			position: sticky;
-			top: 1.5rem;
+			top: var(--space-7);
 			align-self: start;
-			padding-top: 0.5rem;
+			padding-top: var(--space-3);
 		}
 		.bar {
 			display: none;
@@ -46,7 +48,7 @@
 			margin-top: 0;
 		}
 	}
-	@media (max-width: 55.99rem) {
+	@media not (width >= theme(--breakpoint-7)) {
 		.side {
 			display: none;
 		}

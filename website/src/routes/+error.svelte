@@ -35,25 +35,27 @@
 </div>
 
 <style>
+	@reference '../app.css';
+
 	.lost {
 		display: grid;
-		gap: 2rem;
+		gap: var(--space-9);
 		align-items: center;
-		padding-block: 3rem;
+		padding-block: var(--space-11);
 	}
-	@media (min-width: 52rem) {
+	@media (width >= theme(--breakpoint-6)) {
 		.lost {
 			grid-template-columns: 1fr 1fr;
 		}
 	}
 	.art {
-		max-width: 28rem;
+		max-width: var(--container-error);
 		width: 100%;
 		justify-self: center;
 	}
 	h1 {
 		font-size: var(--text-headline);
-		margin-bottom: 1rem;
+		margin-bottom: var(--space-5);
 	}
 	.lede code {
 		overflow-wrap: anywhere;
@@ -61,7 +63,7 @@
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.75rem;
-		margin-top: 1.5rem;
+		gap: var(--space-4);
+		margin-top: var(--space-7);
 	}
 </style>

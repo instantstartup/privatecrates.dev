@@ -49,22 +49,24 @@
 </footer>
 
 <style>
+	@reference '../../app.css';
+
 	.company {
-		margin-top: 2rem;
+		margin-top: var(--space-9);
 		color: var(--ink-muted);
 	}
 	.site-footer {
-		margin-top: 5rem;
-		border-top: 2px solid var(--line);
+		margin-top: var(--space-section);
+		border-top: var(--border-outline) solid var(--line);
 		background: var(--surface-raised);
-		padding-block: 2.5rem 3rem;
+		padding-block: var(--space-10) var(--space-11);
 		font-size: var(--text-meta);
 	}
 	.grid {
 		display: grid;
-		gap: 2rem;
+		gap: var(--space-9);
 	}
-	@media (min-width: 36rem) {
+	@media (width >= theme(--breakpoint-2)) {
 		.grid {
 			grid-template-columns: repeat(3, 1fr);
 		}
@@ -72,7 +74,7 @@
 			grid-column: 1 / -1;
 		}
 	}
-	@media (min-width: 60rem) {
+	@media (width >= theme(--breakpoint-8)) {
 		.grid {
 			grid-template-columns: 2fr 1fr 1fr 1fr;
 		}
@@ -82,23 +84,23 @@
 	}
 	.about {
 		display: flex;
-		gap: 1rem;
+		gap: var(--space-5);
 		align-items: flex-start;
 		color: var(--ink-muted);
-		max-width: 26rem;
+		max-width: var(--container-blurb);
 	}
 	.about :global(.anchor) {
 		flex: none;
-		width: 2.25rem;
+		width: var(--size-emblem);
 		color: var(--ink);
 	}
 	h2 {
 		font-size: var(--text-lead);
-		margin-bottom: 0.4rem;
+		margin-bottom: var(--space-link-list-heading);
 	}
 	li a {
 		display: inline-block;
-		padding-block: 0.3rem;
+		padding-block: var(--space-link-list);
 		color: var(--ink);
 	}
 </style>

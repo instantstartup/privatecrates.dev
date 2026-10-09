@@ -55,9 +55,9 @@
 	.toggle {
 		display: inline-grid;
 		place-items: center;
-		width: 2.75rem;
-		height: 2.75rem;
-		border-radius: 6px;
+		width: var(--size-control);
+		height: var(--size-control);
+		border-radius: var(--radius-control);
 		color: var(--ink);
 		cursor: pointer;
 	}
@@ -68,8 +68,8 @@
 		cursor: default;
 	}
 	svg {
-		width: 1.35rem;
-		height: 1.35rem;
+		width: var(--size-icon-toggle);
+		height: var(--size-icon-toggle);
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 2;
