@@ -363,13 +363,15 @@
 </div>
 
 <style>
+	@reference '../../app.css';
+
 	.registry {
 		display: grid;
-		gap: 2.5rem;
+		gap: var(--space-10);
 	}
 	.views {
 		display: grid;
-		gap: 1.75rem;
+		gap: var(--space-8);
 		min-width: 0;
 	}
 	[role='tabpanel'] {
@@ -378,7 +380,7 @@
 	.paused,
 	.billing {
 		display: grid;
-		gap: 1rem;
+		gap: var(--space-5);
 	}
 	h3 {
 		font-size: var(--text-heading);
@@ -387,26 +389,26 @@
 		font-size: var(--text-headline);
 	}
 	.billing {
-		padding-top: 1.5rem;
-		border-top: 2px solid var(--line);
+		padding-top: var(--space-7);
+		border-top: var(--border-outline) solid var(--line);
 	}
 	.url {
 		font-family: var(--font-mono);
 		font-size: var(--text-body);
 		overflow-wrap: anywhere;
-		margin-top: -0.5rem;
+		margin-top: calc(-1 * var(--space-3));
 	}
 	.facts {
 		display: grid;
-		gap: 0.75rem;
+		gap: var(--space-4);
 	}
 	.facts > div {
 		display: grid;
-		gap: 0.1rem 1rem;
+		gap: 0.1rem var(--space-5);
 	}
-	@media (min-width: 40rem) {
+	@media (width >= theme(--breakpoint-3)) {
 		.facts > div {
-			grid-template-columns: 8rem 1fr;
+			grid-template-columns: var(--container-label) 1fr;
 		}
 	}
 	dt {
@@ -422,7 +424,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--space-4);
 	}
 	.fine {
 		font-size: var(--text-meta);
