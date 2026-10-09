@@ -308,10 +308,10 @@
 	 *   @media (width <= theme(--breakpoint-3)) { … }        up to and including 40rem (was max-width: 40rem)
 	 *   @media not (width >= theme(--breakpoint-7)) { … }    below 56rem (was max-width: 55.99rem)
 	 * A component's <style> must first say where the theme is, or theme() is unknown there:
-	 *   <style>
+	 *   <style lang="postcss">
 	 *     @reference '../../app.css';    (the path from the component to this file)
-	 * @reference reads the theme without emitting any of app.css again. svelte-check warns
-	 * "Unknown at rule @reference" for each such block; that warning is expected.
+	 * @reference reads the theme without emitting any of app.css again. lang="postcss" tells
+	 * svelte-check the block is PostCSS, so it accepts @reference instead of warning about it.
 	 */
 	--breakpoint-*: initial;
 	--breakpoint-1: 30rem; /* a wide phone */

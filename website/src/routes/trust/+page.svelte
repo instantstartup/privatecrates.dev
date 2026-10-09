@@ -431,7 +431,7 @@
 	</div>
 </div>
 
-<style>
+<style lang="postcss">
 	@reference '../../app.css';
 
 	.hero {

@@ -314,7 +314,7 @@
 	</div>
 </section>
 
-<style>
+<style lang="postcss">
 	@reference '../app.css';
 
 	.hero {
