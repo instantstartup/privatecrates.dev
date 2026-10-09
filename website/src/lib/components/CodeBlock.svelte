@@ -104,8 +104,8 @@
 		outline-color: var(--code-focus);
 	}
 	.copy svg {
-		width: var(--size-icon-inline);
-		height: var(--size-icon-inline);
+		width: var(--size-icon-small);
+		height: var(--size-icon-small);
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 1.75;

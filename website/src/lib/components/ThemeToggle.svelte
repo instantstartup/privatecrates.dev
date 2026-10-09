@@ -68,8 +68,8 @@
 		cursor: default;
 	}
 	svg {
-		width: var(--size-icon-toggle);
-		height: var(--size-icon-toggle);
+		width: var(--size-icon);
+		height: var(--size-icon);
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 2;
