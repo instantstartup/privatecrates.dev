@@ -16,7 +16,7 @@
 		border: var(--border-outline) dashed var(--danger-strong);
 		background: var(--danger-bg);
 		border-radius: var(--radius-card);
-		padding: var(--space-5) var(--space-banner-x);
+		padding: var(--space-5) var(--space-control-x);
 	}
 	.title {
 		font-family: var(--font-display);

@@ -49,7 +49,7 @@
 		}
 	}
 	.art {
-		max-width: var(--size-art);
+		max-width: var(--size-standalone);
 		width: 100%;
 		justify-self: center;
 	}

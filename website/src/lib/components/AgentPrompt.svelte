@@ -92,7 +92,7 @@
 		background: var(--code-bg);
 		color: var(--code-ink);
 		/* Collapsed, the prompt is a preview: its first lines, fading out. */
-		max-height: var(--size-preview);
+		max-height: var(--size-tile);
 		overflow: hidden;
 	}
 	.prompt:not(.open)::after {
