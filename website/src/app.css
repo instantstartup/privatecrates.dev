@@ -277,7 +277,10 @@
 	--color-action: var(--action);
 	--color-accent: var(--accent);
 	--color-divider: var(--divider);
-	/* Widths of blocks: max-widths and grid tracks, exact, named for what they hold. */
+	/*
+	 * Containers measure text: how wide a column of running text may get, named for what it holds. Fixed widths
+	 * of art, controls and grid columns are --size-* in :root. Both snap by the 1.6px rule, like every length.
+	 */
 	--container-page: 72rem; /* the page's content column */
 	--container-prose: 44rem; /* long-form text */
 	--container-measure: 40rem; /* a comfortable line of running text outside .prose */
