@@ -57,10 +57,17 @@
 	--space-heading: 2.75rem; /* above an h2 in long-form text */
 	--space-after-heading: 0.6rem; /* between a long-form heading and the text it introduces */
 	--space-after-title: 0.4rem; /* between a card's or panel's title and the line under it */
+	--space-price-label: 0.35rem; /* between a price's figure and the line under it that says what it buys */
+	--space-after-title-compact: 0.2rem; /* the same in a compact step: the home page's CI token chain */
+	--space-panel-step-top: 1.4rem; /* above a step in a ruled panel (the home page's how-it-works); below it is --space-7 */
+	--space-compact-step-top: 1.1rem; /* above a step in a compact ruled panel (the home page's CI token chain) */
+	--space-compact-step-bottom: 1.2rem; /* below it */
 	--space-paragraph: 0.85rem; /* between paragraphs of text set beside code or a panel (the home page's split sections) */
 	--space-list-indent: 1.25rem; /* a bulleted list's indent */
 	--space-list-indent-ordered: 1.4rem; /* a numbered list's indent: room for two-digit numbers */
 	--space-list-indent-tick: 1.6rem; /* a ticked list's indent: room for the drawn tick */
+	--space-tick-x: 0.15rem; /* a drawn tick's inset from its list item's edge */
+	--space-tick-y: 0.45em; /* a drawn tick's drop from the top of its line, in em so it follows the text */
 	--space-list-item: 0.35rem; /* between the items of a long-form list */
 	--space-definition: 1.1rem; /* between the entries of a grid of terms and their definitions, in one column */
 	--space-definition-wide: 1.4rem; /* the same, between rows when the grid has two or three columns */
@@ -111,6 +118,8 @@
 	--size-crate: 4.5rem; /* one crate in a stack of crates: the pricing page's free plan */
 	--size-icon: 1.25rem; /* an icon beside a label */
 	--size-icon-small: 1.1rem; /* a small icon or tick in a list */
+	--size-tick-long: 0.8rem; /* a tick drawn with two borders: its long arm, before it is turned */
+	--size-tick-short: 0.55rem; /* its short arm */
 	--size-hidden: 1px; /* a visually hidden element: present for screen readers, one pixel and clipped */
 	--size-screen: 100vh; /* the viewport's height */
 	color-scheme: light;

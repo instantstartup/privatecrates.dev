@@ -393,7 +393,7 @@
 	.manifest li {
 		display: flex;
 		gap: var(--space-5);
-		padding: var(--space-7) var(--space-6);
+		padding: var(--space-panel-step-top) var(--space-6) var(--space-7);
 	}
 	.manifest li + li {
 		border-top: var(--border-outline) dashed var(--divider);
@@ -513,14 +513,14 @@
 	.chain li {
 		display: flex;
 		gap: var(--space-5);
-		padding: var(--space-5) var(--space-6) var(--space-6);
+		padding: var(--space-compact-step-top) var(--space-6) var(--space-compact-step-bottom);
 	}
 	.chain li + li {
 		border-top: var(--border-outline) dashed var(--divider);
 	}
 	.chain h3 {
 		font-size: var(--text-lead);
-		margin-bottom: var(--space-2);
+		margin-bottom: var(--space-after-title-compact);
 	}
 	.chain p {
 		color: var(--ink-muted);
@@ -607,10 +607,10 @@
 	.includes li::before {
 		content: '';
 		position: absolute;
-		left: var(--space-1);
-		top: var(--space-3);
-		width: var(--space-4);
-		height: var(--space-3);
+		left: var(--space-tick-x);
+		top: var(--space-tick-y);
+		width: var(--size-tick-long);
+		height: var(--size-tick-short);
 		border-left: var(--border-strong) solid var(--ok);
 		border-bottom: var(--border-strong) solid var(--ok);
 		transform: rotate(-45deg);
