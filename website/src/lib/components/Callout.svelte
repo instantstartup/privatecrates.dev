@@ -19,7 +19,7 @@
 
 <style>
 	.callout {
-		border-left: 5px solid var(--link);
+		border-left: 5px solid var(--info);
 		background: var(--surface-raised);
 		padding: 0.85rem 1rem;
 		border-radius: 0 8px 8px 0;

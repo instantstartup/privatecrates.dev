@@ -414,7 +414,7 @@
 	.done .marker {
 		background: var(--ok);
 		border-color: var(--ok);
-		color: var(--surface);
+		color: var(--ok-ink);
 	}
 	.current .marker {
 		background: var(--action);

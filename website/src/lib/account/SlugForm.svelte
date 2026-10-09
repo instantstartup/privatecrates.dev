@@ -234,7 +234,7 @@
 		width: 1.2rem;
 		height: 1.2rem;
 		margin-top: 0.2rem;
-		accent-color: var(--link);
+		accent-color: var(--control);
 	}
 	.choice-hint {
 		display: block;

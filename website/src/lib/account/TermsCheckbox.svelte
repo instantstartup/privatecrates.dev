@@ -64,7 +64,7 @@
 		width: 1.35rem;
 		height: 1.35rem;
 		margin-top: 0.15rem;
-		accent-color: var(--link);
+		accent-color: var(--control);
 		cursor: pointer;
 	}
 	label {

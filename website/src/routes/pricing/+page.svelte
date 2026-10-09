@@ -291,9 +291,9 @@
 		display: inline-block;
 		margin-left: 0.75rem;
 		padding: 0.1rem 0.5rem 0.15rem;
-		border: 3px solid var(--link);
+		border: 3px solid var(--info);
 		border-radius: 4px;
-		color: var(--link);
+		color: var(--info);
 		font-size: var(--text-lg);
 		line-height: 1;
 		vertical-align: middle;

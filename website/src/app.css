@@ -25,6 +25,8 @@
 	--line: #0f2830; /* outlines: borders, hard shadows, illustration strokes */
 	--link: #125c6c; /* links: harbour blue */
 	--focus: var(--link); /* focus rings: harbour blue */
+	--info: var(--link); /* informational notes and stamps: harbour blue */
+	--control: var(--link); /* checked checkboxes and radios: harbour blue */
 	--action: #f2b233; /* lighthouse lamp: primary actions */
 	--action-ink: #0f2830;
 	--accent: #b93a22; /* container red: crates */
@@ -48,6 +50,7 @@
 	--divider: #c5d2cf; /* rules between rows and sections */
 	--ok: #1f6b45;
 	--ok-bg: #dcefe3;
+	--ok-ink: var(--surface); /* text on a solid --ok fill */
 	--warn-bg: #fbe9d6;
 	--danger: #a3301b;
 	--danger-bg: #f9e1dc;
@@ -56,6 +59,7 @@
 	--code-comment: #9fb8bd;
 	--code-key: #f5c35a;
 	--code-string: #9fd9c1;
+	--code-focus: var(--action); /* focus rings on code: lighthouse lamp, seen on the dark code background */
 	--shadow: 0 1px 0 var(--divider), 0 12px 28px -18px rgb(15 40 48 / 0.35);
 	/* Day: the sun is up and the lighthouse is dark; its lamp room shows as glass. */
 	--day: 1;
@@ -75,6 +79,8 @@
 	--line: #7d90a1; /* outlines recede at night (4.8:1 on --surface) */
 	--link: #8cc4d0;
 	--focus: var(--link);
+	--info: var(--link);
+	--control: var(--link);
 	--action: #e9bb5f;
 	--action-ink: #172430;
 	--accent: #d98672;
@@ -95,6 +101,7 @@
 	--divider: #2e3f4e;
 	--ok: #8fcfaa;
 	--ok-bg: #1f3a35;
+	--ok-ink: var(--surface);
 	--warn-bg: #3b3426;
 	--danger: #eaa292;
 	--danger-bg: #3f2a2d;
@@ -103,6 +110,7 @@
 	--code-comment: #96a8b6;
 	--code-key: #e3c07e;
 	--code-string: #a6d3c0;
+	--code-focus: var(--action);
 	--shadow: 0 1px 0 var(--divider), 0 12px 28px -18px rgb(5 10 16 / 0.7);
 	/* Night: the moon and stars are out and the lighthouse is lit. */
 	--day: 0;
@@ -121,6 +129,8 @@
 		--line: #7d90a1; /* outlines recede at night (4.8:1 on --surface) */
 		--link: #8cc4d0;
 		--focus: var(--link);
+		--info: var(--link);
+		--control: var(--link);
 		--action: #e9bb5f;
 		--action-ink: #172430;
 		--accent: #d98672;
@@ -141,6 +151,7 @@
 		--divider: #2e3f4e;
 		--ok: #8fcfaa;
 		--ok-bg: #1f3a35;
+		--ok-ink: var(--surface);
 		--warn-bg: #3b3426;
 		--danger: #eaa292;
 		--danger-bg: #3f2a2d;
@@ -149,6 +160,7 @@
 		--code-comment: #96a8b6;
 		--code-key: #e3c07e;
 		--code-string: #a6d3c0;
+		--code-focus: var(--action);
 		--shadow: 0 1px 0 var(--divider), 0 12px 28px -18px rgb(5 10 16 / 0.7);
 		/* Night: the moon and stars are out and the lighthouse is lit. */
 		--day: 0;
