@@ -43,7 +43,7 @@
 	</article>
 </div>
 
-<style>
+<style lang="postcss">
 	@reference '../../app.css';
 
 	.docs {
@@ -80,7 +80,7 @@
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-title);
-		margin-bottom: var(--space-link-list-heading);
+		margin-bottom: var(--space-after-title);
 	}
 	.side ul {
 		display: grid;
@@ -88,7 +88,7 @@
 	}
 	@media not (width >= theme(--breakpoint-7)) {
 		.side ul {
-			grid-template-columns: repeat(auto-fill, minmax(var(--container-tile), 1fr));
+			grid-template-columns: repeat(auto-fill, minmax(var(--size-tile), 1fr));
 			border-left: 0;
 			border-top: var(--border-outline) solid var(--divider);
 			padding-top: var(--space-2);

@@ -34,7 +34,7 @@
 	</div>
 </div>
 
-<style>
+<style lang="postcss">
 	@reference '../app.css';
 
 	.lost {
@@ -49,7 +49,7 @@
 		}
 	}
 	.art {
-		max-width: var(--container-error);
+		max-width: var(--size-art);
 		width: 100%;
 		justify-self: center;
 	}

@@ -48,7 +48,7 @@
 	</p>
 </footer>
 
-<style>
+<style lang="postcss">
 	@reference '../../app.css';
 
 	.company {
@@ -96,7 +96,7 @@
 	}
 	h2 {
 		font-size: var(--text-lead);
-		margin-bottom: var(--space-link-list-heading);
+		margin-bottom: var(--space-after-title);
 	}
 	li a {
 		display: inline-block;

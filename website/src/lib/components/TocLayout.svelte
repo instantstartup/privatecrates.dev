@@ -22,7 +22,7 @@
 	</article>
 </div>
 
-<style>
+<style lang="postcss">
 	@reference '../../app.css';
 
 	.toc-layout {

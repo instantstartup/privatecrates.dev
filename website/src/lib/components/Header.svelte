@@ -31,7 +31,7 @@
 	</div>
 </header>
 
-<style>
+<style lang="postcss">
 	@reference '../../app.css';
 
 	.site-header {
