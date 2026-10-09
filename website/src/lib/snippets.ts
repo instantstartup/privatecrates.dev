@@ -31,7 +31,7 @@ cargo install cargo-credential-privatecrates --locked`;
 
 /** The client tools' release, pinned in workflows: privatecrates-common's version. */
 export const RELEASE_VERSION = '0.2.9';
-const RELEASE_REPO = 'worldbuilding-dev/privatecrates.dev';
+const RELEASE_REPO = 'instantstartup/privatecrates.dev';
 
 /**
  * The same step as privatecrates-common's \`install::ci_step\`: the prebuilt binary from the release, checked

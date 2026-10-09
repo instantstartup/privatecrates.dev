@@ -1,13 +1,13 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
-# Its own workspace: the only crate that needs the private worldbuilding-dev registry (see its Cargo.toml).
+# Its own workspace: the only crate that needs the private instantstartup registry (see its Cargo.toml).
 exclude = ["crates/privatecrates-server"]
 
 [workspace.package]
 edition = "2024"
 rust-version = "1.91"
-repository = "https://github.com/worldbuilding-dev/privatecrates.dev"
+repository = "https://github.com/instantstartup/privatecrates.dev"
 homepage = "https://privatecrates.dev"
 
 [workspace.lints.rust]

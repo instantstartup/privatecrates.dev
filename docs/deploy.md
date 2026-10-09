@@ -72,10 +72,10 @@ must be on **Pro**.
 
 ## 2. Accounts you need
 
-- **Railway**, Pro plan, with the Railway GitHub App installed on `worldbuilding-dev` with access to
-  `worldbuilding-dev/privatecrates.dev` (Railway → Account → Integrations → GitHub).
+- **Railway**, Pro plan, with the Railway GitHub App installed on `instantstartup` with access to
+  `instantstartup/privatecrates.dev` (Railway → Account → Integrations → GitHub).
 - **Cloudflare**, with the `privatecrates.dev` zone active (nameservers moved to Cloudflare).
-- **GitHub**: an owner of the `worldbuilding-dev` organisation (the Apps belong to it), plus a throwaway test
+- **GitHub**: an owner of the `instantstartup` organisation (the Apps belong to it), plus a throwaway test
   organisation for onboarding tests, e.g. `privatecrates-test`.
 - **Stripe**, one account; test mode for dev, live mode (account activated) for production.
 - **crates.io**, for the client tools (§13).
@@ -111,7 +111,7 @@ done
 
 ## 4. GitHub Apps
 
-Each environment has a **reader** App and a **storage** App (SPEC §6.1), owned by `worldbuilding-dev` and
+Each environment has a **reader** App and a **storage** App (SPEC §6.1), owned by `instantstartup` and
 installable by any organisation. Their manifests are in [`deploy/github-apps/`](../deploy/github-apps):
 
 | File | App | Permissions | Webhook events |
@@ -133,14 +133,14 @@ expiry of user tokens (on by default for new Apps [G4]).
 ### 4.1 Create the Apps (manifest flow)
 
 GitHub's manifest flow: POST the manifest to
-`https://github.com/organizations/worldbuilding-dev/settings/apps/new`, confirm the name on GitHub, and GitHub
+`https://github.com/organizations/instantstartup/settings/apps/new`, confirm the name on GitHub, and GitHub
 redirects to `redirect_url` with a one-time `code` valid for one hour [G1]. `create.html` does the POST and, as its
 own `redirect_url`, shows the command to convert the code.
 
 ```sh
 cd deploy/github-apps
 python3 -m http.server 8765 --bind 127.0.0.1
-# open http://127.0.0.1:8765/create.html in a browser signed in to GitHub as a worldbuilding-dev owner
+# open http://127.0.0.1:8765/create.html in a browser signed in to GitHub as an instantstartup owner
 ```
 
 For each of `dev-reader`, `dev-storage` (and later `prod-reader`, `prod-storage`): choose it, press **Create this
@@ -167,13 +167,13 @@ accepted everywhere below: the slug goes into `READER_APP_SLUG` / `STORAGE_APP_S
 ### 4.2 Without the helper page
 
 The same form works from any page: an HTML form with `method="post"`,
-`action="https://github.com/organizations/worldbuilding-dev/settings/apps/new?state=<random>"` and one field named
+`action="https://github.com/organizations/instantstartup/settings/apps/new?state=<random>"` and one field named
 `manifest` holding the JSON [G1]. Or create the App by hand under *Organisation settings → Developer settings →
 GitHub Apps → New GitHub App* with the values from the JSON file.
 
 ### 4.3 Settings a manifest cannot express
 
-Open each App at `https://github.com/organizations/worldbuilding-dev/settings/apps/<slug>`.
+Open each App at `https://github.com/organizations/instantstartup/settings/apps/<slug>`.
 
 Reader App, *General*:
 - Tick **Enable Device Flow** (the credential provider signs developers in with it; GitHub requires it to be enabled
@@ -241,9 +241,9 @@ Customers, Subscriptions, Checkout Sessions and Customer portal, and read access
 ### 6.1 Project, service and environments
 
 ```sh
-cd <your clone of worldbuilding-dev/privatecrates.dev>
+cd <your clone of instantstartup/privatecrates.dev>
 railway init --name privatecrates                 # new project; its first environment is "production"
-railway add --service privatecrates --repo worldbuilding-dev/privatecrates.dev
+railway add --service privatecrates --repo instantstartup/privatecrates.dev
 railway add --database postgres                   # the terms acceptances (§6.3); service "Postgres"
 railway environment new dev --duplicate production
 railway link                                      # choose privatecrates / dev / privatecrates
@@ -365,7 +365,7 @@ Leave these unset (the defaults are right for both environments):
 | `GITHUB_API_URL`, `GITHUB_WEB_URL` | `https://api.github.com`, `https://github.com` | Tests point these at a fake. |
 | `STRIPE_API_URL` | Stripe's API | Tests point this at a fake. |
 | `PREVIEW` | `true` | The preview (docs/preview.md): free for everyone, billing off whatever Stripe configuration is set. `false` from general availability. |
-| `PRIVATECRATES_TOKEN` | none (**required to build**) | A read-only fine-grained GitHub token (Metadata: Read-only on `worldbuilding-dev/privatecrates-qos`), as a sealed variable. Railway passes it to the Docker build, where Cargo uses it to read `privatecrates-qos` from the `worldbuilding-dev` PrivateCrates registry. The running server never reads it. |
+| `PRIVATECRATES_TOKEN` | none (**required to build**) | A read-only fine-grained GitHub token (Metadata: Read-only on `instantstartup/privatecrates-qos`), as a sealed variable. Railway passes it to the Docker build, where Cargo uses it to read `privatecrates-qos` from the `instantstartup` PrivateCrates registry. The running server never reads it. |
 | `TELEMETRY_CONFIG` | built in | A YAML file for apollo-opentelemetry that replaces the built-in configuration (`crates/privatecrates-server/src/telemetry.yaml`: JSON logs to standard output, at most 20 a second). Use it to export logs, spans and metrics over OTLP. |
 | `GRAFANA_CLOUD_INSTANCE_ID`, `GRAFANA_CLOUD_API_KEY`, `GRAFANA_CLOUD_OTLP_ENDPOINT` | none | With the API key set (a sealed variable), logs, request spans and metrics also go to Grafana Cloud (`telemetry-grafana-cloud.yaml`). The endpoint is the stack's OTLP gateway, e.g. `https://otlp-gateway-prod-eu-west-2.grafana.net/otlp`. |
 | `RUST_LOG` | `info` | Which logs are kept, by level and module, e.g. `info,privatecrates_server=debug`. |
@@ -560,7 +560,7 @@ One-time setup:
 
    Then push the tag `v0.1.0`; the workflow builds the binaries and release and skips the crates already on crates.io.
 2. On crates.io, for **each** of the five crates, *Settings → Trusted Publishing → Add*: GitHub, repository owner
-   `worldbuilding-dev`, repository `privatecrates.dev`, workflow `release.yml`, environment `crates-io` [C1].
+   `instantstartup`, repository `privatecrates.dev`, workflow `release.yml`, environment `crates-io` [C1].
 3. In GitHub → repository *Settings → Environments*, create `crates-io`; optionally add required reviewers (a manual
    approval before anything is published) and restrict it to tags `v*`.
 4. Revoke the API token; from now on no crates.io secret exists anywhere.
@@ -577,7 +577,7 @@ git tag -s vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
 The workflows the server and website hand out (publish, CI, verifier) install the binaries of their own version
 from its release, so tag the release as soon as the bump reaches `main`: until its binaries are published, those
 workflows fail at the install step. The workflow refuses a tag that does not match the five crate versions. Verify an artefact with
-`gh attestation verify <file> --repo worldbuilding-dev/privatecrates.dev`.
+`gh attestation verify <file> --repo instantstartup/privatecrates.dev`.
 
 ## 14. Status page
 

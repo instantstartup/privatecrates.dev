@@ -6,7 +6,7 @@ license = "BUSL-1.1"
 publish = false
 edition = "2024"
 rust-version = "1.94"
-repository = "https://github.com/worldbuilding-dev/privatecrates.dev"
+repository = "https://github.com/instantstartup/privatecrates.dev"
 homepage = "https://privatecrates.dev"
 
 [dependencies]
@@ -29,7 +29,7 @@ miette = "7"
 moka = { version = "0.12.16", features = ["future"] }
 opentelemetry = "0.32.0"
 privatecrates-common = { version = "0.2.9", path = "../privatecrates-common" }
-privatecrates-qos = { version = "0.1.0", registry = "worldbuilding-dev" }
+privatecrates-qos = { version = "0.1.0", registry = "instantstartup" }
 privatecrates-verify = { version = "0.2.9", path = "../privatecrates-verify" }
 reqwest = { version = "0.13.5", features = ["form", "json", "query"] }
 semver = "1.0.28"
@@ -56,6 +56,6 @@ all = { level = "deny", priority = -1 }
 privatecrates-testkit = { path = "../privatecrates-testkit" }
 tempfile = "3.27.0"
 
-# The server is its own workspace, with its own Cargo.lock: it alone depends on the private worldbuilding-dev
+# The server is its own workspace, with its own Cargo.lock: it alone depends on the private instantstartup
 # registry (privatecrates-qos), so the open-source crates in the root workspace build without access to it.
 [workspace]
