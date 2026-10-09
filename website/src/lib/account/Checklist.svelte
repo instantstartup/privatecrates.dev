@@ -373,7 +373,7 @@
 		gap: 0.25rem 1rem;
 	}
 	h3 {
-		font-size: var(--text-2xl);
+		font-size: var(--text-heading);
 	}
 	.progress {
 		color: var(--ink-muted);
@@ -409,7 +409,7 @@
 		border: 2px solid var(--line);
 		border-radius: 50%;
 		font-weight: 700;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.done .marker {
 		background: var(--ok);
@@ -438,7 +438,7 @@
 		flex: 1;
 	}
 	h4 {
-		font-size: var(--text-base);
+		font-size: var(--text-body);
 		line-height: 1.35;
 		padding-top: 0.2rem;
 	}
@@ -463,7 +463,7 @@
 		gap: 0.75rem;
 	}
 	.fine {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 	.all-done {

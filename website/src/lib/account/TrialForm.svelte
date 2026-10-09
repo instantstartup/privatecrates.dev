@@ -121,7 +121,7 @@
 	}
 	.hint,
 	.fine {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 	input {
@@ -138,7 +138,7 @@
 	.problem {
 		color: var(--danger);
 		font-weight: 700;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.code {
 		font-weight: 400;

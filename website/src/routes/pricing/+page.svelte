@@ -249,7 +249,7 @@
 		margin-bottom: 2.5rem;
 	}
 	h1 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 		margin-bottom: 1rem;
 	}
 	.plans {
@@ -278,7 +278,7 @@
 		gap: 1rem;
 	}
 	h2 {
-		font-size: var(--text-2xl);
+		font-size: var(--text-heading);
 	}
 	.planned-head {
 		margin-bottom: 1.25rem;
@@ -294,7 +294,7 @@
 		border: 3px solid var(--info);
 		border-radius: 4px;
 		color: var(--info);
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 		line-height: 1;
 		vertical-align: middle;
 		transform: rotate(-3deg);
@@ -316,7 +316,7 @@
 		color: var(--ink-muted);
 	}
 	.small {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.plan :global(.plan-ship) {
 		width: 100%;
@@ -382,7 +382,7 @@
 		padding-top: 4.5rem;
 	}
 	.faq h2 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 		margin-bottom: 1.25rem;
 	}
 	.faq-list {

@@ -10,12 +10,12 @@
  */
 :root {
 	/* One type scale for the whole site (7 steps). */
-	--text-sm: 0.875rem;
-	--text-base: 1.0625rem;
-	--text-lg: 1.25rem;
-	--text-xl: 1.6rem;
-	--text-2xl: 2.25rem;
-	--text-3xl: clamp(2.4rem, 6vw, 3.6rem);
+	--text-meta: 0.875rem;
+	--text-body: 1.0625rem;
+	--text-lead: 1.25rem;
+	--text-title: 1.6rem;
+	--text-heading: 2.25rem;
+	--text-headline: clamp(2.4rem, 6vw, 3.6rem);
 	--text-display: clamp(2.9rem, 9vw, 5.4rem);
 	color-scheme: light;
 	--surface: #edf1ef; /* page: sea fog, cool not cream */
@@ -196,7 +196,7 @@
 		background: var(--surface);
 		color: var(--ink);
 		font-family: var(--font-sans);
-		font-size: var(--text-base);
+		font-size: var(--text-body);
 		line-height: 1.6;
 		overflow-x: clip;
 		/* Keep the footer at the bottom of short pages. */
@@ -240,7 +240,7 @@
 	kbd,
 	pre {
 		font-family: var(--font-mono);
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	:is(h1, h2, h3, h4) code {
 		font-size: 1em;
@@ -278,11 +278,11 @@
 		margin-top: 1rem;
 	}
 	.prose h2 {
-		font-size: var(--text-2xl);
+		font-size: var(--text-heading);
 		margin-top: 2.75rem;
 	}
 	.prose h3 {
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		margin-top: 2rem;
 	}
 	.prose h2 + *,
@@ -303,7 +303,7 @@
 	.prose table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.prose th,
 	.prose td {
@@ -349,7 +349,7 @@
 			padding: 0.2rem 0;
 		}
 		.table-cards th[scope='row'] {
-			font-size: var(--text-base);
+			font-size: var(--text-body);
 		}
 		.table-cards td[data-label]::before {
 			content: attr(data-label) ': ';
@@ -413,7 +413,7 @@
 	}
 
 	.lede {
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 		color: var(--ink-muted);
 		max-width: 38rem;
 	}

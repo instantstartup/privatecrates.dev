@@ -34,7 +34,7 @@
 		min-height: 3.25rem;
 		padding-block: 0.75rem;
 		font-weight: 700;
-		font-size: var(--text-base);
+		font-size: var(--text-body);
 		cursor: pointer;
 		list-style: none;
 	}

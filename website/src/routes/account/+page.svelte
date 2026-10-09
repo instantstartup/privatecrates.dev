@@ -461,7 +461,7 @@
 		min-height: 100vh;
 	}
 	h1 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 		margin-bottom: 1.5rem;
 	}
 	.loading {
@@ -507,7 +507,7 @@
 	}
 	.fine {
 		margin-top: 1rem;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 		max-width: 38rem;
 	}
@@ -615,10 +615,10 @@
 		max-width: var(--container-prose);
 	}
 	.empty h2 {
-		font-size: var(--text-2xl);
+		font-size: var(--text-heading);
 	}
 	.org-name {
-		font-size: var(--text-2xl);
+		font-size: var(--text-heading);
 		overflow-wrap: anywhere;
 	}
 	.role {

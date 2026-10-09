@@ -52,7 +52,7 @@
 		justify-self: center;
 	}
 	h1 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 		margin-bottom: 1rem;
 	}
 	.lede code {

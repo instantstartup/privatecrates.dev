@@ -76,7 +76,7 @@
 	.side-title {
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		margin-bottom: 0.4rem;
 	}
 	.side ul {
@@ -113,7 +113,7 @@
 		min-width: 0;
 	}
 	.content :global(h1) {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 	}
 	.pager {
 		display: grid;
@@ -137,7 +137,7 @@
 	}
 	.pager span {
 		font-weight: 400;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 	.next {

@@ -76,7 +76,7 @@
 		gap: 1rem;
 		padding: 0.25rem 0.35rem 0.25rem 0.9rem;
 		border-bottom: 1px solid color-mix(in srgb, var(--code-ink) 22%, transparent);
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--code-comment);
 	}
 	.caption {
@@ -94,7 +94,7 @@
 		border-radius: 5px;
 		color: var(--code-ink);
 		font-weight: 700;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		cursor: pointer;
 	}
 	.copy:hover {
@@ -114,7 +114,7 @@
 	pre {
 		margin: 0;
 		padding: 0.9rem 1rem 1rem;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		line-height: 1.6;
 		tab-size: 2;
 		/* Long lines fold inside the column rather than hiding behind a sideways scroll. */

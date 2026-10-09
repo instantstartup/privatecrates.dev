@@ -149,7 +149,7 @@
 	}
 	.status {
 		color: var(--ink-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.num {
 		text-align: right !important;

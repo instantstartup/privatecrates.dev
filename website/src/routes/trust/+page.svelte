@@ -470,7 +470,7 @@
 		}
 	}
 	.manifest h2 {
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		margin-bottom: 0.75rem;
 	}
 	.manifest dl {
@@ -491,7 +491,7 @@
 	.row dt {
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 		line-height: 1.2;
 	}
 	.nothing {
@@ -500,7 +500,7 @@
 	.nothing strong {
 		display: inline-block;
 		font-family: var(--font-display);
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 		line-height: 1;
 		padding: 0.15rem 0.45rem 0.2rem;
 		margin-bottom: 0.25rem;
@@ -522,11 +522,11 @@
 		width: 2.5rem;
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		line-height: 1.1;
 	}
 	.roadmap th[scope='row'] {
-		font-size: var(--text-base);
+		font-size: var(--text-body);
 		font-weight: 700;
 	}
 	@media (max-width: 40rem) {

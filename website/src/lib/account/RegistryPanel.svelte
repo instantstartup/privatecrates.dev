@@ -381,10 +381,10 @@
 		gap: 1rem;
 	}
 	h3 {
-		font-size: var(--text-2xl);
+		font-size: var(--text-heading);
 	}
 	.paused h3 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 	}
 	.billing {
 		padding-top: 1.5rem;
@@ -392,7 +392,7 @@
 	}
 	.url {
 		font-family: var(--font-mono);
-		font-size: var(--text-base);
+		font-size: var(--text-body);
 		overflow-wrap: anywhere;
 		margin-top: -0.5rem;
 	}
@@ -410,7 +410,7 @@
 		}
 	}
 	dt {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 		padding-top: 0.15rem;
 	}
@@ -425,7 +425,7 @@
 		gap: 0.75rem;
 	}
 	.fine {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 </style>

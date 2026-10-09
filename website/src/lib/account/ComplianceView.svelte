@@ -417,7 +417,7 @@
 		gap: 0.25rem 1rem;
 	}
 	h3 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 	}
 	.checked,
 	.sub {
@@ -433,7 +433,7 @@
 	h4 {
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-2xl);
+		font-size: var(--text-heading);
 		line-height: 1.1;
 	}
 	.empty {
@@ -447,12 +447,12 @@
 	}
 
 	.summary {
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 		font-weight: 700;
 	}
 	.figure {
 		font-family: var(--font-display);
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 		line-height: 1;
 		margin-right: 0.25rem;
 	}
@@ -515,7 +515,7 @@
 	table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	th,
 	td {
@@ -568,7 +568,7 @@
 		max-width: 44rem;
 	}
 	.more {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 
 	.audit-head {
@@ -587,7 +587,7 @@
 	}
 	.page-no {
 		color: var(--ink-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 
 	.loading {

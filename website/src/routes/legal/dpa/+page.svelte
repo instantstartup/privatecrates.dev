@@ -233,6 +233,6 @@
 		margin-bottom: 2.5rem;
 	}
 	h1 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 	}
 </style>

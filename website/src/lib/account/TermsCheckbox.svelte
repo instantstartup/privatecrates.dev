@@ -73,7 +73,7 @@
 	}
 	.summary {
 		grid-column: 2;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 </style>
