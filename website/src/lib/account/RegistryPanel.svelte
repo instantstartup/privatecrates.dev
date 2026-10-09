@@ -404,7 +404,7 @@
 	}
 	.facts > div {
 		display: grid;
-		gap: 0.1rem var(--space-5);
+		gap: var(--space-1) var(--space-5);
 	}
 	@media (width >= theme(--breakpoint-3)) {
 		.facts > div {
@@ -414,7 +414,7 @@
 	dt {
 		font-size: var(--text-meta);
 		color: var(--ink-muted);
-		padding-top: 0.15rem;
+		padding-top: var(--space-1);
 	}
 	.detail {
 		display: block;

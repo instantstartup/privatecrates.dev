@@ -58,7 +58,7 @@
 	}
 	.preview {
 		display: inline-block;
-		margin-bottom: 0.6rem;
+		margin-bottom: var(--space-3);
 		font-size: var(--text-meta);
 		font-weight: 700;
 		padding: var(--space-badge-y) var(--space-3);
