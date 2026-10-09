@@ -123,7 +123,7 @@
 		z-index: 4;
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-label);
+		gap: var(--space-list-item);
 		margin-top: var(--space-9) !important;
 		padding-block: var(--space-4);
 		background: var(--surface);

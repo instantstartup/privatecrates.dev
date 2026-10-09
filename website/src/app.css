@@ -58,14 +58,13 @@
 	--space-after-heading: 0.6rem; /* between a long-form heading and the text it introduces */
 	--space-list-indent: 1.25rem; /* a bulleted list's indent */
 	--space-list-indent-ordered: 1.4rem; /* a numbered list's indent: room for two-digit numbers */
-	--space-list-item: 0.35rem; /* between the items of a long-form list */
+	--space-list-item: 0.35rem; /* between the items of a long-form list, or a form label, its hint and its control */
 	--space-cell-y: 0.55rem; /* a table cell's padding, top and bottom */
 	--space-cell-x: 0.6rem; /* a table cell's padding, left and right */
 	--space-cell-stacked: 0.2rem; /* between the lines of a table row stacked as a card on phones */
 	--space-control-y: 0.55rem; /* a button's padding, top and bottom */
 	--space-control-x: 1.1rem; /* a button's padding, left and right */
 	--space-callout-y: 0.85rem; /* a callout's padding, top and bottom */
-	--space-label: 0.35rem; /* between a form label, its hint and its control */
 	--space-code-block-top: 0.9rem; /* above a code block's first line, its leading adds the rest (a step moves each later block 1.6px) */
 	--space-nav-y: 0.45rem; /* an item's padding in a navigation list, top and bottom (a step moves each later row 1.6px) */
 	--space-nav-x: 0.8rem; /* an item's padding in a navigation list, left and right (a step re-wraps the docs nav's tiles on phones) */
