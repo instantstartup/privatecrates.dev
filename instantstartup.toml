@@ -1,0 +1,36 @@
+name = "privatecrates"
+ticket_prefix = "PC"
+main_branches = ["dev"]
+
+[build]
+check = "cargo check --workspace --all-targets --locked"
+fmt = "cargo fmt --all --check"
+lint = "cargo clippy --workspace --all-targets --locked -- -D warnings"
+test = "cargo test --workspace --locked && cd website && pnpm install --frozen-lockfile && pnpm run check && pnpm run lint && pnpm run build"
+format = "cargo fmt --all && cd website && pnpm install --frozen-lockfile && pnpm run format"
+
+[style]
+paths = ["website/src"]
+# Roles the website's palette uses beyond the built-in vocabulary: primary actions (--action), links,
+# the preview notice band, rules between rows, checkbox and radio controls, and the illustration palette (scene).
+role_words = ["action", "scene", "link", "notice", "divider", "control"]
+
+[style.rules.non-semantic-token]
+# The illustrations paint a harbour scene, so their palette is named for the scene's parts (sky, sea, hull…).
+# Those names describe what is drawn rather than a UI role, which is right for a picture and only for a picture:
+# these tokens are used by website/src/lib/illustrations alone. Listed one by one so no other token can use them.
+allow = [
+	"--scene-sky",
+	"--scene-sky-low",
+	"--scene-sea",
+	"--scene-sea-light",
+	"--scene-sea-light-ink",
+	"--scene-hull",
+	"--scene-quay",
+	"--scene-rock",
+	"--scene-grass",
+	"--scene-foam",
+	"--scene-lamp",
+	"--scene-glint",
+	"--scene-glare",
+]
