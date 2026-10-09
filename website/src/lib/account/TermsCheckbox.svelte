@@ -63,7 +63,7 @@
 	input {
 		width: var(--size-checkbox);
 		height: var(--size-checkbox);
-		margin-top: 0.15rem;
+		margin-top: var(--space-1);
 		accent-color: var(--control);
 		cursor: pointer;
 	}

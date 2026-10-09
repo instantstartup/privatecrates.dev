@@ -174,11 +174,12 @@
 		padding-left: var(--space-11);
 		min-width: 0;
 	}
+	/* The marker sits a hair above the step's first line. */
 	.guide > li::before {
 		content: counter(step);
 		position: absolute;
 		left: 0;
-		top: -0.1rem;
+		top: calc(-1 * var(--space-1));
 		display: grid;
 		place-items: center;
 		width: var(--size-marker);
@@ -191,13 +192,16 @@
 		font-weight: 800;
 		font-size: var(--text-lead);
 	}
-	/* The rope between crates: a line from each step's marker down to the next. */
+	/*
+	 * The rope between crates: a line down the middle of each step's marker, from just below it to the top of the
+	 * next step's marker (which sits the same hair above its step).
+	 */
 	.guide > li:not(:last-child)::after {
 		content: '';
 		position: absolute;
 		left: calc((var(--size-marker) - var(--border-outline)) / 2);
-		top: 2.25rem;
-		bottom: -1.9rem;
+		top: calc(var(--size-marker) - var(--space-1) + var(--space-2));
+		bottom: calc(-1 * (var(--space-9) - var(--space-1)));
 		border-left: var(--border-outline) dashed var(--divider);
 	}
 	h4 {

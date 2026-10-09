@@ -233,7 +233,7 @@
 	.choice input {
 		width: var(--size-radio);
 		height: var(--size-radio);
-		margin-top: 0.2rem;
+		margin-top: var(--space-1);
 		accent-color: var(--control);
 	}
 	.choice-hint {

@@ -585,7 +585,7 @@
 	}
 	.add-org {
 		display: grid;
-		gap: 0.4rem;
+		gap: var(--space-3);
 		justify-items: start;
 		padding-inline: var(--space-4);
 	}

@@ -509,7 +509,7 @@
 	}
 	.problems li code {
 		font-weight: 700;
-		margin-right: 0.35rem;
+		margin-right: var(--space-2);
 	}
 
 	table {
