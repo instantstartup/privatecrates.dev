@@ -37,11 +37,13 @@
 	--illustration-backdrop-low: #f4cdb8; /* dawn sky at the horizon, hero only */
 	--illustration-fill: #1d4d5c; /* the sea */
 	--illustration-fill-muted: #2c6a7a; /* shallows, headland, harbour-blue crates */
+	--illustration-fill-muted-ink: #edf1ef; /* lettering on a harbour-blue crate: the fill is dark in both themes */
 	--illustration-fill-strong: #16343d; /* a ship's hull */
 	--illustration-neutral-strong: #3a555e; /* the quay */
 	--illustration-neutral: #6d7a74; /* rock: the lighthouse's island */
 	--illustration-accent: #5e8a57; /* turf on the island */
 	--illustration-line: #f9fbfa; /* surf, sea foam */
+	--illustration-highlight-strong: #ffffff; /* daylight catching the lamp-room glass, the same in both themes */
 	--divider: #c5d2cf; /* rules between rows and sections */
 	--ok: #1f6b45;
 	--ok-bg: #dcefe3;

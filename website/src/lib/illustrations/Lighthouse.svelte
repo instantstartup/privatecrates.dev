@@ -146,7 +146,7 @@
 	/* Light catching the glass: only by day. */
 	.pane-glint {
 		fill: none;
-		stroke: #ffffff;
+		stroke: var(--illustration-highlight-strong);
 		stroke-width: 1.75;
 		stroke-linecap: round;
 		opacity: calc(0.85 * var(--day));

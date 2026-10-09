@@ -71,8 +71,7 @@
 	.tone-accent .label {
 		fill: var(--accent-ink);
 	}
-	/* --illustration-fill-muted is dark in both themes. */
 	.tone-muted .label {
-		fill: #edf1ef;
+		fill: var(--illustration-fill-muted-ink);
 	}
 </style>
