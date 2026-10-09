@@ -43,7 +43,7 @@
 		fill: var(--scene-sea);
 		animation: drift 9s linear infinite reverse;
 	}
-	/* Drawing geometry in viewBox units (transform-box: view-box), not a CSS length: one wave period. */
+	/* Drawing geometry in viewBox units (SVG's default transform-box, view-box), not a CSS length: one wave period. */
 	@keyframes drift {
 		from {
 			transform: translateX(0);
