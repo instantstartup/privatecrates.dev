@@ -108,8 +108,8 @@
 		height: 2.1rem;
 		border: 2px solid var(--line);
 		border-radius: 4px;
-		background: var(--primary);
-		color: var(--primary-ink);
+		background: var(--action);
+		color: var(--action-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-lg);
@@ -147,15 +147,15 @@
 	.badge.warn {
 		color: var(--ink);
 		background: var(--warn-bg);
-		border-color: var(--primary);
+		border-color: var(--action);
 	}
 	.badge.danger {
 		color: var(--danger);
 		background: var(--danger-bg);
 	}
 	.badge.live {
-		color: var(--primary-ink);
-		background: var(--primary);
+		color: var(--action-ink);
+		background: var(--action);
 		border-color: var(--ink);
 	}
 	.badge.idle {

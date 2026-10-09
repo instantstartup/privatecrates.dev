@@ -22,7 +22,7 @@
 	}
 	.logo:hover .word {
 		text-decoration: underline;
-		text-decoration-color: var(--primary);
+		text-decoration-color: var(--action);
 		text-decoration-thickness: 3px;
 		text-underline-offset: 0.2em;
 	}

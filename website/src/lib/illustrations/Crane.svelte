@@ -84,7 +84,7 @@
 		stroke-linejoin: round;
 	}
 	.beam {
-		fill: var(--primary);
+		fill: var(--action);
 	}
 	.house,
 	.cab {

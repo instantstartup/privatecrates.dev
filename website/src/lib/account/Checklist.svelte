@@ -380,7 +380,7 @@
 	}
 	.member-note {
 		background: var(--warn-bg);
-		border-left: 5px solid var(--primary);
+		border-left: 5px solid var(--action);
 		padding: 0.75rem 1rem;
 		border-radius: 0 8px 8px 0;
 	}
@@ -417,8 +417,8 @@
 		color: var(--surface);
 	}
 	.current .marker {
-		background: var(--primary);
-		color: var(--primary-ink);
+		background: var(--action);
+		color: var(--action-ink);
 	}
 	.blocked .marker {
 		border-style: dashed;

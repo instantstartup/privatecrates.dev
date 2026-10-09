@@ -101,7 +101,7 @@
 		background: color-mix(in srgb, var(--code-ink) 14%, transparent);
 	}
 	.copy:focus-visible {
-		outline-color: var(--primary);
+		outline-color: var(--action);
 	}
 	.copy svg {
 		width: 1rem;

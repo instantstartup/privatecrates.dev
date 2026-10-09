@@ -7,7 +7,7 @@
 		label?: string;
 	}
 
-	let { tone = 'primary', label, title, class: klass, x, y, width, height }: Props = $props();
+	let { tone = 'action', label, title, class: klass, x, y, width, height }: Props = $props();
 </script>
 
 <svg
@@ -46,14 +46,14 @@
 		stroke-width: 2;
 		stroke-linecap: round;
 	}
-	.tone-primary .body {
-		fill: var(--primary);
+	.tone-action .body {
+		fill: var(--action);
 	}
 	.tone-accent .body {
 		fill: var(--accent);
 	}
 	.tone-muted .body {
-		fill: var(--illustration-fill-muted);
+		fill: var(--scene-sea-light);
 	}
 	.tone-raised .body {
 		fill: var(--surface-raised);
@@ -65,13 +65,13 @@
 		letter-spacing: 0.04em;
 		fill: var(--ink);
 	}
-	.tone-primary .label {
-		fill: var(--primary-ink);
+	.tone-action .label {
+		fill: var(--action-ink);
 	}
 	.tone-accent .label {
 		fill: var(--accent-ink);
 	}
 	.tone-muted .label {
-		fill: var(--illustration-fill-muted-ink);
+		fill: var(--scene-sea-light-ink);
 	}
 </style>

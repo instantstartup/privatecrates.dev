@@ -93,6 +93,6 @@
 		color: var(--ink);
 		background: var(--surface-raised);
 		border-color: var(--ink);
-		box-shadow: inset 0 3px 0 var(--primary);
+		box-shadow: inset 0 3px 0 var(--action);
 	}
 </style>

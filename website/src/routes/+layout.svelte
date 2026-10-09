@@ -29,8 +29,8 @@
 		top: -4rem;
 		z-index: 10;
 		padding: 0.6rem 1rem;
-		background: var(--primary);
-		color: var(--primary-ink);
+		background: var(--action);
+		color: var(--action-ink);
 		font-weight: 700;
 		border: 2px solid var(--line);
 		border-radius: 6px;

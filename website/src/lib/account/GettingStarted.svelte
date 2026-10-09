@@ -183,8 +183,8 @@
 		height: 2.1rem;
 		border: 2px solid var(--line);
 		border-radius: 4px;
-		background: var(--primary);
-		color: var(--primary-ink);
+		background: var(--action);
+		color: var(--action-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-lg);

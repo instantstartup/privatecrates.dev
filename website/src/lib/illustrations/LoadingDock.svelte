@@ -37,11 +37,11 @@
 		overflow: visible;
 	}
 	.water {
-		fill: var(--illustration-fill);
+		fill: var(--scene-sea);
 	}
 	.swell {
 		fill: none;
-		stroke: var(--illustration-fill-muted);
+		stroke: var(--scene-sea-light);
 		stroke-width: 2;
 		stroke-linecap: round;
 	}

@@ -562,7 +562,7 @@
 		display: grid;
 		gap: 0.3rem;
 		padding: 0.85rem 1rem;
-		border-left: 5px solid var(--primary);
+		border-left: 5px solid var(--action);
 		background: var(--warn-bg);
 		border-radius: 0 8px 8px 0;
 		max-width: 44rem;

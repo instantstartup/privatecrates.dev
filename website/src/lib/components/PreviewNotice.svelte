@@ -31,8 +31,8 @@
 	.tag {
 		padding: 0.05rem 0.45rem;
 		border-radius: 4px;
-		background: var(--primary);
-		color: var(--primary-ink);
+		background: var(--action);
+		color: var(--action-ink);
 		font-weight: 700;
 	}
 	a {

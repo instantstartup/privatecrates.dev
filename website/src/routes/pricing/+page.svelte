@@ -89,7 +89,7 @@
 				<p class="small">No card, no time limit. Outside collaborators do not count as members.</p>
 			</div>
 			<div class="stack" aria-hidden="true">
-				{#each ['primary', 'muted', 'accent'] as const as tone (tone)}
+				{#each ['action', 'muted', 'accent'] as const as tone (tone)}
 					<Crate {tone} class="stack-crate" />
 				{/each}
 			</div>

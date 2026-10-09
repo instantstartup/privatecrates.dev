@@ -99,20 +99,20 @@
 		}
 	}
 	.beam-near {
-		stop-color: var(--primary);
+		stop-color: var(--action);
 		stop-opacity: 0.42;
 	}
 	.beam-far,
 	.glow-edge {
-		stop-color: var(--primary);
+		stop-color: var(--action);
 		stop-opacity: 0;
 	}
 	.glow-core {
-		stop-color: var(--primary);
+		stop-color: var(--action);
 		stop-opacity: 0.5;
 	}
 	.rock {
-		fill: var(--illustration-fill-muted);
+		fill: var(--scene-sea-light);
 		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linejoin: round;
@@ -141,12 +141,12 @@
 		fill: var(--line);
 	}
 	.lamp {
-		fill: var(--illustration-glow);
+		fill: var(--scene-lamp);
 	}
 	/* Light catching the glass: only by day. */
 	.pane-glint {
 		fill: none;
-		stroke: var(--illustration-highlight-strong);
+		stroke: var(--scene-glare);
 		stroke-width: 1.75;
 		stroke-linecap: round;
 		opacity: calc(0.85 * var(--day));

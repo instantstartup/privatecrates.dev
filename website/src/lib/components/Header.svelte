@@ -66,7 +66,7 @@
 	a[aria-current='page'] {
 		text-decoration: underline;
 		text-decoration-thickness: 3px;
-		text-decoration-color: var(--primary);
+		text-decoration-color: var(--action);
 		text-underline-offset: 0.35em;
 	}
 	.account {

@@ -25,25 +25,26 @@
 	--line: #0f2830; /* outlines: borders, hard shadows, illustration strokes */
 	--link: #125c6c; /* links: harbour blue */
 	--focus: var(--link); /* focus rings: harbour blue */
-	--primary: #f2b233; /* lighthouse lamp: primary actions */
-	--primary-ink: #0f2830;
+	--action: #f2b233; /* lighthouse lamp: primary actions */
+	--action-ink: #0f2830;
 	--accent: #b93a22; /* container red: crates */
 	--accent-ink: #ffffff;
 	--danger-strong: var(--accent); /* container red: destructive actions, drafts */
 	--danger-strong-ink: var(--accent-ink);
 	--notice: #0f2830; /* the preview notice: a dark band across the harbour */
 	--notice-ink: #edf1ef;
-	--illustration-backdrop: #dfe8ec; /* dawn sky overhead, hero only */
-	--illustration-backdrop-low: #f4cdb8; /* dawn sky at the horizon, hero only */
-	--illustration-fill: #1d4d5c; /* the sea */
-	--illustration-fill-muted: #2c6a7a; /* shallows, headland, harbour-blue crates */
-	--illustration-fill-muted-ink: #edf1ef; /* lettering on a harbour-blue crate: the fill is dark in both themes */
-	--illustration-fill-strong: #16343d; /* a ship's hull */
-	--illustration-neutral-strong: #3a555e; /* the quay */
-	--illustration-neutral: #6d7a74; /* rock: the lighthouse's island */
-	--illustration-accent: #5e8a57; /* turf on the island */
-	--illustration-line: #f9fbfa; /* surf, sea foam */
-	--illustration-highlight-strong: #ffffff; /* daylight catching the lamp-room glass, the same in both themes */
+	/* The illustration palette: parts of the harbour scene, used only by lib/illustrations (see instantstartup.toml). */
+	--scene-sky: #dfe8ec; /* dawn sky overhead, hero only */
+	--scene-sky-low: #f4cdb8; /* dawn sky at the horizon, hero only */
+	--scene-sea: #1d4d5c; /* the sea */
+	--scene-sea-light: #2c6a7a; /* shallows, headland, harbour-blue crates */
+	--scene-sea-light-ink: #edf1ef; /* lettering on a harbour-blue crate: the fill is dark in both themes */
+	--scene-hull: #16343d; /* a ship's hull */
+	--scene-quay: #3a555e; /* the quay */
+	--scene-rock: #6d7a74; /* rock: the lighthouse's island */
+	--scene-grass: #5e8a57; /* turf on the island */
+	--scene-foam: #f9fbfa; /* surf, sea foam */
+	--scene-glare: #ffffff; /* daylight catching the lamp-room glass, the same in both themes */
 	--divider: #c5d2cf; /* rules between rows and sections */
 	--ok: #1f6b45;
 	--ok-bg: #dcefe3;
@@ -59,8 +60,8 @@
 	/* Day: the sun is up and the lighthouse is dark; its lamp room shows as glass. */
 	--day: 1;
 	--night: 0;
-	--illustration-glow: #cfe2e5; /* the lamp room: glass by day */
-	--illustration-highlight: var(--primary); /* glints on the water, the sun's halo */
+	--scene-lamp: #cfe2e5; /* the lamp room: glass by day */
+	--scene-glint: var(--action); /* glints on the water, the sun's halo */
 }
 
 /* .night: a band that is always in the dark palette, whatever the theme. */
@@ -74,23 +75,23 @@
 	--line: #7d90a1; /* outlines recede at night (4.8:1 on --surface) */
 	--link: #8cc4d0;
 	--focus: var(--link);
-	--primary: #e9bb5f;
-	--primary-ink: #172430;
+	--action: #e9bb5f;
+	--action-ink: #172430;
 	--accent: #d98672;
 	--accent-ink: #172430;
 	--danger-strong: var(--accent);
 	--danger-strong-ink: var(--accent-ink);
 	--notice: #253646;
 	--notice-ink: #d9e1e7;
-	--illustration-backdrop: #121c27; /* night sky overhead, hero only */
-	--illustration-backdrop-low: #283d52; /* night sky at the horizon, hero only */
-	--illustration-fill: #1a3444;
-	--illustration-fill-muted: #27495b;
-	--illustration-fill-strong: #0f1a24;
-	--illustration-neutral-strong: #3a4a58;
-	--illustration-neutral: #46586a;
-	--illustration-accent: #3e5f50;
-	--illustration-line: #9fb2bd;
+	--scene-sky: #121c27; /* night sky overhead, hero only */
+	--scene-sky-low: #283d52; /* night sky at the horizon, hero only */
+	--scene-sea: #1a3444;
+	--scene-sea-light: #27495b;
+	--scene-hull: #0f1a24;
+	--scene-quay: #3a4a58;
+	--scene-rock: #46586a;
+	--scene-grass: #3e5f50;
+	--scene-foam: #9fb2bd;
 	--divider: #2e3f4e;
 	--ok: #8fcfaa;
 	--ok-bg: #1f3a35;
@@ -106,8 +107,8 @@
 	/* Night: the moon and stars are out and the lighthouse is lit. */
 	--day: 0;
 	--night: 1;
-	--illustration-glow: var(--primary); /* the lighthouse lamp, lit */
-	--illustration-highlight: #e6e2cf; /* moonlight: the moon, stars and glints */
+	--scene-lamp: var(--action); /* the lighthouse lamp, lit */
+	--scene-glint: #e6e2cf; /* moonlight: the moon, stars and glints */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -120,23 +121,23 @@
 		--line: #7d90a1; /* outlines recede at night (4.8:1 on --surface) */
 		--link: #8cc4d0;
 		--focus: var(--link);
-		--primary: #e9bb5f;
-		--primary-ink: #172430;
+		--action: #e9bb5f;
+		--action-ink: #172430;
 		--accent: #d98672;
 		--accent-ink: #172430;
 		--danger-strong: var(--accent);
 		--danger-strong-ink: var(--accent-ink);
 		--notice: #253646;
 		--notice-ink: #d9e1e7;
-		--illustration-backdrop: #121c27; /* night sky overhead, hero only */
-		--illustration-backdrop-low: #283d52; /* night sky at the horizon, hero only */
-		--illustration-fill: #1a3444;
-		--illustration-fill-muted: #27495b;
-		--illustration-fill-strong: #0f1a24;
-		--illustration-neutral-strong: #3a4a58;
-		--illustration-neutral: #46586a;
-		--illustration-accent: #3e5f50;
-		--illustration-line: #9fb2bd;
+		--scene-sky: #121c27; /* night sky overhead, hero only */
+		--scene-sky-low: #283d52; /* night sky at the horizon, hero only */
+		--scene-sea: #1a3444;
+		--scene-sea-light: #27495b;
+		--scene-hull: #0f1a24;
+		--scene-quay: #3a4a58;
+		--scene-rock: #46586a;
+		--scene-grass: #3e5f50;
+		--scene-foam: #9fb2bd;
 		--divider: #2e3f4e;
 		--ok: #8fcfaa;
 		--ok-bg: #1f3a35;
@@ -152,8 +153,8 @@
 		/* Night: the moon and stars are out and the lighthouse is lit. */
 		--day: 0;
 		--night: 1;
-		--illustration-glow: var(--primary); /* the lighthouse lamp, lit */
-		--illustration-highlight: #e6e2cf; /* moonlight: the moon, stars and glints */
+		--scene-lamp: var(--action); /* the lighthouse lamp, lit */
+		--scene-glint: #e6e2cf; /* moonlight: the moon, stars and glints */
 	}
 }
 
@@ -166,7 +167,7 @@
 	--color-ink: var(--ink);
 	--color-ink-muted: var(--ink-muted);
 	--color-link: var(--link);
-	--color-primary: var(--primary);
+	--color-action: var(--action);
 	--color-accent: var(--accent);
 	--color-divider: var(--divider);
 	/* One width scale for stacked blocks. */
@@ -216,7 +217,7 @@
 	a:hover {
 		color: var(--ink);
 		text-decoration-thickness: 3px;
-		text-decoration-color: var(--primary);
+		text-decoration-color: var(--action);
 	}
 	:focus-visible {
 		outline: 3px solid var(--focus);
@@ -239,8 +240,8 @@
 		overflow-wrap: anywhere;
 	}
 	::selection {
-		background: var(--primary);
-		color: var(--primary-ink);
+		background: var(--action);
+		color: var(--action-ink);
 	}
 }
 
@@ -366,8 +367,8 @@
 		text-decoration: none;
 	}
 	.btn-primary {
-		background: var(--primary);
-		color: var(--primary-ink);
+		background: var(--action);
+		color: var(--action-ink);
 		box-shadow: 3px 3px 0 var(--line);
 	}
 	.btn-primary:hover {

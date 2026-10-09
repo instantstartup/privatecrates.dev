@@ -105,7 +105,7 @@
 		text-decoration: underline;
 	}
 	.side a[aria-current='page'] {
-		border-left-color: var(--primary);
+		border-left-color: var(--action);
 		font-weight: 700;
 		background: var(--surface-raised);
 	}

@@ -46,7 +46,7 @@
 	}
 	.rail ul {
 		display: grid;
-		border-left: 3px solid var(--primary);
+		border-left: 3px solid var(--action);
 	}
 	.rail a {
 		display: block;

@@ -43,7 +43,7 @@
 	}
 	summary:hover span {
 		text-decoration: underline;
-		text-decoration-color: var(--primary);
+		text-decoration-color: var(--action);
 		text-decoration-thickness: 2px;
 		text-underline-offset: 0.25em;
 	}

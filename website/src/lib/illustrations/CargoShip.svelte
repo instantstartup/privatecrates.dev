@@ -4,7 +4,7 @@
 	let { title, class: klass, x, y, width, height }: IllustrationProps = $props();
 
 	// Crate stacks on deck: [column, rows high, tone of each row from the deck up].
-	const tones = ['primary', 'accent', 'muted', 'raised'] as const;
+	const tones = ['action', 'accent', 'muted', 'raised'] as const;
 	const stacks: number[][] = [[1, 2, 0], [2, 0, 3], [0, 1], [3, 2, 1], [1, 0, 2], [2, 3], [0]];
 	const W = 36;
 	const H = 17;
@@ -86,16 +86,16 @@
 	.window {
 		stroke-width: 4;
 		stroke-dasharray: 5 3;
-		stroke: var(--illustration-fill-muted);
+		stroke: var(--scene-sea-light);
 	}
-	.tone-primary {
-		fill: var(--primary);
+	.tone-action {
+		fill: var(--action);
 	}
 	.tone-accent {
 		fill: var(--accent);
 	}
 	.tone-muted {
-		fill: var(--illustration-fill-muted);
+		fill: var(--scene-sea-light);
 	}
 	.tone-raised {
 		fill: var(--surface-raised);
@@ -107,16 +107,16 @@
 		fill: var(--accent);
 	}
 	.funnel-band {
-		stroke: var(--primary);
+		stroke: var(--action);
 		stroke-width: 3;
 	}
 	.hull {
-		fill: var(--illustration-fill-strong);
+		fill: var(--scene-hull);
 	}
 	.boot {
 		fill: var(--accent);
 	}
 	.porthole {
-		fill: var(--primary);
+		fill: var(--action);
 	}
 </style>

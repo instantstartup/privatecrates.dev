@@ -201,7 +201,7 @@
 	<div class="panel price-card">
 		<div class="price-stack" aria-hidden="true">
 			<Crate tone="accent" class="c1" />
-			<Crate tone="primary" class="c2" label="SSO" />
+			<Crate tone="action" class="c2" label="SSO" />
 			<Crate tone="muted" class="c3" />
 		</div>
 		<div>
@@ -359,7 +359,7 @@
 		background: none;
 		padding: 0;
 		text-decoration: underline;
-		text-decoration-color: var(--primary);
+		text-decoration-color: var(--action);
 		text-decoration-thickness: 0.12em;
 		text-underline-offset: 0.12em;
 	}
@@ -404,8 +404,8 @@
 		height: 2.6rem;
 		border: 2px solid var(--line);
 		border-radius: 4px;
-		background: var(--primary);
-		color: var(--primary-ink);
+		background: var(--action);
+		color: var(--action-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-xl);
@@ -420,7 +420,7 @@
 	.agents {
 		margin-top: 1.25rem;
 		padding-left: 1rem;
-		border-left: 4px solid var(--primary);
+		border-left: 4px solid var(--action);
 		max-width: var(--container-prose);
 		color: var(--ink-muted);
 	}

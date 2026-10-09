@@ -28,7 +28,7 @@
 		margin-top: 0.5rem;
 	}
 	.warn {
-		border-color: var(--primary);
+		border-color: var(--action);
 		background: var(--warn-bg);
 	}
 	.danger {
