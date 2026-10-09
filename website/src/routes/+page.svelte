@@ -393,7 +393,7 @@
 	.manifest li {
 		display: flex;
 		gap: var(--space-5);
-		padding: var(--space-panel-step-top) var(--space-6) var(--space-7);
+		padding: var(--space-list-indent-ordered) var(--space-6) var(--space-7);
 	}
 	.manifest li + li {
 		border-top: var(--border-outline) dashed var(--divider);
@@ -422,7 +422,7 @@
 	.agents {
 		margin-top: var(--space-6);
 		padding-left: var(--space-5);
-		border-left: var(--border-rule) solid var(--action);
+		border-left: var(--border-strong) solid var(--action);
 		max-width: var(--container-prose);
 		color: var(--ink-muted);
 	}
@@ -496,7 +496,7 @@
 		}
 	}
 	.split-text p + p {
-		margin-top: var(--space-paragraph);
+		margin-top: var(--space-callout-y);
 	}
 	.split-text {
 		max-width: var(--container-prose);
@@ -513,20 +513,20 @@
 	.chain li {
 		display: flex;
 		gap: var(--space-5);
-		padding: var(--space-compact-step-top) var(--space-6) var(--space-compact-step-bottom);
+		padding: var(--space-control-x) var(--space-6) var(--space-compact-step-bottom);
 	}
 	.chain li + li {
 		border-top: var(--border-outline) dashed var(--divider);
 	}
 	.chain h3 {
 		font-size: var(--text-lead);
-		margin-bottom: var(--space-after-title-compact);
+		margin-bottom: var(--space-cell-stacked);
 	}
 	.chain p {
 		color: var(--ink-muted);
 	}
 	.release p {
-		margin-top: var(--space-paragraph);
+		margin-top: var(--space-callout-y);
 		color: var(--ink-muted);
 		max-width: var(--container-prose);
 	}
@@ -575,7 +575,7 @@
 	/* The two plans side by side with equal weight; they stack on narrow screens. */
 	.tiers {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(var(--size-column-tier), 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(var(--size-column-narrow), 1fr));
 		gap: var(--space-5) var(--space-9);
 		margin-top: var(--space-5);
 	}
@@ -601,14 +601,14 @@
 		gap: var(--space-list-item);
 	}
 	.includes li {
-		padding-left: var(--space-list-indent-tick);
+		padding-left: var(--space-7);
 		position: relative;
 	}
 	.includes li::before {
 		content: '';
 		position: absolute;
-		left: var(--space-tick-x);
-		top: var(--space-tick-y);
+		left: var(--space-1);
+		top: var(--space-3);
 		width: var(--size-tick-long);
 		height: var(--size-tick-short);
 		border-left: var(--border-strong) solid var(--ok);

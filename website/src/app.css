@@ -31,7 +31,7 @@
 	--tracking-heading: 0.005em; /* the display face, opened a hair */
 	--tracking-scene-label: 0.04em; /* stencilled crate lettering */
 	--underline-offset: 0.2em; /* inline links: the underline sits clear of descenders */
-	--underline-display: 0.12em; /* a command underlined in a display heading: the line's thickness and its offset */
+	--underline-display: 0.12em; /* a heavy underline under a word in display type: both its thickness and its offset, in em so they scale with the heading */
 
 	/*
 	 * Space: one ordinal scale (the number is the step, not the value) for padding, margins, gaps and offsets.
@@ -56,21 +56,12 @@
 	--space-gutter: 3.5rem; /* between a sidebar and the content beside it */
 	--space-heading: 2.75rem; /* above an h2 in long-form text */
 	--space-after-heading: 0.6rem; /* between a long-form heading and the text it introduces */
-	--space-after-title: 0.4rem; /* between a card's or panel's title and the line under it */
-	--space-price-label: 0.35rem; /* between a price's figure and the line under it that says what it buys */
-	--space-after-title-compact: 0.2rem; /* the same in a compact step: the home page's CI token chain */
-	--space-panel-step-top: 1.4rem; /* above a step in a ruled panel (the home page's how-it-works); below it is --space-7 */
-	--space-compact-step-top: 1.1rem; /* above a step in a compact ruled panel (the home page's CI token chain) */
-	--space-compact-step-bottom: 1.2rem; /* below it */
-	--space-paragraph: 0.85rem; /* between paragraphs of text set beside code or a panel (the home page's split sections) */
+	--space-after-title: 0.4rem; /* between a title and the line under it, in a card, a panel or a step */
+	--space-compact-step-bottom: 1.2rem; /* below a step in a compact ruled list (above it is --space-control-x) */
+	--space-callout-y: 0.85rem; /* a callout's padding, top and bottom (its sides are --space-5) */
 	--space-list-indent: 1.25rem; /* a bulleted list's indent */
 	--space-list-indent-ordered: 1.4rem; /* a numbered list's indent: room for two-digit numbers */
-	--space-list-indent-tick: 1.6rem; /* a ticked list's indent: room for the drawn tick */
-	--space-tick-x: 0.15rem; /* a drawn tick's inset from its list item's edge */
-	--space-tick-y: 0.45em; /* a drawn tick's drop from the top of its line, in em so it follows the text */
 	--space-list-item: 0.35rem; /* between the items of a long-form list */
-	--space-definition: 1.1rem; /* between the entries of a grid of terms and their definitions, in one column */
-	--space-definition-wide: 1.4rem; /* the same, between rows when the grid has two or three columns */
 	--space-cell-y: 0.55rem; /* a table cell's padding, top and bottom */
 	--space-cell-x: 0.6rem; /* a table cell's padding, left and right */
 	--space-cell-stacked: 0.2rem; /* between the lines of a table row stacked as a card on phones */
@@ -94,7 +85,6 @@
 	--border-badge: 1.5px; /* the outline round a small badge */
 	--border-outline: 2px; /* the drawn outline round buttons, cards and crates */
 	--border-strong: 3px; /* focus rings, the current item, a hovered link's underline */
-	--border-rule: 4px; /* the coloured rule down an aside's left edge: the home page's note on AI agents */
 	--border-bar: 5px; /* the coloured bar down a callout's left edge */
 	--focus-offset: 3px; /* the gap between a focused element and its ring */
 
@@ -108,13 +98,11 @@
 	--size-control: 2.75rem; /* the smallest tap target */
 	--size-control-compact: 2.25rem; /* a small control inside another block: a copy button, a notice's link */
 	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
-	--size-marker-large: 2.6rem; /* a large step number: the home page's steps and CI token chain */
-	--size-numeral: 2.25rem; /* the column for a roadmap step's number when its table stacks on phones */
-	--size-column-tier: 11rem; /* the narrowest a pricing tier's column gets before the tiers wrap */
-	--size-term-column: 10rem; /* a definition list's term column: the trust page's manifest */
+	--size-marker-large: 2.6rem; /* a large step number in a ruled list of steps */
+	--size-column-narrow: 11rem; /* a narrow column and what fills it: a tier at its narrowest, a hero's illustration */
+	--size-term-column: 10rem; /* the column of terms beside their definitions */
 	--size-illustration-small: 14rem; /* an illustration at its small size: the home page's lighthouse and crate stack */
-	--size-illustration-hero: 11rem; /* a page hero's illustration beside the heading: the trust page's */
-	--size-illustration-hero-phone: 8rem; /* the same illustration above the heading on phones */
+	--size-illustration-hero-phone: 8rem; /* a hero's illustration above the heading on phones (beside it, --size-column-narrow) */
 	--size-crate: 4.5rem; /* one crate in a stack of crates: the pricing page's free plan */
 	--size-icon: 1.25rem; /* an icon beside a label */
 	--size-icon-small: 1.1rem; /* a small icon or tick in a list */

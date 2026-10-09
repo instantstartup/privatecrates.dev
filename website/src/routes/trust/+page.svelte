@@ -442,7 +442,7 @@
 	}
 	@media (width >= theme(--breakpoint-4)) {
 		.hero {
-			grid-template-columns: minmax(0, 1fr) var(--size-illustration-hero);
+			grid-template-columns: minmax(0, 1fr) var(--size-column-narrow);
 		}
 	}
 	h1 {
@@ -456,7 +456,7 @@
 	}
 	@media (width >= theme(--breakpoint-4)) {
 		.hero :global(.hero-art) {
-			width: var(--size-illustration-hero);
+			width: var(--size-column-narrow);
 		}
 	}
 
@@ -534,7 +534,7 @@
 	@media (width <= theme(--breakpoint-3)) {
 		.roadmap tr {
 			display: grid;
-			grid-template-columns: var(--size-numeral) minmax(0, 1fr);
+			grid-template-columns: var(--size-control-compact) minmax(0, 1fr);
 		}
 		.roadmap .num {
 			grid-row: span 2;
