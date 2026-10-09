@@ -22,7 +22,7 @@ privatecrates-verify --registry https://acme.privatecrates.dev   # in a clone of
 ```
 
 `privatecrates-verify --help` lists every option. Release binaries carry GitHub build provenance; check one with
-`gh attestation verify <file> --repo worldbuilding-dev/privatecrates.dev`.
+`gh attestation verify <file> --repo instantstartup/privatecrates.dev`.
 
 ## Licence
 

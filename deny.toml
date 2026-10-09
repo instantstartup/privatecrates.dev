@@ -34,7 +34,7 @@ allow = ["MPL-2.0"]
 # Our unpublished crates (the server, under the Business Source Licence) are not checked.
 [licenses.private]
 ignore = true
-registries = ["worldbuilding-dev"]
+registries = ["instantstartup"]
 
 [bans]
 multiple-versions = "allow"
@@ -47,5 +47,5 @@ unknown-git = "deny"
 # The server's private dependencies (privatecrates-qos) come from our own registry; nothing else may.
 allow-registry = [
     "https://github.com/rust-lang/crates.io-index",
-    "sparse+https://worldbuilding-dev.privatecrates.dev/index/",
+    "sparse+https://instantstartup.privatecrates.dev/index/",
 ]

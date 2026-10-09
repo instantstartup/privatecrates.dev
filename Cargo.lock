@@ -392,7 +392,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-credential-privatecrates"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "cargo-credential",
  "privatecrates-auth",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-privatecrates"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "base64 0.23.1",
  "clap",
@@ -1598,7 +1598,7 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
 name = "privatecrates-auth"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "keyring",
  "reqwest",
@@ -1609,7 +1609,7 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-common"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "hex",
  "semver",
@@ -1638,7 +1638,7 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-verify"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "clap",
  "jsonwebtoken",

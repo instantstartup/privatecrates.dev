@@ -2537,7 +2537,7 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-common"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "hex",
  "semver",
@@ -2549,9 +2549,9 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-qos"
-version = "0.1.0"
-source = "sparse+https://worldbuilding-dev.privatecrates.dev/index/"
-checksum = "ca40c10ab39a7203f8bcabb5100a930360f9798caf91c050ad94a0eb8fc5a360"
+version = "0.1.1"
+source = "sparse+https://instantstartup.privatecrates.dev/index/"
+checksum = "936f6f1b85ca389455343e84f34da90c9e9bb97daf1e93e7a2555b956eb3b3a4"
 dependencies = [
  "apollo-errors",
  "axum",
@@ -2630,7 +2630,7 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-verify"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "clap",
  "jsonwebtoken",
