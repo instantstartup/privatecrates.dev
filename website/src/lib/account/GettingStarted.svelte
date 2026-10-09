@@ -119,7 +119,7 @@
 	</ol>
 </section>
 
-<style>
+<style lang="postcss">
 	@reference '../../app.css';
 
 	.ready {
