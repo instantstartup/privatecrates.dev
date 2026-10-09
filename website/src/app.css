@@ -54,8 +54,10 @@
 	--space-break: 3.5rem; /* a clear break within a page: above a page's intro, above the docs pager */
 	--space-gutter: 3.5rem; /* between a sidebar and the content beside it */
 	--space-heading: 2.75rem; /* above an h2 in long-form text */
+	--space-after-heading: 0.6rem; /* between a long-form heading and the text it introduces */
 	--space-list-indent: 1.25rem; /* a bulleted list's indent */
 	--space-list-indent-ordered: 1.4rem; /* a numbered list's indent: room for two-digit numbers */
+	--space-list-item: 0.35rem; /* between the items of a long-form list */
 	--space-cell-y: 0.55rem; /* a table cell's padding, top and bottom */
 	--space-cell-x: 0.6rem; /* a table cell's padding, left and right */
 	--space-cell-stacked: 0.2rem; /* between the lines of a table row stacked as a card on phones */
@@ -398,7 +400,7 @@
 	}
 	.prose h2 + *,
 	.prose h3 + * {
-		margin-top: var(--space-3);
+		margin-top: var(--space-after-heading);
 	}
 	.prose ul {
 		list-style: disc;
@@ -409,7 +411,7 @@
 		padding-left: var(--space-list-indent-ordered);
 	}
 	.prose li + li {
-		margin-top: var(--space-2);
+		margin-top: var(--space-list-item);
 	}
 	.prose table {
 		width: 100%;
