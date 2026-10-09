@@ -41,3 +41,41 @@ pub fn slug_is_valid(slug: &str) -> bool {
 pub fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_ordinary_slugs() {
+        // Only the ends are checked for hyphens, so an inner "--" is allowed.
+        for slug in ["acme", "a", "acme-2", "0", "acme--corp"] {
+            assert!(slug_is_valid(slug), "{slug}");
+        }
+    }
+
+    #[test]
+    fn accepts_a_slug_of_exactly_63_chars() {
+        assert!(slug_is_valid(&"a".repeat(63)));
+    }
+
+    #[test]
+    fn rejects_empty_and_overlong_slugs() {
+        assert!(!slug_is_valid(""));
+        assert!(!slug_is_valid(&"a".repeat(64)));
+    }
+
+    #[test]
+    fn rejects_bad_characters() {
+        for slug in ["Acme", "acme_corp", "acme.corp", "acme corp", "café"] {
+            assert!(!slug_is_valid(slug), "{slug}");
+        }
+    }
+
+    #[test]
+    fn rejects_leading_or_trailing_hyphens() {
+        for slug in ["-acme", "acme-", "-"] {
+            assert!(!slug_is_valid(slug), "{slug}");
+        }
+    }
+}
