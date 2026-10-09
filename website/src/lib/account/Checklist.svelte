@@ -363,14 +363,14 @@
 <style>
 	.checklist {
 		display: grid;
-		gap: 1rem;
+		gap: var(--space-5);
 	}
 	.head {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: space-between;
 		align-items: baseline;
-		gap: 0.25rem 1rem;
+		gap: var(--space-2) var(--space-5);
 	}
 	h3 {
 		font-size: var(--text-heading);
@@ -380,20 +380,20 @@
 	}
 	.member-note {
 		background: var(--warn-bg);
-		border-left: 5px solid var(--action);
-		padding: 0.75rem 1rem;
-		border-radius: 0 8px 8px 0;
+		border-left: var(--border-bar) solid var(--action);
+		padding: var(--space-4) var(--space-5);
+		border-radius: 0 var(--radius-card) var(--radius-card) 0;
 	}
 	ol {
 		display: grid;
-		gap: 0.5rem;
+		gap: var(--space-3);
 	}
 	.step {
 		display: flex;
-		gap: 0.9rem;
-		padding: 0.9rem 1rem;
-		border: 2px solid transparent;
-		border-radius: 10px;
+		gap: var(--space-step);
+		padding: var(--space-step) var(--space-5);
+		border: var(--border-outline) solid transparent;
+		border-radius: var(--radius-panel);
 	}
 	.step.current {
 		border-color: var(--ink);
@@ -404,9 +404,9 @@
 		flex: none;
 		display: grid;
 		place-items: center;
-		width: 2rem;
-		height: 2rem;
-		border: 2px solid var(--line);
+		width: var(--size-marker-round);
+		height: var(--size-marker-round);
+		border: var(--border-outline) solid var(--line);
 		border-radius: 50%;
 		font-weight: 700;
 		font-size: var(--text-meta);
@@ -425,8 +425,8 @@
 		color: var(--ink-muted);
 	}
 	.marker svg {
-		width: 1.1rem;
-		height: 1.1rem;
+		width: var(--size-icon-small);
+		height: var(--size-icon-small);
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 2.5;
@@ -440,7 +440,7 @@
 	h4 {
 		font-size: var(--text-body);
 		line-height: 1.35;
-		padding-top: 0.2rem;
+		padding-top: var(--space-step-title);
 	}
 	.done h4 {
 		color: var(--ink-muted);
@@ -448,19 +448,19 @@
 	}
 	.step-body p {
 		color: var(--ink-muted);
-		margin-top: 0.25rem;
-		max-width: 40rem;
+		margin-top: var(--space-2);
+		max-width: var(--container-measure);
 	}
 	.action {
-		margin-top: 1rem;
+		margin-top: var(--space-5);
 		display: grid;
-		gap: 1rem;
+		gap: var(--space-5);
 	}
 	.row {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--space-4);
 	}
 	.fine {
 		font-size: var(--text-meta);
@@ -470,7 +470,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--space-4);
 		color: var(--ink-muted);
 	}
 </style>

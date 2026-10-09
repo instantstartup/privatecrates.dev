@@ -53,16 +53,16 @@
 	.terms-check {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr);
-		gap: 0.35rem 0.7rem;
+		gap: var(--space-label) var(--space-choice);
 		align-items: start;
-		padding: 0.85rem 1rem;
-		border: 2px solid var(--line);
-		border-radius: 8px;
+		padding: var(--space-callout-y) var(--space-5);
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-card);
 		background: var(--surface-raised);
 	}
 	input {
-		width: 1.35rem;
-		height: 1.35rem;
+		width: var(--size-checkbox);
+		height: var(--size-checkbox);
 		margin-top: 0.15rem;
 		accent-color: var(--control);
 		cursor: pointer;
