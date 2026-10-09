@@ -408,7 +408,7 @@
 	}
 	@media (width >= theme(--breakpoint-3)) {
 		.facts > div {
-			grid-template-columns: var(--container-label) 1fr;
+			grid-template-columns: var(--container-term-label) 1fr;
 		}
 	}
 	dt {
