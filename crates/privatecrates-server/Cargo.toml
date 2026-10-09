@@ -28,9 +28,9 @@ log = { version = "0.4.34", features = ["kv"] }
 miette = "7"
 moka = { version = "0.12.16", features = ["future"] }
 opentelemetry = "0.32.0"
-privatecrates-common = { version = "0.2.9", path = "../privatecrates-common" }
+privatecrates-common = { version = "0.2.10", path = "../privatecrates-common" }
 privatecrates-qos = { version = "0.1.0", registry = "instantstartup" }
-privatecrates-verify = { version = "0.2.9", path = "../privatecrates-verify" }
+privatecrates-verify = { version = "0.2.10", path = "../privatecrates-verify" }
 reqwest = { version = "0.13.5", features = ["form", "json", "query"] }
 semver = "1.0.28"
 serde = { version = "1.0.229", features = ["derive"] }

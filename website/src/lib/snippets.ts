@@ -30,7 +30,7 @@ export const installProvider = `cargo binstall cargo-credential-privatecrates   
 cargo install cargo-credential-privatecrates --locked`;
 
 /** The client tools' release, pinned in workflows: privatecrates-common's version. */
-export const RELEASE_VERSION = '0.2.9';
+export const RELEASE_VERSION = '0.2.10';
 const RELEASE_REPO = 'instantstartup/privatecrates.dev';
 
 /**

@@ -2537,7 +2537,7 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-common"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "hex",
  "semver",
@@ -2630,7 +2630,7 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-verify"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "clap",
  "jsonwebtoken",

@@ -7,7 +7,7 @@ description: Install cargo-credential-privatecrates for the instantstartup regis
 inputs:
   version:
     description: The cargo-credential-privatecrates release to install
-    default: "0.2.9"
+    default: "0.2.10"
 runs:
   using: composite
   steps:
