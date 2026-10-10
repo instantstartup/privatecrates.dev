@@ -451,29 +451,31 @@
 	{/if}
 </div>
 
-<style>
+<style lang="postcss">
+	@reference '../../app.css';
+
 	.account {
-		padding-top: 2.5rem;
-		min-height: 60vh;
+		padding-top: var(--space-10);
+		min-height: calc(0.6 * var(--size-screen));
 	}
 	/* While loading, keep the footer below the fold so it does not jump down when the account arrives. */
 	.account.busy {
-		min-height: 100vh;
+		min-height: var(--size-screen);
 	}
 	h1 {
 		font-size: var(--text-headline);
-		margin-bottom: 1.5rem;
+		margin-bottom: var(--space-7);
 	}
 	.loading {
 		display: grid;
-		gap: 0.75rem;
-		padding: 1.5rem;
-		min-height: 10rem;
+		gap: var(--space-4);
+		padding: var(--space-7);
+		min-height: var(--size-loading);
 	}
 	.bar {
 		display: block;
-		height: 1.1rem;
-		border-radius: 4px;
+		height: var(--size-loading-bar);
+		border-radius: var(--radius-inline);
 		background: color-mix(in srgb, var(--ink) 10%, transparent);
 		animation: pulse 1.4s ease-in-out infinite;
 	}
@@ -488,28 +490,29 @@
 
 	.signed-out {
 		display: grid;
-		gap: 2rem;
+		gap: var(--space-9);
 		align-items: center;
 	}
-	@media (min-width: 52rem) {
+	@media (width >= theme(--breakpoint-6)) {
 		.signed-out {
-			grid-template-columns: 1fr 16rem;
+			grid-template-columns: 1fr var(--container-aside);
 		}
 	}
 	.signed-out :global(.signed-out-art) {
 		width: 100%;
-		max-width: 14rem;
+		max-width: var(--size-illustration-small);
 		height: auto;
 		justify-self: center;
 	}
 	.cta {
-		margin-top: 1.75rem;
+		margin-top: var(--space-8);
 	}
+	/* Fine print keeps the lede's measure, so on the sign-in page the two line up. */
 	.fine {
-		margin-top: 1rem;
+		margin-top: var(--space-5);
 		font-size: var(--text-meta);
 		color: var(--ink-muted);
-		max-width: 38rem;
+		max-width: var(--container-lede);
 	}
 
 	.who {
@@ -517,25 +520,25 @@
 		flex-wrap: wrap;
 		align-items: baseline;
 		justify-content: space-between;
-		gap: 0 1.5rem;
-		margin-bottom: 1.5rem;
+		gap: 0 var(--space-7);
+		margin-bottom: var(--space-7);
 	}
 	.devices {
-		max-width: 46rem;
-		margin-top: 3rem;
-		padding-top: 1.5rem;
-		border-top: 1px solid var(--divider);
+		max-width: var(--container-closing);
+		margin-top: var(--space-11);
+		padding-top: var(--space-7);
+		border-top: var(--border-hairline) solid var(--divider);
 	}
 	.devices h2 {
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--space-3);
 	}
 	.confirm {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.75rem;
-		padding: 1rem;
-		border-radius: 8px;
+		gap: var(--space-4);
+		padding: var(--space-5);
+		border-radius: var(--radius-card);
 		background: var(--danger-bg);
 	}
 	.confirm p {
@@ -552,14 +555,15 @@
 	.who h1 {
 		margin-bottom: 0;
 	}
+	/* The sign-in line's height: its Sign out button. */
 	.placeholder {
-		min-height: 2.75rem;
+		min-height: var(--size-control);
 	}
 	.signed-in {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-3);
 	}
 	.login {
 		color: var(--ink-muted);
@@ -567,9 +571,9 @@
 	.avatar {
 		display: inline-grid;
 		place-items: center;
-		width: 2rem;
-		height: 2rem;
-		border: 2px solid var(--line);
+		width: var(--size-marker-compact);
+		height: var(--size-marker-compact);
+		border: var(--border-outline) solid var(--line);
 		border-radius: 50%;
 		background: var(--action);
 		color: var(--action-ink);
@@ -577,23 +581,23 @@
 	}
 	.orgs {
 		display: grid;
-		gap: 1.25rem;
+		gap: var(--space-6);
 	}
 	.add-org {
 		display: grid;
-		gap: 0.4rem;
+		gap: var(--space-3);
 		justify-items: start;
-		padding-inline: 0.75rem;
+		padding-inline: var(--space-4);
 	}
 
 	.layout {
 		display: grid;
-		gap: 2rem;
+		gap: var(--space-9);
 		align-items: start;
 	}
-	@media (min-width: 56rem) {
+	@media (width >= theme(--breakpoint-7)) {
 		.layout {
-			grid-template-columns: 18rem minmax(0, 1fr);
+			grid-template-columns: var(--container-list) minmax(0, 1fr);
 		}
 	}
 	.detail {
@@ -601,14 +605,14 @@
 	}
 	.detail-panel,
 	.empty {
-		padding: 1.5rem 1.25rem;
+		padding: var(--space-7) var(--space-6);
 		display: grid;
-		gap: 1.25rem;
+		gap: var(--space-6);
 	}
-	@media (min-width: 40rem) {
+	@media (width >= theme(--breakpoint-3)) {
 		.detail-panel,
 		.empty {
-			padding: 2rem;
+			padding: var(--space-9);
 		}
 	}
 	.empty {
@@ -623,6 +627,6 @@
 	}
 	.role {
 		color: var(--ink-muted);
-		margin-top: -0.75rem;
+		margin-top: calc(-1 * var(--space-4));
 	}
 </style>

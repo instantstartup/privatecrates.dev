@@ -63,6 +63,19 @@
 	--space-cell-stacked: 0.2rem; /* between the lines of a table row stacked as a card on phones */
 	--space-control-y: 0.55rem; /* a button's padding, top and bottom */
 	--space-control-x: 1.1rem; /* a button's padding, left and right */
+	--space-label: 0.35rem; /* between a form label, its hint and its control */
+	--space-callout-y: 0.85rem; /* a callout's padding, top and bottom (left and right is --space-5) */
+	--space-badge-y: 0.15rem; /* a badge's padding, top and bottom (left and right is --space-3) */
+	--space-badge-gap: 0.3rem; /* between badges in a row, and above the row */
+	--space-item-lines: 0.3rem; /* between the lines of a dense list item: its title, detail and fix */
+	--space-card-x: 1.1rem; /* a dashed suggestion card's padding, left and right */
+	--space-row-y: 0.6rem; /* a row's padding, top and bottom, in a ruled list */
+	--space-step: 0.9rem; /* a step in a checklist: its padding top and bottom, and between its marker and its text */
+	--space-step-title: 0.2rem; /* above a checklist step's title, so it sits level with the step's marker */
+	--space-choice: 0.7rem; /* between a checkbox or radio button and its label */
+	--space-choices: 0.6rem; /* between the options of a radio group */
+	--space-check-y: 0.4rem; /* a row of a list of checks with their results, top and bottom */
+	--space-list-indent-tick: 1.6rem; /* a ticked list's indent: room for each item's tick or warning mark */
 	/* em, so these scale with the text they sit in (inline code in a heading is larger). */
 	--space-code-y: 0.08em; /* inline code's padding, top and bottom */
 	--space-code-x: 0.35em; /* inline code's padding, left and right */
@@ -94,9 +107,17 @@
 	--size-control: 2.75rem; /* the smallest tap target */
 	--size-control-compact: 2.25rem; /* a small control inside another block: a copy button, a notice's link */
 	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
+	--size-marker-compact: 2rem; /* a round marker beside a line of text: a checklist step's state, a person's initial */
 	--size-icon: 1.25rem; /* an icon beside a label */
 	--size-icon-small: 1.1rem; /* a small icon or tick in a list */
+	--size-checkbox: 1.35rem; /* a checkbox: larger than the browser's, an easy target */
+	--size-radio: 1.2rem; /* a radio button */
 	--size-hidden: 1px; /* a visually hidden element: present for screen readers, one pixel and clipped */
+	--size-illustration: 20rem; /* a spot illustration beside a heading, at its largest */
+	--size-illustration-small: 14rem; /* a small spot illustration beside a page's intro: the crane at sign-in */
+	--size-loading: 10rem; /* a loading panel's height, so the page does not jump when it fills */
+	--size-loading-report: 14rem; /* a report's loading block: room for its first rows, likewise */
+	--size-loading-bar: 1.1rem; /* a bar in a loading placeholder: a line of text still to come */
 	--size-screen: 100vh; /* the viewport's height */
 	color-scheme: light;
 	--surface: #edf1ef; /* page: sea fog, cool not cream */
@@ -265,14 +286,21 @@
 	--color-divider: var(--divider);
 	/* Widths of blocks: max-widths and grid tracks, exact, named for what they hold. */
 	--container-page: 72rem; /* the page's content column */
+	--container-closing: 46rem; /* a closing section of text under a page's main block, with a rule above it */
 	--container-prose: 44rem; /* long-form text */
 	--container-measure: 40rem; /* a comfortable line of running text outside .prose */
 	--container-lede: 38rem; /* a lede under a heading */
 	--container-notice: 36rem; /* a banner or notice's text */
+	--container-intro: 36rem; /* a section's intro text beside its illustration */
+	--container-figures: 34rem; /* a list of checks with a figure on each row */
 	--container-form: 30rem; /* a single-column form */
 	--container-error: 28rem; /* the message on an error page */
+	--container-illustration: 19rem; /* the column a spot illustration takes beside its text */
+	--container-list: 18rem; /* a list to choose from, beside the detail of what is chosen */
 	--container-aside: 16rem; /* a column beside the main content */
 	--container-sidebar: 14rem; /* a sidebar: the docs navigation, a table of contents */
+	--container-column-actor: 14rem; /* a table's who-did-it column, at its narrowest: long names wrap rather than squeeze */
+	--container-term-label: 8rem; /* the label column of a list of terms, beside their values */
 
 	/*
 	 * Breakpoints: one ordinal scale (the number is the step, not the value), exact, replacing Tailwind's
@@ -283,10 +311,10 @@
 	 *   @media (width <= theme(--breakpoint-3)) { … }        up to and including 40rem (was max-width: 40rem)
 	 *   @media not (width >= theme(--breakpoint-7)) { … }    below 56rem (was max-width: 55.99rem)
 	 * A component's <style> must first say where the theme is, or theme() is unknown there:
-	 *   <style>
+	 *   <style lang="postcss">
 	 *     @reference '../../app.css';    (the path from the component to this file)
-	 * @reference reads the theme without emitting any of app.css again. svelte-check warns
-	 * "Unknown at rule @reference" for each such block; that warning is expected.
+	 * @reference reads the theme without emitting any of app.css again. lang="postcss" lets svelte-check's CSS
+	 * service accept @reference (a plain <style> warns "Unknown at rule @reference"); the compiled CSS is the same.
 	 */
 	--breakpoint-*: initial;
 	--breakpoint-1: 30rem; /* a wide phone */

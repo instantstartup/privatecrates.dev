@@ -33,6 +33,6 @@
 <style>
 	.code {
 		white-space: nowrap;
-		font-size: 1em;
+		font-size: inherit;
 	}
 </style>

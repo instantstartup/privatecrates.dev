@@ -119,21 +119,23 @@
 	</ol>
 </section>
 
-<style>
+<style lang="postcss">
+	@reference '../../app.css';
+
 	.ready {
 		display: grid;
-		gap: 1.75rem;
+		gap: var(--space-8);
 	}
 	.welcome {
 		display: grid;
-		gap: 1.25rem;
+		gap: var(--space-6);
 		align-items: end;
-		padding-bottom: 1.5rem;
-		border-bottom: 2px solid var(--line);
+		padding-bottom: var(--space-7);
+		border-bottom: var(--border-outline) solid var(--line);
 	}
-	@media (min-width: 44rem) {
+	@media (width >= theme(--breakpoint-4)) {
 		.welcome {
-			grid-template-columns: minmax(0, 1fr) 19rem;
+			grid-template-columns: minmax(0, 1fr) var(--container-illustration);
 		}
 	}
 	h3 {
@@ -144,16 +146,16 @@
 		font-size: var(--text-body);
 		/* Breaks only at the <wbr>s; a single name longer than the column still wraps rather than overflowing. */
 		overflow-wrap: break-word;
-		margin-top: 0.5rem;
+		margin-top: var(--space-3);
 	}
 	.intro {
-		margin-top: 0.75rem;
+		margin-top: var(--space-4);
 		color: var(--ink-muted);
-		max-width: 36rem;
+		max-width: var(--container-intro);
 	}
 	.welcome :global(.welcome-art) {
 		width: 100%;
-		max-width: 20rem;
+		max-width: var(--size-illustration);
 		height: auto;
 		justify-self: center;
 	}
@@ -162,41 +164,45 @@
 	.guide {
 		counter-reset: step;
 		display: grid;
-		gap: 2rem;
+		gap: var(--space-9);
 	}
 	.guide > li {
 		counter-increment: step;
 		position: relative;
 		display: grid;
-		gap: 0.75rem;
-		padding-left: 3rem;
+		gap: var(--space-4);
+		padding-left: var(--space-11);
 		min-width: 0;
 	}
+	/* The marker sits a hair above the step's first line. */
 	.guide > li::before {
 		content: counter(step);
 		position: absolute;
 		left: 0;
-		top: -0.1rem;
+		top: calc(-1 * var(--space-1));
 		display: grid;
 		place-items: center;
-		width: 2.1rem;
-		height: 2.1rem;
-		border: 2px solid var(--line);
-		border-radius: 4px;
+		width: var(--size-marker);
+		height: var(--size-marker);
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-inline);
 		background: var(--action);
 		color: var(--action-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-lead);
 	}
-	/* The rope between crates: a line from each step's marker down to the next. */
+	/*
+	 * The rope between crates: a line down the middle of each step's marker, from just below it to the top of the
+	 * next step's marker (which sits the same hair above its step).
+	 */
 	.guide > li:not(:last-child)::after {
 		content: '';
 		position: absolute;
-		left: calc(1.05rem - 1px);
-		top: 2.25rem;
-		bottom: -1.9rem;
-		border-left: 2px dashed var(--divider);
+		left: calc((var(--size-marker) - var(--border-outline)) / 2);
+		top: calc(var(--size-marker) - var(--space-1) + var(--space-2));
+		bottom: calc(-1 * (var(--space-9) - var(--space-1)));
+		border-left: var(--border-outline) dashed var(--divider);
 	}
 	h4 {
 		font-family: var(--font-display);
@@ -211,7 +217,7 @@
 		color: var(--ink-muted);
 	}
 	.guide p {
-		max-width: 40rem;
+		max-width: var(--container-measure);
 	}
 	.docs {
 		font-size: var(--text-meta);

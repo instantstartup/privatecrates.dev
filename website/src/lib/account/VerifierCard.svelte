@@ -75,11 +75,11 @@
 <style>
 	.verifier {
 		display: grid;
-		gap: 0.75rem;
-		padding: 1rem 1.1rem;
-		border: 2px dashed var(--line);
-		border-radius: 8px;
-		margin-bottom: 1.25rem;
+		gap: var(--space-4);
+		padding: var(--space-5) var(--space-card-x);
+		border: var(--border-outline) dashed var(--line);
+		border-radius: var(--radius-card);
+		margin-bottom: var(--space-6);
 	}
 	h3 {
 		font-size: var(--text-lead);
@@ -92,13 +92,13 @@
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
+		gap: var(--space-3);
 	}
 	summary {
 		cursor: pointer;
 		font-weight: 700;
 	}
 	details[open] summary {
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--space-3);
 	}
 </style>

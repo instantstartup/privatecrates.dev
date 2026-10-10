@@ -165,12 +165,12 @@
 <style>
 	.slug-form {
 		display: grid;
-		gap: 1rem;
-		max-width: 30rem;
+		gap: var(--space-5);
+		max-width: var(--container-form);
 	}
 	.field {
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--space-label);
 	}
 	label {
 		font-weight: 700;
@@ -184,10 +184,10 @@
 		overflow-wrap: anywhere;
 	}
 	input {
-		min-height: 2.75rem;
-		padding: 0.5rem 0.75rem;
-		border: 2px solid var(--line);
-		border-radius: 6px;
+		min-height: var(--size-control);
+		padding: var(--space-3) var(--space-4);
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-control);
 		background: var(--surface-raised);
 		color: var(--ink);
 		font-family: var(--font-mono);
@@ -199,7 +199,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.5rem 0.75rem;
+		gap: var(--space-3) var(--space-4);
 	}
 	.wait {
 		font-size: var(--text-meta);
@@ -207,23 +207,23 @@
 	}
 	.publishing {
 		display: grid;
-		gap: 0.6rem;
+		gap: var(--space-choices);
 		border: 0;
 		padding: 0;
 		margin: 0;
 	}
 	legend {
 		font-weight: 700;
-		margin-bottom: 0.35rem;
+		margin-bottom: var(--space-label);
 	}
 	.choice {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr);
-		gap: 0.7rem;
+		gap: var(--space-choice);
 		align-items: start;
-		padding: 0.75rem 1rem;
-		border: 2px solid var(--divider);
-		border-radius: 8px;
+		padding: var(--space-4) var(--space-5);
+		border: var(--border-outline) solid var(--divider);
+		border-radius: var(--radius-card);
 		cursor: pointer;
 	}
 	.choice:has(input:checked) {
@@ -231,9 +231,9 @@
 		background: var(--surface-raised);
 	}
 	.choice input {
-		width: 1.2rem;
-		height: 1.2rem;
-		margin-top: 0.2rem;
+		width: var(--size-radio);
+		height: var(--size-radio);
+		margin-top: var(--space-1);
 		accent-color: var(--control);
 	}
 	.choice-hint {
