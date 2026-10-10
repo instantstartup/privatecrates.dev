@@ -431,60 +431,62 @@
 	</div>
 </div>
 
-<style>
+<style lang="postcss">
+	@reference '../../app.css';
+
 	.hero {
 		display: grid;
-		gap: 1.5rem;
+		gap: var(--space-7);
 		align-items: end;
-		padding-top: 3rem;
+		padding-top: var(--space-11);
 	}
-	@media (min-width: 44rem) {
+	@media (width >= theme(--breakpoint-4)) {
 		.hero {
-			grid-template-columns: minmax(0, 1fr) 11rem;
+			grid-template-columns: minmax(0, 1fr) var(--size-column-narrow);
 		}
 	}
 	h1 {
 		font-size: var(--text-display);
-		margin-bottom: 1rem;
+		margin-bottom: var(--space-5);
 	}
 	.hero :global(.hero-art) {
-		width: 8rem;
+		width: var(--size-illustration-hero-phone);
 		height: auto;
 		justify-self: center;
 	}
-	@media (min-width: 44rem) {
+	@media (width >= theme(--breakpoint-4)) {
 		.hero :global(.hero-art) {
-			width: 11rem;
+			width: var(--size-column-narrow);
 		}
 	}
 
 	/* The manifest: a ledger of what we hold, with the one durable record stamped on the first line. */
 	.manifest {
-		margin-top: 2rem;
-		padding: 1.5rem 1.25rem;
-		border: 2px solid var(--line);
+		margin-top: var(--space-9);
+		padding: var(--space-7) var(--space-6);
+		border: var(--border-outline) solid var(--line);
 	}
-	@media (min-width: 40rem) {
+	@media (width >= theme(--breakpoint-3)) {
 		.manifest {
-			padding: 1.75rem 2rem;
+			padding: var(--space-8) var(--space-9);
 		}
 	}
 	.manifest h2 {
 		font-size: var(--text-title);
-		margin-bottom: 0.75rem;
+		margin-bottom: var(--space-4);
 	}
 	.manifest dl {
 		display: grid;
 	}
 	.row {
 		display: grid;
-		gap: 0.5rem 1.5rem;
-		padding-block: 0.75rem;
-		border-top: 1px dashed var(--divider);
+		gap: var(--space-3) var(--space-7);
+		padding-block: var(--space-4);
+		border-top: var(--border-hairline) dashed var(--divider);
 	}
-	@media (min-width: 40rem) {
+	@media (width >= theme(--breakpoint-3)) {
 		.row {
-			grid-template-columns: 10rem minmax(0, 1fr);
+			grid-template-columns: var(--size-term-column) minmax(0, 1fr);
 			align-items: baseline;
 		}
 	}
@@ -502,24 +504,24 @@
 		font-family: var(--font-display);
 		font-size: var(--text-lead);
 		line-height: 1;
-		padding: 0.15rem 0.45rem 0.2rem;
-		margin-bottom: 0.25rem;
-		margin-right: 0.35rem;
-		border: 3px solid var(--ok);
-		border-radius: 4px;
+		padding: var(--space-1) var(--space-3) var(--space-2);
+		margin-bottom: var(--space-2);
+		margin-right: var(--space-2);
+		border: var(--border-strong) solid var(--ok);
+		border-radius: var(--radius-inline);
 		color: var(--ok);
 		transform: rotate(-2deg);
 	}
 
 	.body {
-		margin-top: 3rem;
+		margin-top: var(--space-11);
 	}
 	.subprocessors th[scope='row'] {
 		white-space: nowrap;
 	}
 	/* The order is the plan: a large numeral per step, like the landing page's manifest. */
 	.roadmap .num {
-		width: 2.5rem;
+		width: var(--size-numeral-column);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-title);
@@ -529,10 +531,10 @@
 		font-size: var(--text-body);
 		font-weight: 700;
 	}
-	@media (max-width: 40rem) {
+	@media (width <= theme(--breakpoint-3)) {
 		.roadmap tr {
 			display: grid;
-			grid-template-columns: 2.25rem minmax(0, 1fr);
+			grid-template-columns: var(--size-control-compact) minmax(0, 1fr);
 		}
 		.roadmap .num {
 			grid-row: span 2;
