@@ -61,8 +61,8 @@
 	.label {
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: 11px;
-		letter-spacing: 0.04em;
+		font-size: var(--text-scene-label);
+		letter-spacing: var(--tracking-scene-label);
 		fill: var(--ink);
 	}
 	.tone-action .label {

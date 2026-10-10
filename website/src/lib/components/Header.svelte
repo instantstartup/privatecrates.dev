@@ -31,31 +31,33 @@
 	</div>
 </header>
 
-<style>
+<style lang="postcss">
+	@reference '../../app.css';
+
 	.site-header {
-		border-bottom: 2px solid var(--line);
+		border-bottom: var(--border-outline) solid var(--line);
 		background: var(--surface);
 	}
 	.bar {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		column-gap: 1rem;
-		padding-block: 0.5rem;
+		column-gap: var(--space-5);
+		padding-block: var(--space-3);
 	}
 	nav {
 		margin-left: auto;
 	}
 	ul {
 		display: flex;
-		gap: 0.25rem;
+		gap: var(--space-2);
 	}
 	a:not(:global(.logo)) {
 		display: inline-flex;
 		align-items: center;
-		min-height: 2.75rem;
-		padding-inline: 0.7rem;
-		border-radius: 6px;
+		min-height: var(--size-control);
+		padding-inline: var(--space-menu-x);
+		border-radius: var(--radius-control);
 		color: var(--ink);
 		font-weight: 700;
 		text-decoration: none;
@@ -65,17 +67,17 @@
 	}
 	a[aria-current='page'] {
 		text-decoration: underline;
-		text-decoration-thickness: 3px;
+		text-decoration-thickness: var(--border-strong);
 		text-decoration-color: var(--action);
-		text-underline-offset: 0.35em;
+		text-underline-offset: var(--underline-offset-current);
 	}
 	.account {
-		border: 2px solid var(--line);
-		margin-left: 0.25rem;
+		border: var(--border-outline) solid var(--line);
+		margin-left: var(--space-2);
 	}
 
 	/* Narrow phones: the nav drops to its own row under the logo. */
-	@media (max-width: 30rem) {
+	@media (width <= theme(--breakpoint-1)) {
 		.bar {
 			justify-content: space-between;
 		}
@@ -83,14 +85,14 @@
 			order: 3;
 			width: 100%;
 			margin-left: 0;
-			border-top: 1px solid var(--divider);
-			padding-top: 0.25rem;
+			border-top: var(--border-hairline) solid var(--divider);
+			padding-top: var(--space-2);
 		}
 		ul {
 			justify-content: space-between;
 		}
 		a:not(:global(.logo)) {
-			padding-inline: 0.5rem;
+			padding-inline: var(--space-3);
 		}
 	}
 </style>

@@ -31,6 +31,7 @@
 	--tracking-heading: 0.005em; /* the display face, opened a hair */
 	--tracking-scene-label: 0.04em; /* stencilled crate lettering */
 	--underline-offset: 0.2em; /* inline links: the underline sits clear of descenders */
+	--underline-offset-current: 0.35em; /* the current page's link in a menu: lower, a marker rather than a link (0.2em would lift it 2.5px) */
 
 	/*
 	 * Space: one ordinal scale (the number is the step, not the value) for padding, margins, gaps and offsets.
@@ -57,12 +58,19 @@
 	--space-after-heading: 0.6rem; /* between a long-form heading and the text it introduces */
 	--space-list-indent: 1.25rem; /* a bulleted list's indent */
 	--space-list-indent-ordered: 1.4rem; /* a numbered list's indent: room for two-digit numbers */
-	--space-list-item: 0.35rem; /* between the items of a long-form list */
+	--space-list-item: 0.35rem; /* between the items of a long-form list, or a form label, its hint and its control */
 	--space-cell-y: 0.55rem; /* a table cell's padding, top and bottom */
 	--space-cell-x: 0.6rem; /* a table cell's padding, left and right */
 	--space-cell-stacked: 0.2rem; /* between the lines of a table row stacked as a card on phones */
 	--space-control-y: 0.55rem; /* a button's padding, top and bottom */
 	--space-control-x: 1.1rem; /* a button's padding, left and right */
+	--space-callout-y: 0.85rem; /* a callout's padding, top and bottom */
+	--space-code-block-top: 0.9rem; /* above a code block's first line, its leading adds the rest (a step moves each later block 1.6px) */
+	--space-nav-y: 0.45rem; /* an item's padding in a navigation list, top and bottom (a step moves each later row 1.6px) */
+	--space-nav-x: 0.8rem; /* an item's padding in a navigation list, left and right (a step re-wraps the docs nav's tiles on phones) */
+	--space-link-list: 0.3rem; /* above and below each link in a dense list of links (a step moves each later link 1.6px) */
+	--space-after-title: 0.4rem; /* between a card's, panel's or section's title and the line under it */
+	--space-menu-x: 0.7rem; /* a link's padding in a menu bar, left and right (a step shifts the header's menu 6.4px) */
 	/* em, so these scale with the text they sit in (inline code in a heading is larger). */
 	--space-code-y: 0.08em; /* inline code's padding, top and bottom */
 	--space-code-x: 0.35em; /* inline code's padding, left and right */
@@ -90,12 +98,18 @@
 	--shadow-offset-press: 1px;
 	--shadow-offset-feature: 6px; /* the featured pricing card */
 
-	/* Sizes of things: exact, never snapped. Widths of blocks are the containers in @theme. */
+	/* Sizes of things. Widths of text are the containers in @theme. */
 	--size-control: 2.75rem; /* the smallest tap target */
-	--size-control-compact: 2.25rem; /* a small control inside another block: a copy button, a notice's link */
+	--size-control-compact: 2.25rem; /* a small control inside another block (a copy button, a notice's link), or a small mark beside a paragraph */
 	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
 	--size-icon: 1.25rem; /* an icon beside a label */
 	--size-icon-small: 1.1rem; /* a small icon or tick in a list */
+	--size-disclosure: 3.25rem; /* a disclosure's row, a question that opens its answer (--size-control moves each later row 0.8px) */
+	--size-control-label: 5rem; /* the least width of a control whose label changes, so it doesn't jump */
+	--size-preview-fade: 3.5rem; /* the fade over a collapsed preview's last lines */
+	--size-title-art: 5.5rem; /* an illustration beside a page's title */
+	--size-standalone: 28rem; /* a block standing on its own among text: an illustration, a lone search field */
+	--size-tile: 9.5rem; /* a tile-sized block: a tile's least width in a wrapping grid, a long text's collapsed height */
 	--size-hidden: 1px; /* a visually hidden element: present for screen readers, one pixel and clipped */
 	--size-screen: 100vh; /* the viewport's height */
 	color-scheme: light;
@@ -263,14 +277,17 @@
 	--color-action: var(--action);
 	--color-accent: var(--accent);
 	--color-divider: var(--divider);
-	/* Widths of blocks: max-widths and grid tracks, exact, named for what they hold. */
+	/*
+	 * Containers measure text: how wide a column of running text may get, named for what it holds. Fixed widths
+	 * of art, controls and grid columns are --size-* in :root. Both snap by the 1.6px rule, like every length.
+	 */
 	--container-page: 72rem; /* the page's content column */
 	--container-prose: 44rem; /* long-form text */
 	--container-measure: 40rem; /* a comfortable line of running text outside .prose */
 	--container-lede: 38rem; /* a lede under a heading */
 	--container-notice: 36rem; /* a banner or notice's text */
 	--container-form: 30rem; /* a single-column form */
-	--container-error: 28rem; /* the message on an error page */
+	--container-blurb: 26rem; /* a short paragraph set beside a mark */
 	--container-aside: 16rem; /* a column beside the main content */
 	--container-sidebar: 14rem; /* a sidebar: the docs navigation, a table of contents */
 

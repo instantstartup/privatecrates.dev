@@ -234,10 +234,10 @@
 		display: flex;
 		align-items: flex-end;
 		justify-content: space-between;
-		gap: 1rem;
+		gap: var(--space-5);
 	}
 	.title-row :global(.title-art) {
-		width: 5.5rem;
+		width: var(--size-title-art);
 		height: auto;
 		flex: none;
 	}

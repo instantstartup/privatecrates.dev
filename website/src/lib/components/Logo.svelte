@@ -11,20 +11,20 @@
 	.logo {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.55rem;
-		min-height: 2.75rem;
+		gap: var(--space-3);
+		min-height: var(--size-control);
 		color: var(--ink);
 		text-decoration: none;
 	}
 	.logo :global(.mark) {
-		width: 2.1rem;
+		width: var(--size-marker);
 		height: auto;
 	}
 	.logo:hover .word {
 		text-decoration: underline;
 		text-decoration-color: var(--action);
-		text-decoration-thickness: 3px;
-		text-underline-offset: 0.2em;
+		text-decoration-thickness: var(--border-strong);
+		text-underline-offset: var(--underline-offset);
 	}
 	.logo:hover :global(.mark) {
 		transform: rotate(-6deg);
@@ -37,6 +37,6 @@
 		font-weight: 800;
 		font-size: var(--text-title);
 		line-height: 1;
-		letter-spacing: 0.01em;
+		letter-spacing: var(--tracking-heading);
 	}
 </style>

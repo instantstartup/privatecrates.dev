@@ -33,8 +33,10 @@
 	}
 	.drift {
 		animation: drift 6s ease-in-out infinite;
+		/* Drawing geometry in viewBox units (SVG's default transform-box, view-box), not CSS lengths: the point it rocks about. */
 		transform-origin: 200px 170px;
 	}
+	/* The drift is in viewBox units too, so it scales with the drawing. */
 	@keyframes drift {
 		0%,
 		100% {
