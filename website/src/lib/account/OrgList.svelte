@@ -53,13 +53,13 @@
 
 <style>
 	.title {
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		margin-bottom: 0.5rem;
 	}
 	.preview {
 		display: inline-block;
 		margin-bottom: 0.6rem;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		font-weight: 700;
 		padding: 0.15rem 0.5rem;
 		border-radius: 999px;
@@ -112,7 +112,7 @@
 		color: var(--action-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 	}
 	.text {
 		display: flex;
@@ -122,7 +122,7 @@
 		line-height: 1.3;
 	}
 	.meta {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 	.badges {
@@ -133,7 +133,7 @@
 	}
 	.badge {
 		flex: none;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		font-weight: 700;
 		padding: 0.15rem 0.5rem;
 		border-radius: 999px;

@@ -52,7 +52,7 @@
 		display: block;
 		padding: 0.3rem 0.8rem;
 		color: var(--ink-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		text-decoration: none;
 	}
 	.rail a:hover {

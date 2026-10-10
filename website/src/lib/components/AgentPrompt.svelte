@@ -78,7 +78,7 @@
 	h4 {
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		line-height: 1.1;
 	}
 	.intro :global(p) {
@@ -110,7 +110,7 @@
 		margin: 0;
 		padding: 0.9rem 1rem 1rem;
 		font-family: var(--font-mono);
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		line-height: 1.6;
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
@@ -130,7 +130,7 @@
 		stroke-linejoin: round;
 	}
 	.status {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		font-weight: 700;
 		color: var(--ok);
 	}

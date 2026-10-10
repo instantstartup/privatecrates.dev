@@ -176,7 +176,7 @@
 		font-weight: 700;
 	}
 	.hint {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 	.host {
@@ -202,7 +202,7 @@
 		gap: 0.5rem 0.75rem;
 	}
 	.wait {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 	.publishing {
@@ -238,12 +238,12 @@
 	}
 	.choice-hint {
 		display: block;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 	.problem {
 		color: var(--danger);
 		font-weight: 700;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 </style>

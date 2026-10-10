@@ -35,7 +35,7 @@
 	.word {
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		line-height: 1;
 		letter-spacing: 0.01em;
 	}

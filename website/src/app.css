@@ -9,14 +9,95 @@
  * Tokens are named for their role; the harbour mood each one carries is in the comment beside it.
  */
 :root {
-	/* One type scale for the whole site (7 steps). */
-	--text-sm: 0.875rem;
-	--text-base: 1.0625rem;
-	--text-lg: 1.25rem;
-	--text-xl: 1.6rem;
-	--text-2xl: 2.25rem;
-	--text-3xl: clamp(2.4rem, 6vw, 3.6rem);
-	--text-display: clamp(2.9rem, 9vw, 5.4rem);
+	/*
+	 * Lengths. Every length on the site comes from these tokens (or from the containers and breakpoints in @theme
+	 * below); a raw length belongs only in a token's definition. Pick the token for the role a length plays; when
+	 * none fits, take the nearest space step, and add a role token only for a length that is a role of its own.
+	 */
+
+	/*
+	 * One type scale for the whole site, named for the role each size plays: a short, airy harbour-town
+	 * signage feel, tall display headings over a calm reading size.
+	 */
+	--text-micro: 0.8rem; /* the smallest print: timestamps and fine detail in dense lists */
+	--text-meta: 0.875rem; /* code, captions, table text, footers, labels */
+	--text-body: 1.0625rem; /* running text */
+	--text-lead: 1.25rem; /* a lede under a heading */
+	--text-title: 1.6rem; /* h3: a card or sub-section title */
+	--text-heading: 2.25rem; /* h2 in long-form text */
+	--text-headline: clamp(2.4rem, 6vw, 3.6rem); /* h1 and section headings */
+	--text-display: clamp(2.9rem, 9vw, 5.4rem); /* the home page hero */
+	--text-scene-label: 11px; /* lettering on an illustrated crate, in SVG user units */
+	--tracking-heading: 0.005em; /* the display face, opened a hair */
+	--tracking-scene-label: 0.04em; /* stencilled crate lettering */
+	--underline-offset: 0.2em; /* inline links: the underline sits clear of descenders */
+
+	/*
+	 * Space: one ordinal scale (the number is the step, not the value) for padding, margins, gaps and offsets.
+	 * Negative space is calc(-1 * var(--space-n)).
+	 */
+	--space-1: 0.125rem; /* 2px */
+	--space-2: 0.25rem; /* 4px */
+	--space-3: 0.5rem; /* 8px */
+	--space-4: 0.75rem; /* 12px */
+	--space-5: 1rem; /* 16px */
+	--space-6: 1.25rem; /* 20px */
+	--space-7: 1.5rem; /* 24px */
+	--space-8: 1.75rem; /* 28px */
+	--space-9: 2rem; /* 32px */
+	--space-10: 2.5rem; /* 40px */
+	--space-11: 3rem; /* 48px */
+	--space-12: 4rem; /* 64px */
+	/* Space roles: lengths that are a role of their own rather than a step. */
+	--space-section: 5rem; /* between the home page's sections, and above the footer: open water */
+	--space-section-inset: 4.5rem; /* inside a full-width band, above its content */
+	--space-break: 3.5rem; /* a clear break within a page: above a page's intro, above the docs pager */
+	--space-gutter: 3.5rem; /* between a sidebar and the content beside it */
+	--space-heading: 2.75rem; /* above an h2 in long-form text */
+	--space-after-heading: 0.6rem; /* between a long-form heading and the text it introduces */
+	--space-list-indent: 1.25rem; /* a bulleted list's indent */
+	--space-list-indent-ordered: 1.4rem; /* a numbered list's indent: room for two-digit numbers */
+	--space-list-item: 0.35rem; /* between the items of a long-form list */
+	--space-cell-y: 0.55rem; /* a table cell's padding, top and bottom */
+	--space-cell-x: 0.6rem; /* a table cell's padding, left and right */
+	--space-cell-stacked: 0.2rem; /* between the lines of a table row stacked as a card on phones */
+	--space-control-y: 0.55rem; /* a button's padding, top and bottom */
+	--space-control-x: 1.1rem; /* a button's padding, left and right */
+	/* em, so these scale with the text they sit in (inline code in a heading is larger). */
+	--space-code-y: 0.08em; /* inline code's padding, top and bottom */
+	--space-code-x: 0.35em; /* inline code's padding, left and right */
+	--space-new-tab: 0.35em; /* between a link's text and its opens-in-a-new-tab mark */
+
+	/* Corners: rounded like painted steel, never soft. */
+	--radius-focus: 2px; /* the focus ring */
+	--radius-inline: 4px; /* inline code, chips, step markers */
+	--radius-control: 6px; /* buttons, inputs */
+	--radius-card: 8px; /* cards, callouts, code blocks */
+	--radius-panel: 10px; /* panels: the large raised surfaces */
+	--radius-pill: 999px;
+
+	/* Lines: the drawn outline is the site's signature, like a crate's stencilled edge. */
+	--border-hairline: 1px; /* rules between rows, a link's resting underline */
+	--border-badge: 1.5px; /* the outline round a small badge */
+	--border-outline: 2px; /* the drawn outline round buttons, cards and crates */
+	--border-strong: 3px; /* focus rings, the current item, a hovered link's underline */
+	--border-bar: 5px; /* the coloured bar down a callout's left edge */
+	--focus-offset: 3px; /* the gap between a focused element and its ring */
+
+	/* Hard shadows: the outline's offset at rest, lifted (hover) and pressed (active). */
+	--shadow-offset: 3px;
+	--shadow-offset-lift: 4px;
+	--shadow-offset-press: 1px;
+	--shadow-offset-feature: 6px; /* the featured pricing card */
+
+	/* Sizes of things: exact, never snapped. Widths of blocks are the containers in @theme. */
+	--size-control: 2.75rem; /* the smallest tap target */
+	--size-control-compact: 2.25rem; /* a small control inside another block: a copy button, a notice's link */
+	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
+	--size-icon: 1.25rem; /* an icon beside a label */
+	--size-icon-small: 1.1rem; /* a small icon or tick in a list */
+	--size-hidden: 1px; /* a visually hidden element: present for screen readers, one pixel and clipped */
+	--size-screen: 100vh; /* the viewport's height */
 	color-scheme: light;
 	--surface: #edf1ef; /* page: sea fog, cool not cream */
 	--surface-raised: #f9fbfa; /* raised surfaces: the deck */
@@ -182,9 +263,41 @@
 	--color-action: var(--action);
 	--color-accent: var(--accent);
 	--color-divider: var(--divider);
-	/* One width scale for stacked blocks. */
-	--container-page: 72rem;
-	--container-prose: 44rem;
+	/* Widths of blocks: max-widths and grid tracks, exact, named for what they hold. */
+	--container-page: 72rem; /* the page's content column */
+	--container-prose: 44rem; /* long-form text */
+	--container-measure: 40rem; /* a comfortable line of running text outside .prose */
+	--container-lede: 38rem; /* a lede under a heading */
+	--container-notice: 36rem; /* a banner or notice's text */
+	--container-form: 30rem; /* a single-column form */
+	--container-error: 28rem; /* the message on an error page */
+	--container-aside: 16rem; /* a column beside the main content */
+	--container-sidebar: 14rem; /* a sidebar: the docs navigation, a table of contents */
+
+	/*
+	 * Breakpoints: one ordinal scale (the number is the step, not the value), exact, replacing Tailwind's
+	 * sm…2xl (the markup uses no Tailwind breakpoint variants).
+	 *
+	 * The pattern, in app.css and in a component's <style>:
+	 *   @media (width >= theme(--breakpoint-3)) { … }        from 40rem up (was min-width: 40rem)
+	 *   @media (width <= theme(--breakpoint-3)) { … }        up to and including 40rem (was max-width: 40rem)
+	 *   @media not (width >= theme(--breakpoint-7)) { … }    below 56rem (was max-width: 55.99rem)
+	 * A component's <style> must first say where the theme is, or theme() is unknown there:
+	 *   <style>
+	 *     @reference '../../app.css';    (the path from the component to this file)
+	 * @reference reads the theme without emitting any of app.css again. svelte-check warns
+	 * "Unknown at rule @reference" for each such block; that warning is expected.
+	 */
+	--breakpoint-*: initial;
+	--breakpoint-1: 30rem; /* a wide phone */
+	--breakpoint-2: 36rem;
+	--breakpoint-3: 40rem; /* the page's gutter widens; tables stop stacking */
+	--breakpoint-4: 44rem;
+	--breakpoint-5: 48rem;
+	--breakpoint-6: 52rem;
+	--breakpoint-7: 56rem; /* a sidebar fits beside the content */
+	--breakpoint-8: 60rem;
+	--breakpoint-9: 64rem;
 }
 
 @layer base {
@@ -196,13 +309,13 @@
 		background: var(--surface);
 		color: var(--ink);
 		font-family: var(--font-sans);
-		font-size: var(--text-base);
+		font-size: var(--text-body);
 		line-height: 1.6;
 		overflow-x: clip;
 		/* Keep the footer at the bottom of short pages. */
 		display: flex;
 		flex-direction: column;
-		min-height: 100vh;
+		min-height: var(--size-screen);
 	}
 	main {
 		flex: 1;
@@ -213,7 +326,7 @@
 		font-family: var(--font-display);
 		font-weight: 800;
 		line-height: 1.1;
-		letter-spacing: 0.005em;
+		letter-spacing: var(--tracking-heading);
 		text-wrap: balance;
 	}
 	h4 {
@@ -223,32 +336,32 @@
 	a {
 		color: var(--link);
 		text-decoration-line: underline;
-		text-underline-offset: 0.2em;
-		text-decoration-thickness: 1px;
+		text-underline-offset: var(--underline-offset);
+		text-decoration-thickness: var(--border-hairline);
 	}
 	a:hover {
 		color: var(--ink);
-		text-decoration-thickness: 3px;
+		text-decoration-thickness: var(--border-strong);
 		text-decoration-color: var(--action);
 	}
 	:focus-visible {
-		outline: 3px solid var(--focus);
-		outline-offset: 3px;
-		border-radius: 2px;
+		outline: var(--border-strong) solid var(--focus);
+		outline-offset: var(--focus-offset);
+		border-radius: var(--radius-focus);
 	}
 	code,
 	kbd,
 	pre {
 		font-family: var(--font-mono);
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	:is(h1, h2, h3, h4) code {
-		font-size: 1em;
+		font-size: inherit;
 	}
 	:not(pre) > code {
 		background: color-mix(in srgb, var(--ink) 8%, transparent);
-		padding: 0.08em 0.35em;
-		border-radius: 4px;
+		padding: var(--space-code-y) var(--space-code-x);
+		border-radius: var(--radius-inline);
 		overflow-wrap: anywhere;
 	}
 	::selection {
@@ -262,11 +375,11 @@
 		width: 100%;
 		max-width: var(--container-page);
 		margin-inline: auto;
-		padding-inline: 1rem;
+		padding-inline: var(--space-5);
 	}
-	@media (min-width: 40rem) {
+	@media (width >= theme(--breakpoint-3)) {
 		.page {
-			padding-inline: 1.5rem;
+			padding-inline: var(--space-7);
 		}
 	}
 
@@ -275,42 +388,42 @@
 		max-width: var(--container-prose);
 	}
 	.prose > * + * {
-		margin-top: 1rem;
+		margin-top: var(--space-5);
 	}
 	.prose h2 {
-		font-size: var(--text-2xl);
-		margin-top: 2.75rem;
+		font-size: var(--text-heading);
+		margin-top: var(--space-heading);
 	}
 	.prose h3 {
-		font-size: var(--text-xl);
-		margin-top: 2rem;
+		font-size: var(--text-title);
+		margin-top: var(--space-9);
 	}
 	.prose h2 + *,
 	.prose h3 + * {
-		margin-top: 0.6rem;
+		margin-top: var(--space-after-heading);
 	}
 	.prose ul {
 		list-style: disc;
-		padding-left: 1.25rem;
+		padding-left: var(--space-list-indent);
 	}
 	.prose ol {
 		list-style: decimal;
-		padding-left: 1.4rem;
+		padding-left: var(--space-list-indent-ordered);
 	}
 	.prose li + li {
-		margin-top: 0.35rem;
+		margin-top: var(--space-list-item);
 	}
 	.prose table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.prose th,
 	.prose td {
 		text-align: left;
 		vertical-align: top;
-		padding: 0.55rem 0.6rem;
-		border-bottom: 1px solid var(--divider);
+		padding: var(--space-cell-y) var(--space-cell-x);
+		border-bottom: var(--border-hairline) solid var(--divider);
 	}
 	.prose th {
 		font-weight: 700;
@@ -322,11 +435,11 @@
 	 * A table whose rows become labelled cards on phones, instead of scrolling sideways. Each <td> carries its
 	 * column name in data-label; the first cell of a row is a <th scope="row">.
 	 */
-	@media (max-width: 40rem) {
+	@media (width <= theme(--breakpoint-3)) {
 		.table-cards thead {
 			position: absolute;
-			width: 1px;
-			height: 1px;
+			width: var(--size-hidden);
+			height: var(--size-hidden);
 			overflow: hidden;
 			clip: rect(0, 0, 0, 0);
 		}
@@ -338,18 +451,18 @@
 			display: block;
 		}
 		.table-cards tr {
-			padding-block: 0.75rem;
-			border-bottom: 1px solid var(--divider);
+			padding-block: var(--space-4);
+			border-bottom: var(--border-hairline) solid var(--divider);
 		}
 		.prose .table-cards th,
 		.prose .table-cards td,
 		.table-cards th,
 		.table-cards td {
 			border: 0;
-			padding: 0.2rem 0;
+			padding: var(--space-cell-stacked) 0;
 		}
 		.table-cards th[scope='row'] {
-			font-size: var(--text-base);
+			font-size: var(--text-body);
 		}
 		.table-cards td[data-label]::before {
 			content: attr(data-label) ': ';
@@ -361,11 +474,11 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
-		min-height: 2.75rem;
-		padding: 0.55rem 1.1rem;
-		border-radius: 6px;
-		border: 2px solid var(--line);
+		gap: var(--space-3);
+		min-height: var(--size-control);
+		padding: var(--space-control-y) var(--space-control-x);
+		border-radius: var(--radius-control);
+		border: var(--border-outline) solid var(--line);
 		font-weight: 700;
 		line-height: 1.2;
 		text-decoration: none;
@@ -381,15 +494,23 @@
 	.btn-primary {
 		background: var(--action);
 		color: var(--action-ink);
-		box-shadow: 3px 3px 0 var(--line);
+		box-shadow: var(--shadow-offset) var(--shadow-offset) 0 var(--line);
 	}
 	.btn-primary:hover {
-		transform: translate(-1px, -1px);
-		box-shadow: 4px 4px 0 var(--line);
+		/* Lifted: the button rises by what the shadow grows, so the shadow's far edge stays put. */
+		transform: translate(
+			calc(var(--shadow-offset) - var(--shadow-offset-lift)),
+			calc(var(--shadow-offset) - var(--shadow-offset-lift))
+		);
+		box-shadow: var(--shadow-offset-lift) var(--shadow-offset-lift) 0 var(--line);
 	}
 	.btn-primary:active {
-		transform: translate(2px, 2px);
-		box-shadow: 1px 1px 0 var(--line);
+		/* Pressed: the button sinks by what the shadow shrinks. */
+		transform: translate(
+			calc(var(--shadow-offset) - var(--shadow-offset-press)),
+			calc(var(--shadow-offset) - var(--shadow-offset-press))
+		);
+		box-shadow: var(--shadow-offset-press) var(--shadow-offset-press) 0 var(--line);
 	}
 	.btn-quiet {
 		background: transparent;
@@ -407,15 +528,15 @@
 
 	.panel {
 		background: var(--surface-raised);
-		border: 1px solid var(--divider);
-		border-radius: 10px;
+		border: var(--border-hairline) solid var(--divider);
+		border-radius: var(--radius-panel);
 		box-shadow: var(--shadow);
 	}
 
 	.lede {
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 		color: var(--ink-muted);
-		max-width: 38rem;
+		max-width: var(--container-lede);
 	}
 
 	.night {
@@ -425,10 +546,10 @@
 
 	.visually-hidden {
 		position: absolute;
-		width: 1px;
-		height: 1px;
+		width: var(--size-hidden);
+		height: var(--size-hidden);
 		padding: 0;
-		margin: -1px;
+		margin: calc(-1 * var(--size-hidden));
 		overflow: hidden;
 		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
@@ -448,5 +569,5 @@
 
 /* Marks a link that opens in a new tab; the text for screen readers is in a visually hidden span. */
 .new-tab {
-	margin-inline-start: 0.35em;
+	margin-inline-start: var(--space-new-tab);
 }

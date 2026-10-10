@@ -58,7 +58,7 @@
 		border-top: 2px solid var(--line);
 		background: var(--surface-raised);
 		padding-block: 2.5rem 3rem;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.grid {
 		display: grid;
@@ -93,7 +93,7 @@
 		color: var(--ink);
 	}
 	h2 {
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 		margin-bottom: 0.4rem;
 	}
 	li a {

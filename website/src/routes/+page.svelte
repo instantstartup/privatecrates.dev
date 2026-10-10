@@ -343,14 +343,14 @@
 	.terms {
 		margin-top: 1rem;
 		color: var(--ink-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.scene {
 		min-width: 0;
 	}
 
 	h2 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 		margin-bottom: 1.25rem;
 	}
 	.inline-cmd {
@@ -364,7 +364,7 @@
 		text-underline-offset: 0.12em;
 	}
 	h3 {
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		margin-bottom: 0.4rem;
 	}
 
@@ -408,7 +408,7 @@
 		color: var(--action-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		line-height: 1;
 	}
 	.manifest p {
@@ -517,7 +517,7 @@
 		border-top: 2px dashed var(--divider);
 	}
 	.chain h3 {
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 		margin-bottom: 0.2rem;
 	}
 	.chain p {
@@ -589,7 +589,7 @@
 	.figure {
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 		line-height: 1;
 		color: var(--ink);
 	}

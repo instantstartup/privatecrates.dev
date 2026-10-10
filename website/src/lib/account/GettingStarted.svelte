@@ -137,11 +137,11 @@
 		}
 	}
 	h3 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 	}
 	.url {
 		font-family: var(--font-mono);
-		font-size: var(--text-base);
+		font-size: var(--text-body);
 		/* Breaks only at the <wbr>s; a single name longer than the column still wraps rather than overflowing. */
 		overflow-wrap: break-word;
 		margin-top: 0.5rem;
@@ -187,7 +187,7 @@
 		color: var(--action-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-lg);
+		font-size: var(--text-lead);
 	}
 	/* The rope between crates: a line from each step's marker down to the next. */
 	.guide > li:not(:last-child)::after {
@@ -201,19 +201,19 @@
 	h4 {
 		font-family: var(--font-display);
 		font-weight: 800;
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		line-height: 1.1;
 	}
 	.optional {
 		font-family: var(--font-sans);
 		font-weight: 400;
-		font-size: var(--text-base);
+		font-size: var(--text-body);
 		color: var(--ink-muted);
 	}
 	.guide p {
 		max-width: 40rem;
 	}
 	.docs {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 </style>

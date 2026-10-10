@@ -91,7 +91,7 @@
 		gap: 0.5rem 0.75rem;
 	}
 	.wait {
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 		color: var(--ink-muted);
 	}
 </style>

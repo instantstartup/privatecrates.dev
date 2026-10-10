@@ -17,7 +17,7 @@
 	.preview-notice {
 		background: var(--notice);
 		color: var(--notice-ink);
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.line {
 		display: flex;

@@ -303,7 +303,7 @@
 		padding-top: 2.5rem;
 	}
 	h1 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-headline);
 	}
 	.intro > * + * {
 		margin-top: 1rem;
@@ -312,7 +312,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.5rem 2rem;
-		font-size: var(--text-sm);
+		font-size: var(--text-meta);
 	}
 	.meta dt {
 		color: var(--ink-muted);
@@ -333,7 +333,7 @@
 		}
 	}
 	.summary h2 {
-		font-size: var(--text-xl);
+		font-size: var(--text-title);
 		margin-bottom: 0.75rem;
 	}
 	.summary ul {
