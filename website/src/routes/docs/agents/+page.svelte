@@ -261,6 +261,6 @@
 	}
 	.who.agent {
 		font-weight: 400;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 </style>

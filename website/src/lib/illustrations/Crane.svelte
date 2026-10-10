@@ -41,7 +41,7 @@
 		<rect class="trolley" x="40" y="86" width="22" height="7" rx="1" />
 		<path class="rope" d="M45 93v58M57 93v58" />
 		<rect class="spreader" x="31" y="151" width="40" height="5" rx="1" />
-		<Crate x={19} y={156} width={64} height={48} tone="container" {label} />
+		<Crate x={19} y={156} width={64} height={48} tone="accent" {label} />
 	</g>
 </svg>
 
@@ -84,11 +84,11 @@
 		stroke-linejoin: round;
 	}
 	.beam {
-		fill: var(--signal);
+		fill: var(--action);
 	}
 	.house,
 	.cab {
-		fill: var(--deck);
+		fill: var(--surface-raised);
 	}
 	.trolley,
 	.spreader {

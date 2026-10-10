@@ -97,10 +97,10 @@
 		height: auto;
 	}
 	.sky-top {
-		stop-color: var(--dawn-2);
+		stop-color: var(--scene-sky);
 	}
 	.sky-bottom {
-		stop-color: var(--dawn);
+		stop-color: var(--scene-sky-low);
 	}
 	.by-day {
 		opacity: var(--day);
@@ -109,26 +109,26 @@
 		opacity: var(--night);
 	}
 	.sun {
-		fill: var(--signal);
+		fill: var(--action);
 		opacity: 0.9;
 	}
 	.moon {
-		fill: var(--glint);
+		fill: var(--scene-glint);
 	}
 	.halo-core {
-		stop-color: var(--glint);
+		stop-color: var(--scene-glint);
 		stop-opacity: calc(0.18 + 0.22 * var(--day));
 	}
 	.halo-edge {
-		stop-color: var(--glint);
+		stop-color: var(--scene-glint);
 		stop-opacity: 0;
 	}
 	.stars {
-		fill: var(--glint);
+		fill: var(--scene-glint);
 		opacity: 0.8;
 	}
 	.headland {
-		fill: var(--water-2);
+		fill: var(--scene-sea-light);
 		opacity: 0.55;
 	}
 	.birds {
@@ -139,33 +139,33 @@
 		stroke-linejoin: round;
 	}
 	.water {
-		fill: var(--water);
+		fill: var(--scene-sea);
 	}
 	.island {
-		fill: var(--rock);
+		fill: var(--scene-rock);
 		stroke: var(--line);
 		stroke-width: 2;
 		stroke-linejoin: round;
 	}
 	.turf {
-		fill: var(--turf);
+		fill: var(--scene-grass);
 	}
 	.surf {
 		fill: none;
-		stroke: var(--foam);
+		stroke: var(--scene-foam);
 		stroke-width: 2.5;
 		stroke-linecap: round;
 		opacity: 0.85;
 	}
 	.glint {
 		fill: none;
-		stroke: var(--glint);
+		stroke: var(--scene-glint);
 		stroke-width: 3;
 		stroke-linecap: round;
 		opacity: calc(0.75 - 0.2 * var(--night));
 	}
 	.quay {
-		fill: var(--quay);
+		fill: var(--scene-quay);
 		stroke: var(--line);
 		stroke-width: 2;
 	}

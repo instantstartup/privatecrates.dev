@@ -81,13 +81,13 @@
 	}
 	.side ul {
 		display: grid;
-		border-left: 2px solid var(--rule);
+		border-left: 2px solid var(--divider);
 	}
 	@media (max-width: 55.99rem) {
 		.side ul {
 			grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
 			border-left: 0;
-			border-top: 2px solid var(--rule);
+			border-top: 2px solid var(--divider);
 			padding-top: 0.25rem;
 		}
 	}
@@ -105,9 +105,9 @@
 		text-decoration: underline;
 	}
 	.side a[aria-current='page'] {
-		border-left-color: var(--signal);
+		border-left-color: var(--action);
 		font-weight: 700;
-		background: var(--deck);
+		background: var(--surface-raised);
 	}
 	.content {
 		min-width: 0;
@@ -121,13 +121,13 @@
 		gap: 1rem;
 		margin-top: 3.5rem !important;
 		padding-top: 1.5rem;
-		border-top: 2px solid var(--rule);
+		border-top: 2px solid var(--divider);
 	}
 	.pager a {
 		display: flex;
 		flex-direction: column;
 		padding: 0.75rem 1rem;
-		border: 2px solid var(--rule);
+		border: 2px solid var(--divider);
 		border-radius: 8px;
 		font-weight: 700;
 		text-decoration: none;
@@ -138,7 +138,7 @@
 	.pager span {
 		font-weight: 400;
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.next {
 		grid-column: 2;

@@ -421,7 +421,7 @@
 	}
 	.checked,
 	.sub {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.block {
 		display: grid;
@@ -437,7 +437,7 @@
 		line-height: 1.1;
 	}
 	.empty {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		max-width: 40rem;
 	}
 	.ok-line::before {
@@ -472,7 +472,7 @@
 		justify-content: space-between;
 		gap: 1rem;
 		padding: 0.4rem 0 0.4rem 1.6rem;
-		border-bottom: 1px dashed var(--rule);
+		border-bottom: 1px dashed var(--divider);
 		position: relative;
 	}
 	.checks > div::before {
@@ -522,7 +522,7 @@
 		text-align: left;
 		vertical-align: top;
 		padding: 0.55rem 0.6rem;
-		border-bottom: 1px solid var(--rule);
+		border-bottom: 1px solid var(--divider);
 	}
 	thead th {
 		white-space: nowrap;
@@ -535,7 +535,7 @@
 		overflow-wrap: normal;
 	}
 	.none {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.flag {
 		font-weight: 700;
@@ -562,7 +562,7 @@
 		display: grid;
 		gap: 0.3rem;
 		padding: 0.85rem 1rem;
-		border-left: 5px solid var(--signal);
+		border-left: 5px solid var(--action);
 		background: var(--warn-bg);
 		border-radius: 0 8px 8px 0;
 		max-width: 44rem;
@@ -586,7 +586,7 @@
 		gap: 0.75rem;
 	}
 	.page-no {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		font-size: var(--text-sm);
 	}
 

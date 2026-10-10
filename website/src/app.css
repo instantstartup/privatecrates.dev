@@ -6,6 +6,7 @@
  * Design tokens: "harbour at dawn" (light) and "night harbour" (dark): deep blue slate,
  * off-white text, softened accents and outlines that recede.
  * Every colour on the site comes from these variables; illustrations use them too.
+ * Tokens are named for their role; the harbour mood each one carries is in the comment beside it.
  */
 :root {
 	/* One type scale for the whole site (7 steps). */
@@ -17,30 +18,39 @@
 	--text-3xl: clamp(2.4rem, 6vw, 3.6rem);
 	--text-display: clamp(2.9rem, 9vw, 5.4rem);
 	color-scheme: light;
-	--fog: #edf1ef; /* page: sea fog, cool not cream */
-	--deck: #f9fbfa; /* raised surfaces */
+	--surface: #edf1ef; /* page: sea fog, cool not cream */
+	--surface-raised: #f9fbfa; /* raised surfaces: the deck */
 	--ink: #0f2830; /* deep harbour water, body text */
-	--ink-soft: #3a555e; /* secondary text (≥ 7:1 on --fog) */
+	--ink-muted: #3a555e; /* secondary text (≥ 7:1 on --surface) */
 	--line: #0f2830; /* outlines: borders, hard shadows, illustration strokes */
-	--harbour: #125c6c; /* links, focus */
-	--signal: #f2b233; /* lighthouse lamp: primary actions */
-	--signal-ink: #0f2830;
-	--container: #b93a22; /* container red: crates, warnings */
-	--container-ink: #ffffff;
-	--band: #0f2830; /* the preview notice */
-	--band-ink: #edf1ef;
-	--dawn: #f4cdb8; /* dawn sky, hero only */
-	--dawn-2: #dfe8ec;
-	--water: #1d4d5c;
-	--water-2: #2c6a7a;
-	--hull: #16343d;
-	--quay: #3a555e;
-	--rock: #6d7a74; /* the lighthouse's island */
-	--turf: #5e8a57;
-	--foam: #f9fbfa;
-	--rule: #c5d2cf;
+	--link: #125c6c; /* links: harbour blue */
+	--focus: var(--link); /* focus rings: harbour blue */
+	--info: var(--link); /* informational notes and stamps: harbour blue */
+	--control: var(--link); /* checked checkboxes and radios: harbour blue */
+	--action: #f2b233; /* lighthouse lamp: primary actions */
+	--action-ink: #0f2830;
+	--accent: #b93a22; /* container red: crates */
+	--accent-ink: #ffffff;
+	--danger-strong: var(--accent); /* container red: destructive actions, drafts */
+	--danger-strong-ink: var(--accent-ink);
+	--notice: #0f2830; /* the preview notice: a dark band across the harbour */
+	--notice-ink: #edf1ef;
+	/* The illustration palette: parts of the harbour scene, used only by lib/illustrations (see instantstartup.toml). */
+	--scene-sky: #dfe8ec; /* dawn sky overhead, hero only */
+	--scene-sky-low: #f4cdb8; /* dawn sky at the horizon, hero only */
+	--scene-sea: #1d4d5c; /* the sea */
+	--scene-sea-light: #2c6a7a; /* shallows, headland, harbour-blue crates */
+	--scene-sea-light-ink: #edf1ef; /* lettering on a harbour-blue crate: the fill is dark in both themes */
+	--scene-hull: #16343d; /* a ship's hull */
+	--scene-quay: #3a555e; /* the quay */
+	--scene-rock: #6d7a74; /* rock: the lighthouse's island */
+	--scene-grass: #5e8a57; /* turf on the island */
+	--scene-foam: #f9fbfa; /* surf, sea foam */
+	--scene-glare: #ffffff; /* daylight catching the lamp-room glass, the same in both themes */
+	--divider: #c5d2cf; /* rules between rows and sections */
 	--ok: #1f6b45;
 	--ok-bg: #dcefe3;
+	--ok-ink: var(--surface); /* text on a solid --ok fill */
 	--warn-bg: #fbe9d6;
 	--danger: #a3301b;
 	--danger-bg: #f9e1dc;
@@ -49,42 +59,49 @@
 	--code-comment: #9fb8bd;
 	--code-key: #f5c35a;
 	--code-string: #9fd9c1;
-	--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(15 40 48 / 0.35);
+	--code-focus: var(--action); /* focus rings on code: lighthouse lamp, seen on the dark code background */
+	--shadow: 0 1px 0 var(--divider), 0 12px 28px -18px rgb(15 40 48 / 0.35);
 	/* Day: the sun is up and the lighthouse is dark; its lamp room shows as glass. */
 	--day: 1;
 	--night: 0;
-	--lamp: #cfe2e5;
-	--glint: var(--signal);
+	--scene-lamp: #cfe2e5; /* the lamp room: glass by day */
+	--scene-glint: var(--action); /* glints on the water, the sun's halo */
 }
 
 /* .night: a band that is always in the dark palette, whatever the theme. */
 :root[data-theme='dark'],
 .night {
 	color-scheme: dark;
-	--fog: #172430; /* night harbour: blue slate, never black */
-	--deck: #1e2d3a; /* raised surfaces, one step lighter */
-	--ink: #d9e1e7; /* off-white, 11.9:1 on --fog */
-	--ink-soft: #a7b5c2;
-	--line: #7d90a1; /* outlines recede at night (4.8:1 on --fog) */
-	--harbour: #8cc4d0;
-	--signal: #e9bb5f;
-	--signal-ink: #172430;
-	--container: #d98672;
-	--container-ink: #172430;
-	--band: #253646;
-	--band-ink: #d9e1e7;
-	--dawn: #283d52; /* night sky, hero only */
-	--dawn-2: #121c27;
-	--water: #1a3444;
-	--water-2: #27495b;
-	--hull: #0f1a24;
-	--quay: #3a4a58;
-	--rock: #46586a;
-	--turf: #3e5f50;
-	--foam: #9fb2bd;
-	--rule: #2e3f4e;
+	--surface: #172430; /* night harbour: blue slate, never black */
+	--surface-raised: #1e2d3a; /* raised surfaces, one step lighter */
+	--ink: #d9e1e7; /* off-white, 11.9:1 on --surface */
+	--ink-muted: #a7b5c2;
+	--line: #7d90a1; /* outlines recede at night (4.8:1 on --surface) */
+	--link: #8cc4d0;
+	--focus: var(--link);
+	--info: var(--link);
+	--control: var(--link);
+	--action: #e9bb5f;
+	--action-ink: #172430;
+	--accent: #d98672;
+	--accent-ink: #172430;
+	--danger-strong: var(--accent);
+	--danger-strong-ink: var(--accent-ink);
+	--notice: #253646;
+	--notice-ink: #d9e1e7;
+	--scene-sky: #121c27; /* night sky overhead, hero only */
+	--scene-sky-low: #283d52; /* night sky at the horizon, hero only */
+	--scene-sea: #1a3444;
+	--scene-sea-light: #27495b;
+	--scene-hull: #0f1a24;
+	--scene-quay: #3a4a58;
+	--scene-rock: #46586a;
+	--scene-grass: #3e5f50;
+	--scene-foam: #9fb2bd;
+	--divider: #2e3f4e;
 	--ok: #8fcfaa;
 	--ok-bg: #1f3a35;
+	--ok-ink: var(--surface);
 	--warn-bg: #3b3426;
 	--danger: #eaa292;
 	--danger-bg: #3f2a2d;
@@ -93,41 +110,48 @@
 	--code-comment: #96a8b6;
 	--code-key: #e3c07e;
 	--code-string: #a6d3c0;
-	--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(5 10 16 / 0.7);
+	--code-focus: var(--action);
+	--shadow: 0 1px 0 var(--divider), 0 12px 28px -18px rgb(5 10 16 / 0.7);
 	/* Night: the moon and stars are out and the lighthouse is lit. */
 	--day: 0;
 	--night: 1;
-	--lamp: var(--signal);
-	--glint: #e6e2cf;
+	--scene-lamp: var(--action); /* the lighthouse lamp, lit */
+	--scene-glint: #e6e2cf; /* moonlight: the moon, stars and glints */
 }
 
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme='light']) {
 		color-scheme: dark;
-		--fog: #172430; /* night harbour: blue slate, never black */
-		--deck: #1e2d3a; /* raised surfaces, one step lighter */
-		--ink: #d9e1e7; /* off-white, 11.9:1 on --fog */
-		--ink-soft: #a7b5c2;
-		--line: #7d90a1; /* outlines recede at night (4.8:1 on --fog) */
-		--harbour: #8cc4d0;
-		--signal: #e9bb5f;
-		--signal-ink: #172430;
-		--container: #d98672;
-		--container-ink: #172430;
-		--band: #253646;
-		--band-ink: #d9e1e7;
-		--dawn: #283d52; /* night sky, hero only */
-		--dawn-2: #121c27;
-		--water: #1a3444;
-		--water-2: #27495b;
-		--hull: #0f1a24;
-		--quay: #3a4a58;
-		--rock: #46586a;
-		--turf: #3e5f50;
-		--foam: #9fb2bd;
-		--rule: #2e3f4e;
+		--surface: #172430; /* night harbour: blue slate, never black */
+		--surface-raised: #1e2d3a; /* raised surfaces, one step lighter */
+		--ink: #d9e1e7; /* off-white, 11.9:1 on --surface */
+		--ink-muted: #a7b5c2;
+		--line: #7d90a1; /* outlines recede at night (4.8:1 on --surface) */
+		--link: #8cc4d0;
+		--focus: var(--link);
+		--info: var(--link);
+		--control: var(--link);
+		--action: #e9bb5f;
+		--action-ink: #172430;
+		--accent: #d98672;
+		--accent-ink: #172430;
+		--danger-strong: var(--accent);
+		--danger-strong-ink: var(--accent-ink);
+		--notice: #253646;
+		--notice-ink: #d9e1e7;
+		--scene-sky: #121c27; /* night sky overhead, hero only */
+		--scene-sky-low: #283d52; /* night sky at the horizon, hero only */
+		--scene-sea: #1a3444;
+		--scene-sea-light: #27495b;
+		--scene-hull: #0f1a24;
+		--scene-quay: #3a4a58;
+		--scene-rock: #46586a;
+		--scene-grass: #3e5f50;
+		--scene-foam: #9fb2bd;
+		--divider: #2e3f4e;
 		--ok: #8fcfaa;
 		--ok-bg: #1f3a35;
+		--ok-ink: var(--surface);
 		--warn-bg: #3b3426;
 		--danger: #eaa292;
 		--danger-bg: #3f2a2d;
@@ -136,12 +160,13 @@
 		--code-comment: #96a8b6;
 		--code-key: #e3c07e;
 		--code-string: #a6d3c0;
-		--shadow: 0 1px 0 var(--rule), 0 12px 28px -18px rgb(5 10 16 / 0.7);
+		--code-focus: var(--action);
+		--shadow: 0 1px 0 var(--divider), 0 12px 28px -18px rgb(5 10 16 / 0.7);
 		/* Night: the moon and stars are out and the lighthouse is lit. */
 		--day: 0;
 		--night: 1;
-		--lamp: var(--signal);
-		--glint: #e6e2cf;
+		--scene-lamp: var(--action); /* the lighthouse lamp, lit */
+		--scene-glint: #e6e2cf; /* moonlight: the moon, stars and glints */
 	}
 }
 
@@ -149,14 +174,14 @@
 	--font-display: 'Big Shoulders Variable', 'Arial Narrow', sans-serif;
 	--font-sans: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
 	--font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
-	--color-fog: var(--fog);
-	--color-deck: var(--deck);
+	--color-surface: var(--surface);
+	--color-surface-raised: var(--surface-raised);
 	--color-ink: var(--ink);
-	--color-ink-soft: var(--ink-soft);
-	--color-harbour: var(--harbour);
-	--color-signal: var(--signal);
-	--color-container: var(--container);
-	--color-rule: var(--rule);
+	--color-ink-muted: var(--ink-muted);
+	--color-link: var(--link);
+	--color-action: var(--action);
+	--color-accent: var(--accent);
+	--color-divider: var(--divider);
 	/* One width scale for stacked blocks. */
 	--container-page: 72rem;
 	--container-prose: 44rem;
@@ -168,7 +193,7 @@
 		-webkit-text-size-adjust: 100%;
 	}
 	body {
-		background: var(--fog);
+		background: var(--surface);
 		color: var(--ink);
 		font-family: var(--font-sans);
 		font-size: var(--text-base);
@@ -196,7 +221,7 @@
 	}
 	/* Inline links are underlined, never colour alone; hover thickens the line and darkens the text. */
 	a {
-		color: var(--harbour);
+		color: var(--link);
 		text-decoration-line: underline;
 		text-underline-offset: 0.2em;
 		text-decoration-thickness: 1px;
@@ -204,10 +229,10 @@
 	a:hover {
 		color: var(--ink);
 		text-decoration-thickness: 3px;
-		text-decoration-color: var(--signal);
+		text-decoration-color: var(--action);
 	}
 	:focus-visible {
-		outline: 3px solid var(--harbour);
+		outline: 3px solid var(--focus);
 		outline-offset: 3px;
 		border-radius: 2px;
 	}
@@ -227,8 +252,8 @@
 		overflow-wrap: anywhere;
 	}
 	::selection {
-		background: var(--signal);
-		color: var(--signal-ink);
+		background: var(--action);
+		color: var(--action-ink);
 	}
 }
 
@@ -285,7 +310,7 @@
 		text-align: left;
 		vertical-align: top;
 		padding: 0.55rem 0.6rem;
-		border-bottom: 1px solid var(--rule);
+		border-bottom: 1px solid var(--divider);
 	}
 	.prose th {
 		font-weight: 700;
@@ -314,7 +339,7 @@
 		}
 		.table-cards tr {
 			padding-block: 0.75rem;
-			border-bottom: 1px solid var(--rule);
+			border-bottom: 1px solid var(--divider);
 		}
 		.prose .table-cards th,
 		.prose .table-cards td,
@@ -354,8 +379,8 @@
 		text-decoration: none;
 	}
 	.btn-primary {
-		background: var(--signal);
-		color: var(--signal-ink);
+		background: var(--action);
+		color: var(--action-ink);
 		box-shadow: 3px 3px 0 var(--line);
 	}
 	.btn-primary:hover {
@@ -381,20 +406,20 @@
 	}
 
 	.panel {
-		background: var(--deck);
-		border: 1px solid var(--rule);
+		background: var(--surface-raised);
+		border: 1px solid var(--divider);
 		border-radius: 10px;
 		box-shadow: var(--shadow);
 	}
 
 	.lede {
 		font-size: var(--text-lg);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		max-width: 38rem;
 	}
 
 	.night {
-		background: var(--fog);
+		background: var(--surface);
 		color: var(--ink);
 	}
 

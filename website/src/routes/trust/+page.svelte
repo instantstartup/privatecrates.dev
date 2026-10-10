@@ -480,7 +480,7 @@
 		display: grid;
 		gap: 0.5rem 1.5rem;
 		padding-block: 0.75rem;
-		border-top: 1px dashed var(--rule);
+		border-top: 1px dashed var(--divider);
 	}
 	@media (min-width: 40rem) {
 		.row {

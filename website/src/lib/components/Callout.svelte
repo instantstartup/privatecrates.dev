@@ -19,8 +19,8 @@
 
 <style>
 	.callout {
-		border-left: 5px solid var(--harbour);
-		background: var(--deck);
+		border-left: 5px solid var(--info);
+		background: var(--surface-raised);
 		padding: 0.85rem 1rem;
 		border-radius: 0 8px 8px 0;
 	}
@@ -28,7 +28,7 @@
 		margin-top: 0.5rem;
 	}
 	.warn {
-		border-color: var(--signal);
+		border-color: var(--action);
 		background: var(--warn-bg);
 	}
 	.danger {

@@ -21,10 +21,10 @@
 
 <style>
 	.faq-item {
-		border-bottom: 1px solid var(--rule);
+		border-bottom: 1px solid var(--divider);
 	}
 	.faq-item:first-child {
-		border-top: 1px solid var(--rule);
+		border-top: 1px solid var(--divider);
 	}
 	summary {
 		display: flex;
@@ -43,7 +43,7 @@
 	}
 	summary:hover span {
 		text-decoration: underline;
-		text-decoration-color: var(--signal);
+		text-decoration-color: var(--action);
 		text-decoration-thickness: 2px;
 		text-underline-offset: 0.25em;
 	}
@@ -63,7 +63,7 @@
 	}
 	.answer {
 		padding-bottom: 1.1rem;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		max-width: var(--container-prose);
 	}
 	.answer :global(p + p) {

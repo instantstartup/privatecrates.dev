@@ -122,14 +122,14 @@
 	.hint,
 	.fine {
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	input {
 		min-height: 2.75rem;
 		padding: 0.5rem 0.75rem;
 		border: 2px solid var(--line);
 		border-radius: 6px;
-		background: var(--deck);
+		background: var(--surface-raised);
 		color: var(--ink);
 	}
 	input[aria-invalid='true'] {

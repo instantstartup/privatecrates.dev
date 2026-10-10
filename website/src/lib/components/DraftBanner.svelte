@@ -13,7 +13,7 @@
 
 <style>
 	.draft {
-		border: 2px dashed var(--container);
+		border: 2px dashed var(--danger-strong);
 		background: var(--danger-bg);
 		border-radius: 8px;
 		padding: 1rem 1.1rem;

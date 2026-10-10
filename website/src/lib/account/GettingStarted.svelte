@@ -148,7 +148,7 @@
 	}
 	.intro {
 		margin-top: 0.75rem;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		max-width: 36rem;
 	}
 	.welcome :global(.welcome-art) {
@@ -183,8 +183,8 @@
 		height: 2.1rem;
 		border: 2px solid var(--line);
 		border-radius: 4px;
-		background: var(--signal);
-		color: var(--signal-ink);
+		background: var(--action);
+		color: var(--action-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-lg);
@@ -196,7 +196,7 @@
 		left: calc(1.05rem - 1px);
 		top: 2.25rem;
 		bottom: -1.9rem;
-		border-left: 2px dashed var(--rule);
+		border-left: 2px dashed var(--divider);
 	}
 	h4 {
 		font-family: var(--font-display);
@@ -208,7 +208,7 @@
 		font-family: var(--font-sans);
 		font-weight: 400;
 		font-size: var(--text-base);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.guide p {
 		max-width: 40rem;

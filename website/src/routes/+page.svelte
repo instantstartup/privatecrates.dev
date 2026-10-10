@@ -200,9 +200,9 @@
 <section class="page pricing-teaser" aria-labelledby="price">
 	<div class="panel price-card">
 		<div class="price-stack" aria-hidden="true">
-			<Crate tone="container" class="c1" />
-			<Crate tone="signal" class="c2" label="SSO" />
-			<Crate tone="harbour" class="c3" />
+			<Crate tone="accent" class="c1" />
+			<Crate tone="action" class="c2" label="SSO" />
+			<Crate tone="muted" class="c3" />
 		</div>
 		<div>
 			{#if PREVIEW}
@@ -342,7 +342,7 @@
 	}
 	.terms {
 		margin-top: 1rem;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		font-size: var(--text-sm);
 	}
 	.scene {
@@ -359,7 +359,7 @@
 		background: none;
 		padding: 0;
 		text-decoration: underline;
-		text-decoration-color: var(--signal);
+		text-decoration-color: var(--action);
 		text-decoration-thickness: 0.12em;
 		text-underline-offset: 0.12em;
 	}
@@ -376,7 +376,7 @@
 		display: grid;
 		border: 2px solid var(--line);
 		border-radius: 10px;
-		background: var(--deck);
+		background: var(--surface-raised);
 		overflow: hidden;
 	}
 	@media (min-width: 52rem) {
@@ -384,7 +384,7 @@
 			grid-template-columns: repeat(3, 1fr);
 		}
 		.manifest li + li {
-			border-left: 2px dashed var(--rule);
+			border-left: 2px dashed var(--divider);
 			border-top: 0 !important;
 		}
 	}
@@ -394,7 +394,7 @@
 		padding: 1.4rem 1.25rem 1.5rem;
 	}
 	.manifest li + li {
-		border-top: 2px dashed var(--rule);
+		border-top: 2px dashed var(--divider);
 	}
 	.num {
 		flex: none;
@@ -404,15 +404,15 @@
 		height: 2.6rem;
 		border: 2px solid var(--line);
 		border-radius: 4px;
-		background: var(--signal);
-		color: var(--signal-ink);
+		background: var(--action);
+		color: var(--action-ink);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-xl);
 		line-height: 1;
 	}
 	.manifest p {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.config {
 		margin-top: 1.5rem;
@@ -420,9 +420,9 @@
 	.agents {
 		margin-top: 1.25rem;
 		padding-left: 1rem;
-		border-left: 4px solid var(--signal);
+		border-left: 4px solid var(--action);
 		max-width: var(--container-prose);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.agents strong {
 		color: var(--ink);
@@ -431,7 +431,7 @@
 	/* Security: the night band with the lighthouse */
 	.security {
 		padding-block: 4.5rem;
-		border-block: 2px solid var(--rule);
+		border-block: 2px solid var(--divider);
 	}
 	.security-grid {
 		display: grid;
@@ -456,7 +456,7 @@
 		}
 	}
 	.claims p {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.claims p + p {
 		margin-top: 0.75rem;
@@ -505,7 +505,7 @@
 		display: grid;
 		border: 2px solid var(--line);
 		border-radius: 10px;
-		background: var(--deck);
+		background: var(--surface-raised);
 		overflow: hidden;
 	}
 	.chain li {
@@ -514,18 +514,18 @@
 		padding: 1.1rem 1.25rem 1.2rem;
 	}
 	.chain li + li {
-		border-top: 2px dashed var(--rule);
+		border-top: 2px dashed var(--divider);
 	}
 	.chain h3 {
 		font-size: var(--text-lg);
 		margin-bottom: 0.2rem;
 	}
 	.chain p {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.release p {
 		margin-top: 0.85rem;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		max-width: var(--container-prose);
 	}
 
@@ -568,7 +568,7 @@
 		grid-row: 1;
 	}
 	.planned {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	/* The two plans side by side with equal weight; they stack on narrow screens. */
 	.tiers {
@@ -583,7 +583,7 @@
 		gap: 0.25rem;
 	}
 	.tier dd {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		max-width: 22ch;
 	}
 	.figure {

@@ -376,11 +376,11 @@
 		font-size: var(--text-2xl);
 	}
 	.progress {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.member-note {
 		background: var(--warn-bg);
-		border-left: 5px solid var(--signal);
+		border-left: 5px solid var(--action);
 		padding: 0.75rem 1rem;
 		border-radius: 0 8px 8px 0;
 	}
@@ -397,7 +397,7 @@
 	}
 	.step.current {
 		border-color: var(--ink);
-		background: var(--deck);
+		background: var(--surface-raised);
 		box-shadow: var(--shadow);
 	}
 	.marker {
@@ -414,15 +414,15 @@
 	.done .marker {
 		background: var(--ok);
 		border-color: var(--ok);
-		color: var(--fog);
+		color: var(--ok-ink);
 	}
 	.current .marker {
-		background: var(--signal);
-		color: var(--signal-ink);
+		background: var(--action);
+		color: var(--action-ink);
 	}
 	.blocked .marker {
 		border-style: dashed;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.marker svg {
 		width: 1.1rem;
@@ -443,11 +443,11 @@
 		padding-top: 0.2rem;
 	}
 	.done h4 {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		font-weight: 400;
 	}
 	.step-body p {
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		margin-top: 0.25rem;
 		max-width: 40rem;
 	}
@@ -464,13 +464,13 @@
 	}
 	.fine {
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.all-done {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.75rem;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 </style>

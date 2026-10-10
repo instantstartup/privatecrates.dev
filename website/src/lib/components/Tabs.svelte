@@ -80,7 +80,7 @@
 		border-bottom: 0;
 		border-radius: 6px 6px 0 0;
 		background: transparent;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		font: inherit;
 		font-weight: 700;
 		cursor: pointer;
@@ -91,8 +91,8 @@
 	}
 	button[aria-selected='true'] {
 		color: var(--ink);
-		background: var(--deck);
+		background: var(--surface-raised);
 		border-color: var(--ink);
-		box-shadow: inset 0 3px 0 var(--signal);
+		box-shadow: inset 0 3px 0 var(--action);
 	}
 </style>

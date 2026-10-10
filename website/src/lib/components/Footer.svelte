@@ -51,12 +51,12 @@
 <style>
 	.company {
 		margin-top: 2rem;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.site-footer {
 		margin-top: 5rem;
 		border-top: 2px solid var(--line);
-		background: var(--deck);
+		background: var(--surface-raised);
 		padding-block: 2.5rem 3rem;
 		font-size: var(--text-sm);
 	}
@@ -84,7 +84,7 @@
 		display: flex;
 		gap: 1rem;
 		align-items: flex-start;
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 		max-width: 26rem;
 	}
 	.about :global(.anchor) {

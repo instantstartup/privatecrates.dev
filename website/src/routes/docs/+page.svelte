@@ -74,7 +74,7 @@
 	}
 	.guide-list li {
 		padding: 0.75rem 0;
-		border-bottom: 1px solid var(--rule);
+		border-bottom: 1px solid var(--divider);
 		margin-top: 0 !important;
 	}
 	.guide-list a {

@@ -4,7 +4,7 @@
 	let { title, class: klass, x, y, width, height }: IllustrationProps = $props();
 
 	// Crate stacks on deck: [column, rows high, tone of each row from the deck up].
-	const tones = ['signal', 'container', 'harbour', 'deck'] as const;
+	const tones = ['action', 'accent', 'muted', 'raised'] as const;
 	const stacks: number[][] = [[1, 2, 0], [2, 0, 3], [0, 1], [3, 2, 1], [1, 0, 2], [2, 3], [0]];
 	const W = 36;
 	const H = 17;
@@ -86,37 +86,37 @@
 	.window {
 		stroke-width: 4;
 		stroke-dasharray: 5 3;
-		stroke: var(--water-2);
+		stroke: var(--scene-sea-light);
 	}
-	.tone-signal {
-		fill: var(--signal);
+	.tone-action {
+		fill: var(--action);
 	}
-	.tone-container {
-		fill: var(--container);
+	.tone-accent {
+		fill: var(--accent);
 	}
-	.tone-harbour {
-		fill: var(--water-2);
+	.tone-muted {
+		fill: var(--scene-sea-light);
 	}
-	.tone-deck {
-		fill: var(--deck);
+	.tone-raised {
+		fill: var(--surface-raised);
 	}
 	.cabin {
-		fill: var(--deck);
+		fill: var(--surface-raised);
 	}
 	.funnel {
-		fill: var(--container);
+		fill: var(--accent);
 	}
 	.funnel-band {
-		stroke: var(--signal);
+		stroke: var(--action);
 		stroke-width: 3;
 	}
 	.hull {
-		fill: var(--hull);
+		fill: var(--scene-hull);
 	}
 	.boot {
-		fill: var(--container);
+		fill: var(--accent);
 	}
 	.porthole {
-		fill: var(--signal);
+		fill: var(--action);
 	}
 </style>

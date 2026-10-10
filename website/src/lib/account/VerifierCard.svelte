@@ -87,7 +87,7 @@
 	.hint,
 	.status {
 		font-size: var(--text-sm);
-		color: var(--ink-soft);
+		color: var(--ink-muted);
 	}
 	.actions {
 		display: flex;
