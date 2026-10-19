@@ -23,3 +23,27 @@ targets = [
 private = { ignore = true }
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
+
+# libdbus-sys builds its vendored libdbus into the Linux binaries. That C code is AFL-2.1 OR GPL-2.0-or-later, which
+# the crate's metadata does not say; we take AFL-2.1, for this crate only, and ship dbus's COPYING as its text. The
+# same clarification as deny.toml's.
+[libdbus-sys]
+accepted = ["AFL-2.1"]
+
+[libdbus-sys.clarify]
+license = "(MIT OR Apache-2.0) AND (AFL-2.1 OR GPL-2.0-or-later)"
+
+[[libdbus-sys.clarify.files]]
+path = "vendor/dbus/COPYING"
+license = "AFL-2.1 OR GPL-2.0-or-later"
+checksum = "e61807cd1c32ff4e7bd5b4b61dd21997c6dc5642cf19316124fe38d50e1f9fa3"
+
+[[libdbus-sys.clarify.files]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "de3911c2d98c8bd2d701ee721347053d9b55995a11f9a8c955e44d3ca1b376bf"
+
+[[libdbus-sys.clarify.files]]
+path = "LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "453745410e3be8cf25d56872ea2aec975a78e6c9f217443d0bf908a5bce7c8ff"

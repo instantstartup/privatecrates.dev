@@ -5,8 +5,10 @@ use std::{
     collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
+    sync::{Arc, LazyLock},
 };
 
+use keyring_core::CredentialStore;
 use serde::{Deserialize, Serialize};
 
 use crate::Error;
@@ -37,7 +39,7 @@ impl Store {
                 "PRIVATECRATES_CREDENTIAL_STORE must be `keyring` or `file`, not `{other}`"
             )
             .into()),
-            Err(_) if keyring::Entry::store_status().is_ok() => Ok(Self::Keyring),
+            Err(_) if KEYRING.is_ok() => Ok(Self::Keyring),
             Err(_) => {
                 eprintln!(
                     "note: no system keyring is available, so the PrivateCrates token is stored in a file readable \
@@ -52,7 +54,7 @@ impl Store {
         let text = match self {
             Self::Keyring => match entry(base)?.get_password() {
                 Ok(text) => text,
-                Err(keyring::Error::NoEntry) => return Ok(None),
+                Err(keyring_core::Error::NoEntry) => return Ok(None),
                 Err(e) => return Err(keyring_error(e)),
             },
             Self::File(path) => match read_file(path)?.remove(base) {
@@ -80,7 +82,7 @@ impl Store {
     pub fn delete(&self, base: &str) -> Result<(), Error> {
         match self {
             Self::Keyring => match entry(base)?.delete_credential() {
-                Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+                Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
                 Err(e) => Err(keyring_error(e)),
             },
             Self::File(path) => {
@@ -94,11 +96,47 @@ impl Store {
     }
 }
 
-fn entry(base: &str) -> Result<keyring::Entry, Error> {
-    keyring::Entry::new(SERVICE, base).map_err(keyring_error)
+/// Whether the platform's keyring could be opened, done once: it is then the default store of every entry.
+static KEYRING: LazyLock<keyring_core::Result<()>> =
+    LazyLock::new(|| native_store().map(keyring_core::set_default_store));
+
+#[cfg(target_os = "macos")]
+fn native_store() -> keyring_core::Result<Arc<CredentialStore>> {
+    Ok(apple_native_keyring_store::keychain::Store::new()?)
 }
 
-fn keyring_error(e: keyring::Error) -> Error {
+#[cfg(target_os = "windows")]
+fn native_store() -> keyring_core::Result<Arc<CredentialStore>> {
+    Ok(windows_native_keyring_store::Store::new()?)
+}
+
+/// The Secret Service, which keeps tokens across reboots. Its items carry the same attributes (`service`, `username`)
+/// as those keyring 4's zbus store wrote, so tokens saved before are still found.
+#[cfg(all(
+    unix,
+    not(any(target_os = "macos", target_os = "ios", target_os = "android"))
+))]
+fn native_store() -> keyring_core::Result<Arc<CredentialStore>> {
+    Ok(dbus_secret_service_keyring_store::Store::new()?)
+}
+
+#[cfg(not(any(windows, all(unix, not(any(target_os = "ios", target_os = "android"))))))]
+fn native_store() -> keyring_core::Result<Arc<CredentialStore>> {
+    Err(keyring_core::Error::NoDefaultStore)
+}
+
+fn entry(base: &str) -> Result<keyring_core::Entry, Error> {
+    if let Err(e) = &*KEYRING {
+        return Err(format!(
+            "the system keyring is not available: {e}. Set PRIVATECRATES_CREDENTIAL_STORE=file to store the token in \
+             a file instead"
+        )
+        .into());
+    }
+    keyring_core::Entry::new(SERVICE, base).map_err(keyring_error)
+}
+
+fn keyring_error(e: keyring_core::Error) -> Error {
     format!(
         "the system keyring failed: {e}. Set PRIVATECRATES_CREDENTIAL_STORE=file to store the token in a file instead"
     )
