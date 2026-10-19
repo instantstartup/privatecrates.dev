@@ -24,6 +24,19 @@ allow = [
 ]
 confidence-threshold = 0.9
 
+# libdbus-sys (the Linux Secret Service store, through privatecrates-auth) builds its vendored copy of libdbus into the
+# client binaries. That C code is AFL-2.1 OR GPL-2.0-or-later (vendor/dbus/COPYING), which the crate's own MIT/Apache
+# metadata does not say; we take AFL-2.1, for this crate only, and ship its COPYING with the binaries
+# (about.toml).
+[[licenses.clarify]]
+crate = "libdbus-sys"
+expression = "(MIT OR Apache-2.0) AND (AFL-2.1 OR GPL-2.0-or-later)"
+license-files = [{ path = "vendor/dbus/COPYING", hash = 0x9794b080 }]
+
+[[licenses.exceptions]]
+crate = "libdbus-sys"
+allow = ["AFL-2.1"]
+
 # Our unpublished crates (the server, under the Business Source Licence) are not checked.
 [licenses.private]
 ignore = true

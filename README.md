@@ -31,7 +31,8 @@ with GitHub's device flow through a Cargo credential provider; CI needs no store
 ## Building and testing
 
 Requires Rust 1.98 or later and `git` (the verifier's tests build real repositories; some tests drive the real
-`cargo` binary).
+`cargo` binary). On Linux, a C compiler too: the client tools build their own copy of libdbus (for the Secret Service
+keyring), so they need no `libdbus-1-dev` to build and no libdbus to run.
 
 ```sh
 cargo fmt --all --check
