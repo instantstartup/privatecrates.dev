@@ -10,9 +10,10 @@ use std::{
 
 use bytes::Bytes;
 use privatecrates_common::{audience, sha256_hex};
+use privatecrates_qos::rate_limit::RateLimitConfig;
 use privatecrates_server::{
     AppState,
-    config::{AppConfig, Config, StripeConfig},
+    config::{self, AppConfig, Config, StripeConfig},
     router,
 };
 use privatecrates_testkit::{FakeGitHub, Org, READER_APP_ID, STORAGE_APP_ID, stripe::FakeStripe};
@@ -21,6 +22,14 @@ use serde_json::{Value, json};
 /// Each App signs its webhooks with its own secret.
 pub const READER_WEBHOOK_SECRET: &[u8] = b"the reader App's webhook secret";
 pub const STORAGE_WEBHOOK_SECRET: &[u8] = b"the storage App's webhook secret";
+
+/// The production limit on tokens not seen before, but with a refill so slow (one token every ~17 minutes) that
+/// none comes back while a test runs: how many are admitted depends only on the burst, not on the runner's speed.
+/// The rate can't be zero: the limiter divides the burst by it.
+pub const NEW_TOKENS: RateLimitConfig = RateLimitConfig {
+    per_second: 0.001,
+    ..config::NEW_TOKENS
+};
 
 pub struct Harness {
     pub fake: FakeGitHub,
@@ -108,6 +117,7 @@ impl Harness {
             max_crate_bytes: 1024 * 1024,
             publish_rate_per_minute: 1000,
             permission_ttl: Duration::from_secs(300),
+            new_tokens: NEW_TOKENS,
             tenant_refresh: Duration::from_secs(600),
             storage_refresh: Duration::from_secs(60),
         };

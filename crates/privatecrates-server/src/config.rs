@@ -4,6 +4,7 @@ use std::{env, net::SocketAddr, path::PathBuf, time::Duration};
 
 use apollo_errors::Error;
 use miette::Diagnostic;
+use privatecrates_qos::rate_limit::RateLimitConfig;
 use url::Url;
 
 use crate::tenant::is_reserved;
@@ -12,6 +13,14 @@ use crate::tenant::is_reserved;
 const PRODUCTION_DOMAIN: &str = "privatecrates.dev";
 /// Our deployments, which must record terms acceptances in Postgres.
 const DEPLOYED_DOMAINS: &[&str] = &[PRODUCTION_DOMAIN, "dev.privatecrates.dev"];
+
+/// Tokens not seen before that may be checked with GitHub: a burst, then a steady rate. Far above what real use
+/// needs (a token is checked once per cache period), far below what would worry GitHub.
+pub const NEW_TOKENS: RateLimitConfig = RateLimitConfig {
+    burst: 200,
+    per_second: 20.0,
+    max_keys: 16,
+};
 
 #[derive(Clone)]
 pub struct Config {
@@ -58,6 +67,8 @@ pub struct Config {
     pub max_crate_bytes: usize,
     pub publish_rate_per_minute: u32,
     pub permission_ttl: Duration,
+    /// How fast tokens not seen before are checked with GitHub, across the server ([`NEW_TOKENS`] outside tests).
+    pub new_tokens: RateLimitConfig,
     pub tenant_refresh: Duration,
     pub storage_refresh: Duration,
 }
@@ -162,6 +173,7 @@ impl Config {
             max_crate_bytes: parse_or("MAX_CRATE_BYTES", 20 * 1024 * 1024)?,
             publish_rate_per_minute: parse_or("PUBLISH_RATE_PER_MINUTE", 30)?,
             permission_ttl: Duration::from_secs(parse_or("PERMISSION_TTL_SECS", 300)?),
+            new_tokens: NEW_TOKENS,
             tenant_refresh: Duration::from_secs(parse_or("TENANT_REFRESH_SECS", 600)?),
             storage_refresh: Duration::from_secs(parse_or("STORAGE_REFRESH_SECS", 60)?),
         })
@@ -318,6 +330,7 @@ pub(crate) mod tests {
             max_crate_bytes: 1024,
             publish_rate_per_minute: 30,
             permission_ttl: Duration::from_secs(300),
+            new_tokens: NEW_TOKENS,
             tenant_refresh: Duration::from_secs(600),
             storage_refresh: Duration::from_secs(60),
         }
