@@ -1,7 +1,9 @@
 #!/bin/sh
 # The server workspace's gate, as CI's `server` job runs it (.github/workflows/ci.yml): fmt, clippy, tests.
 # crates/privatecrates-server is its own workspace (it alone reads the private instantstartup registry), so the
-# root workspace's build commands never reach it. It builds in its own target dir, crates/privatecrates-server/target.
+# root workspace's build commands never reach it. It builds in its own target dir, crates/privatecrates-server/target,
+# whatever CARGO_TARGET_DIR the caller exports (review copies and build slots export the root's), so the root
+# workspace's cache is never touched; the client tools its tests build at the root land there too.
 #
 # Never waits on a person: stdin is closed, the credential provider is told no one can answer a sign-in prompt,
 # and every cargo call has a time limit. Fetching first separates "can't reach the registry or not signed in"
@@ -10,6 +12,7 @@ set -u
 
 cd "$(dirname "$0")/../crates/privatecrates-server" || exit 1
 
+export CARGO_TARGET_DIR="$PWD/target"
 export PRIVATECRATES_INTERACTIVE=0
 export CARGO_TERM_COLOR="${CARGO_TERM_COLOR:-never}"
 
