@@ -112,7 +112,12 @@
 	--shadow-offset-press: 1px;
 	--shadow-offset-feature: 6px; /* the featured pricing card */
 
-	/* Sizes of things. Widths of text are the containers in @theme. */
+	/*
+	 * Sizes of elements: icons, marks, numerals, illustrations, controls. The widths of blocks and columns (grid
+	 * tracks, layout columns, max-widths, text measures) are the --container-* tokens in @theme, never --size-*.
+	 * One token per role: two roles may share a value, but a token is never used for a role it doesn't name just
+	 * because its value matches; such a length gets a role token of its own.
+	 */
 	--size-control: 2.75rem; /* the smallest tap target */
 	--size-control-compact: 2.25rem; /* a small control inside another block (a copy button, a notice's link), or a small mark beside a paragraph */
 	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
@@ -308,8 +313,10 @@
 	--color-accent: var(--accent);
 	--color-divider: var(--divider);
 	/*
-	 * Containers measure text: how wide a column of running text may get, named for what it holds. Fixed widths
-	 * of art, controls and grid columns are --size-* in :root. Both snap by the 1.6px rule, like every length.
+	 * Containers are the widths of blocks and columns: grid tracks, layout columns, max-widths and text measures,
+	 * each named for what it holds. The sizes of elements (icons, marks, numerals, illustrations, controls) are
+	 * --size-* in :root. One token per role: two roles may share a value, but a container is never used for a
+	 * role it doesn't name just because its value matches. Both snap by the 1.6px rule, like every length.
 	 */
 	--container-page: 72rem; /* the page's content column */
 	--container-closing: 46rem; /* a closing section of text under a page's main block, with a rule above it */
