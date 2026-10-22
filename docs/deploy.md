@@ -193,7 +193,9 @@ upload a logo under *Display information*.
 ## 5. Stripe
 
 `scripts/stripe-setup.sh` creates, or updates if they exist: the product `privatecrates` ("PrivateCrates"), a
-USD 100.00 monthly price with lookup key `privatecrates_org_monthly`, a webhook endpoint for
+USD 10.00 monthly price per member with lookup key `privatecrates_member_monthly` (the server sets each
+subscription's quantity to the members past `FREE_MEMBER_LIMIT`, at most 10, so at most USD 100 a month), a webhook
+endpoint for
 `https://{apex}/webhooks/stripe` with `checkout.session.completed` and `customer.subscription.created|updated|deleted`,
 and the default customer portal configuration (cancel at period end, update payment method, invoice history). It
 pins Stripe API version `2026-08-26.dahlia` for its calls and for the webhook payloads (override with
