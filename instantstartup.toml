@@ -6,8 +6,8 @@ main_branches = ["dev"]
 check = "cargo check --workspace --all-targets --locked"
 fmt = "cargo fmt --all --check"
 lint = "cargo clippy --workspace --all-targets --locked -- -D warnings"
-test = "cargo test --workspace --locked && cd website && pnpm install --frozen-lockfile && pnpm run check && pnpm run lint && pnpm run build"
-format = "cargo fmt --all && cd website && pnpm install --frozen-lockfile && pnpm run format"
+test = "cargo test --workspace --locked && cd website && pnpm install --frozen-lockfile --config.confirmModulesPurge=false && pnpm run check && pnpm run lint && pnpm run build"
+format = "cargo fmt --all && cd website && pnpm install --frozen-lockfile --config.confirmModulesPurge=false && pnpm run format"
 
 [style]
 paths = ["website/src"]
