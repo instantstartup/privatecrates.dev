@@ -130,7 +130,7 @@
 		border-bottom: var(--border-hairline) solid var(--divider);
 	}
 	.search input {
-		max-width: var(--size-standalone);
+		max-width: var(--container-field);
 	}
 	label {
 		font-weight: 700;

@@ -442,7 +442,7 @@
 	}
 	@media (width >= theme(--breakpoint-4)) {
 		.hero {
-			grid-template-columns: minmax(0, 1fr) var(--size-column-narrow);
+			grid-template-columns: minmax(0, 1fr) var(--container-hero-art);
 		}
 	}
 	h1 {
@@ -456,7 +456,7 @@
 	}
 	@media (width >= theme(--breakpoint-4)) {
 		.hero :global(.hero-art) {
-			width: var(--size-column-narrow);
+			width: var(--size-illustration-hero);
 		}
 	}
 
@@ -486,7 +486,7 @@
 	}
 	@media (width >= theme(--breakpoint-3)) {
 		.row {
-			grid-template-columns: var(--size-term-column) minmax(0, 1fr);
+			grid-template-columns: var(--container-term) minmax(0, 1fr);
 			align-items: baseline;
 		}
 	}
@@ -521,7 +521,7 @@
 	}
 	/* The order is the plan: a large numeral per step, like the landing page's manifest. */
 	.roadmap .num {
-		width: var(--size-numeral-column);
+		width: var(--container-numeral);
 		font-family: var(--font-display);
 		font-weight: 800;
 		font-size: var(--text-title);
@@ -534,7 +534,7 @@
 	@media (width <= theme(--breakpoint-3)) {
 		.roadmap tr {
 			display: grid;
-			grid-template-columns: var(--size-control-compact) minmax(0, 1fr);
+			grid-template-columns: var(--container-numeral-stacked) minmax(0, 1fr);
 		}
 		.roadmap .num {
 			grid-row: span 2;

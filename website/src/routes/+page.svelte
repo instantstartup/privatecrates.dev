@@ -543,7 +543,7 @@
 	}
 	@media (width >= theme(--breakpoint-5)) {
 		.price-card {
-			grid-template-columns: var(--size-illustration-small) 1fr;
+			grid-template-columns: var(--container-price-art) 1fr;
 			align-items: center;
 			padding: var(--space-10);
 		}
@@ -575,7 +575,7 @@
 	/* The two plans side by side with equal weight; they stack on narrow screens. */
 	.tiers {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(var(--size-column-narrow), 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(var(--container-tier), 1fr));
 		gap: var(--space-5) var(--space-9);
 		margin-top: var(--space-5);
 	}

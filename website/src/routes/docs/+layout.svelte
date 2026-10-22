@@ -88,7 +88,7 @@
 	}
 	@media not (width >= theme(--breakpoint-7)) {
 		.side ul {
-			grid-template-columns: repeat(auto-fill, minmax(var(--size-tile), 1fr));
+			grid-template-columns: repeat(auto-fill, minmax(var(--container-tile), 1fr));
 			border-left: 0;
 			border-top: var(--border-outline) solid var(--divider);
 			padding-top: var(--space-2);
