@@ -40,8 +40,7 @@
 	<li>
 		<strong>What we store durably:</strong> no registry data and no code. Caches only, keyed by hashes of
 		tokens, never tokens. The durable records are each organisation’s acceptance of the
-		<a href="/legal/terms">terms</a> (who accepted, for which organisation, when) and requests to join the private
-		preview.
+		<a href="/legal/terms">terms</a> (who accepted, for which organisation, when).
 	</li>
 	<li>
 		<strong>What we can do:</strong> write to each organisation’s storage repository, through the storage App.
