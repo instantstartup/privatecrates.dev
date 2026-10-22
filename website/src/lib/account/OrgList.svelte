@@ -54,32 +54,32 @@
 <style>
 	.title {
 		font-size: var(--text-title);
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--space-3);
 	}
 	.preview {
 		display: inline-block;
-		margin-bottom: 0.6rem;
+		margin-bottom: var(--space-3);
 		font-size: var(--text-meta);
 		font-weight: 700;
-		padding: 0.15rem 0.5rem;
-		border-radius: 999px;
-		border: 1.5px solid currentColor;
+		padding: var(--space-badge-y) var(--space-3);
+		border-radius: var(--radius-pill);
+		border: var(--border-badge) solid currentColor;
 		color: var(--ok);
 		background: var(--ok-bg);
 	}
 	ul {
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--space-list-item);
 	}
 	/* The whole row is the target: the link stretches over it. */
 	.row {
 		position: relative;
 		display: flex;
 		align-items: flex-start;
-		gap: 0.75rem;
-		padding: 0.6rem 0.75rem;
-		border: 2px solid transparent;
-		border-radius: 8px;
+		gap: var(--space-4);
+		padding: var(--space-row-y) var(--space-4);
+		border: var(--border-outline) solid transparent;
+		border-radius: var(--radius-card);
 	}
 	.row:hover {
 		background: color-mix(in srgb, var(--ink) 6%, transparent);
@@ -98,16 +98,16 @@
 		content: '';
 		position: absolute;
 		inset: 0;
-		border-radius: 6px;
+		border-radius: var(--radius-control);
 	}
 	.monogram {
 		flex: none;
 		display: grid;
 		place-items: center;
-		width: 2.1rem;
-		height: 2.1rem;
-		border: 2px solid var(--line);
-		border-radius: 4px;
+		width: var(--size-marker);
+		height: var(--size-marker);
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-inline);
 		background: var(--action);
 		color: var(--action-ink);
 		font-family: var(--font-display);
@@ -128,16 +128,16 @@
 	.badges {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.3rem;
-		margin-top: 0.3rem;
+		gap: var(--space-badge-gap);
+		margin-top: var(--space-badge-gap);
 	}
 	.badge {
 		flex: none;
 		font-size: var(--text-meta);
 		font-weight: 700;
-		padding: 0.15rem 0.5rem;
-		border-radius: 999px;
-		border: 1.5px solid currentColor;
+		padding: var(--space-badge-y) var(--space-3);
+		border-radius: var(--radius-pill);
+		border: var(--border-badge) solid currentColor;
 		white-space: nowrap;
 	}
 	.badge.ok {

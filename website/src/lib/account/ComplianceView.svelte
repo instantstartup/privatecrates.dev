@@ -407,14 +407,14 @@
 <style>
 	.compliance {
 		display: grid;
-		gap: 1.75rem;
+		gap: var(--space-8);
 	}
 	.head {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: space-between;
 		align-items: baseline;
-		gap: 0.25rem 1rem;
+		gap: var(--space-2) var(--space-5);
 	}
 	h3 {
 		font-size: var(--text-headline);
@@ -425,9 +425,9 @@
 	}
 	.block {
 		display: grid;
-		gap: 0.75rem;
-		padding-top: 1.5rem;
-		border-top: 2px solid var(--line);
+		gap: var(--space-4);
+		padding-top: var(--space-7);
+		border-top: var(--border-outline) solid var(--line);
 		min-width: 0;
 	}
 	h4 {
@@ -438,7 +438,7 @@
 	}
 	.empty {
 		color: var(--ink-muted);
-		max-width: 40rem;
+		max-width: var(--container-measure);
 	}
 	.ok-line::before {
 		content: '✓ ';
@@ -454,7 +454,7 @@
 		font-family: var(--font-display);
 		font-size: var(--text-headline);
 		line-height: 1;
-		margin-right: 0.25rem;
+		margin-right: var(--space-2);
 	}
 	.summary.ok .figure {
 		color: var(--ok);
@@ -464,15 +464,15 @@
 	}
 	.checks {
 		display: grid;
-		gap: 0.35rem;
-		max-width: 34rem;
+		gap: var(--space-list-item);
+		max-width: var(--container-figures);
 	}
 	.checks > div {
 		display: flex;
 		justify-content: space-between;
-		gap: 1rem;
-		padding: 0.4rem 0 0.4rem 1.6rem;
-		border-bottom: 1px dashed var(--divider);
+		gap: var(--space-5);
+		padding: var(--space-check-y) 0 var(--space-check-y) var(--space-list-indent-tick);
+		border-bottom: var(--border-hairline) dashed var(--divider);
 		position: relative;
 	}
 	.checks > div::before {
@@ -493,10 +493,10 @@
 		white-space: nowrap;
 	}
 	.problems {
-		border-left: 5px solid var(--danger);
+		border-left: var(--border-bar) solid var(--danger);
 		background: var(--danger-bg);
-		border-radius: 0 8px 8px 0;
-		padding: 0.85rem 1rem;
+		border-radius: 0 var(--radius-card) var(--radius-card) 0;
+		padding: var(--space-callout-y) var(--space-5);
 	}
 	.problems-title,
 	.risk-title {
@@ -504,12 +504,12 @@
 	}
 	.problems ul {
 		display: grid;
-		gap: 0.5rem;
-		margin-top: 0.5rem;
+		gap: var(--space-3);
+		margin-top: var(--space-3);
 	}
 	.problems li code {
 		font-weight: 700;
-		margin-right: 0.35rem;
+		margin-right: var(--space-2);
 	}
 
 	table {
@@ -521,8 +521,8 @@
 	td {
 		text-align: left;
 		vertical-align: top;
-		padding: 0.55rem 0.6rem;
-		border-bottom: 1px solid var(--divider);
+		padding: var(--space-cell-y) var(--space-cell-x);
+		border-bottom: var(--border-hairline) solid var(--divider);
 	}
 	thead th {
 		white-space: nowrap;
@@ -549,23 +549,23 @@
 	}
 	.by {
 		overflow-wrap: anywhere;
-		min-width: 14rem;
+		min-width: var(--container-column-actor);
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--text-micro);
 	}
 
 	.risks {
 		display: grid;
-		gap: 0.75rem;
+		gap: var(--space-4);
 	}
 	.risk {
 		display: grid;
-		gap: 0.3rem;
-		padding: 0.85rem 1rem;
-		border-left: 5px solid var(--action);
+		gap: var(--space-item-lines);
+		padding: var(--space-callout-y) var(--space-5);
+		border-left: var(--border-bar) solid var(--action);
 		background: var(--warn-bg);
-		border-radius: 0 8px 8px 0;
-		max-width: 44rem;
+		border-radius: 0 var(--radius-card) var(--radius-card) 0;
+		max-width: var(--container-prose);
 	}
 	.more {
 		font-size: var(--text-meta);
@@ -576,14 +576,14 @@
 		flex-wrap: wrap;
 		justify-content: space-between;
 		align-items: center;
-		gap: 0.5rem 1rem;
+		gap: var(--space-3) var(--space-5);
 	}
 	.pager {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.75rem;
+		gap: var(--space-4);
 	}
 	.page-no {
 		color: var(--ink-muted);
@@ -592,14 +592,14 @@
 
 	.loading {
 		display: grid;
-		gap: 0.75rem;
-		min-height: 14rem;
+		gap: var(--space-4);
+		min-height: var(--size-loading-report);
 		align-content: start;
 	}
 	.bar {
 		display: block;
-		height: 1.1rem;
-		border-radius: 4px;
+		height: var(--size-loading-bar);
+		border-radius: var(--radius-inline);
 		background: color-mix(in srgb, var(--ink) 10%, transparent);
 		animation: pulse 1.4s ease-in-out infinite;
 	}
