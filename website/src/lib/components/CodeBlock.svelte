@@ -62,8 +62,8 @@
 <style>
 	.code {
 		margin: 0;
-		border: 2px solid var(--line);
-		border-radius: 8px;
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-card);
 		background: var(--code-bg);
 		color: var(--code-ink);
 		overflow: hidden;
@@ -73,9 +73,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 1rem;
-		padding: 0.25rem 0.35rem 0.25rem 0.9rem;
-		border-bottom: 1px solid color-mix(in srgb, var(--code-ink) 22%, transparent);
+		gap: var(--space-5);
+		padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+		border-bottom: var(--border-hairline) solid color-mix(in srgb, var(--code-ink) 22%, transparent);
 		font-size: var(--text-meta);
 		color: var(--code-comment);
 	}
@@ -86,12 +86,12 @@
 	.copy {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.35rem;
-		min-height: 2.25rem;
-		min-width: 5rem;
+		gap: var(--space-2);
+		min-height: var(--size-control-compact);
+		min-width: var(--size-control-label);
 		justify-content: center;
-		padding: 0.25rem 0.7rem;
-		border-radius: 5px;
+		padding: var(--space-2) var(--space-4);
+		border-radius: var(--radius-control);
 		color: var(--code-ink);
 		font-weight: 700;
 		font-size: var(--text-meta);
@@ -104,8 +104,8 @@
 		outline-color: var(--code-focus);
 	}
 	.copy svg {
-		width: 1rem;
-		height: 1rem;
+		width: var(--size-icon-small);
+		height: var(--size-icon-small);
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 1.75;
@@ -113,7 +113,7 @@
 	}
 	pre {
 		margin: 0;
-		padding: 0.9rem 1rem 1rem;
+		padding: var(--space-code-block-top) var(--space-5) var(--space-5);
 		font-size: var(--text-meta);
 		line-height: 1.6;
 		tab-size: 2;

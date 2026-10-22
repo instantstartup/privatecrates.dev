@@ -201,10 +201,19 @@ async fn a_flood_of_made_up_tokens_does_not_reach_github() {
             refused += 1;
         }
     }
-    assert!(refused >= 40, "{refused}");
-    // Only the burst's worth went to GitHub.
-    let user_calls = h.fake.calls().iter().filter(|c| *c == "GET /user").count();
-    assert!(user_calls <= 210, "{user_calls}");
+    // The harness's limit refills too slowly for any token to come back during the loop: exactly the burst is
+    // admitted, whatever the runner's speed.
+    let burst = common::NEW_TOKENS.burst as usize;
+    assert_eq!(refused, 250 - burst, "{refused}");
+    // Only the burst's worth went to GitHub: each admitted token is checked once, by asking whether it can read
+    // the storage repository, and GitHub's 401 ends the request there.
+    let checks = h
+        .fake
+        .calls()
+        .iter()
+        .filter(|c| c.starts_with("GET /repositories/"))
+        .count();
+    assert_eq!(checks, burst, "{:?}", h.fake.calls());
 
     // A string that cannot be a GitHub token never reaches it at all.
     h.fake.clear_calls();

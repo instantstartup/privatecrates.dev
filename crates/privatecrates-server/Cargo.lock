@@ -2537,7 +2537,7 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-common"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "hex",
  "semver",
@@ -2549,9 +2549,9 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-qos"
-version = "0.1.0"
-source = "sparse+https://worldbuilding-dev.privatecrates.dev/index/"
-checksum = "ca40c10ab39a7203f8bcabb5100a930360f9798caf91c050ad94a0eb8fc5a360"
+version = "0.1.1"
+source = "sparse+https://instantstartup.privatecrates.dev/index/"
+checksum = "936f6f1b85ca389455343e84f34da90c9e9bb97daf1e93e7a2555b956eb3b3a4"
 dependencies = [
  "apollo-errors",
  "axum",
@@ -2630,7 +2630,7 @@ dependencies = [
 
 [[package]]
 name = "privatecrates-verify"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "clap",
  "jsonwebtoken",
@@ -3051,9 +3051,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.45"
+version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
+checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
  "aws-lc-rs",
  "log",

@@ -13,7 +13,7 @@ with GitHub's device flow through a Cargo credential provider; CI needs no store
 
 | Path | What | Licence |
 |---|---|---|
-| [`crates/privatecrates-server`](crates/privatecrates-server) | The hosted service: registry, website and account API, webhooks. Its own Cargo workspace: it alone depends on the private `privatecrates-qos`, from our own `worldbuilding-dev` registry, so everything else builds without access to it | BUSL-1.1 |
+| [`crates/privatecrates-server`](crates/privatecrates-server) | The hosted service: registry, website and account API, webhooks. Its own Cargo workspace: it alone depends on the private `privatecrates-qos`, from our own `instantstartup` registry, so everything else builds without access to it | BUSL-1.1 |
 | [`crates/cargo-credential-privatecrates`](crates/cargo-credential-privatecrates) | Cargo credential provider (device flow, Actions OIDC) | MIT OR Apache-2.0 |
 | [`crates/cargo-privatecrates`](crates/cargo-privatecrates) | `cargo privatecrates`: sign in, onboard an organisation, configure crate repositories, check them | MIT OR Apache-2.0 |
 | [`crates/privatecrates-verify`](crates/privatecrates-verify) | Verifier customers run against their storage repository | MIT OR Apache-2.0 |
@@ -31,7 +31,8 @@ with GitHub's device flow through a Cargo credential provider; CI needs no store
 ## Building and testing
 
 Requires Rust 1.98 or later and `git` (the verifier's tests build real repositories; some tests drive the real
-`cargo` binary).
+`cargo` binary). On Linux, a C compiler too: the client tools build their own copy of libdbus (for the Secret Service
+keyring), so they need no `libdbus-1-dev` to build and no libdbus to run.
 
 ```sh
 cargo fmt --all --check

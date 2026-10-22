@@ -23,21 +23,21 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.15rem 0.6rem;
-		min-height: 2.25rem;
-		padding-block: 0.3rem;
+		gap: var(--space-1) var(--space-3);
+		min-height: var(--size-control-compact);
+		padding-block: var(--space-2);
 		line-height: 1.3;
 	}
 	.tag {
-		padding: 0.05rem 0.45rem;
-		border-radius: 4px;
+		padding: var(--space-1) var(--space-3);
+		border-radius: var(--radius-inline);
 		background: var(--action);
 		color: var(--action-ink);
 		font-weight: 700;
 	}
 	a {
 		display: inline-block;
-		padding-block: 0.25rem;
+		padding-block: var(--space-2);
 		color: inherit;
 		font-weight: 700;
 	}

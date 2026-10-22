@@ -1,6 +1,6 @@
 [package]
 name = "privatecrates-auth"
-version = "0.2.9"
+version = "0.2.10"
 description = "Signing in to PrivateCrates with GitHub's device flow, and keeping the token in the system keyring."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -12,11 +12,24 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-keyring = "4.2.0"
+keyring-core = "1.0.1"
 reqwest = { version = "0.13.5", features = ["blocking", "json", "form"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 thiserror = "2.0.21"
+
+# Each platform's native credential store, as keyring 4's `v1` picks them, except that the Secret Service is reached
+# through libdbus rather than zbus (whose zvariant and zbus_names are unmaintained: RUSTSEC-2026-0370..0372). libdbus
+# is vendored and linked statically, so building needs only a C compiler and the binaries start in slim containers
+# without libdbus (falling back to the credentials file); its AFL-2.1 notice ships with them (deploy/licenses).
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1.0.2", features = ["keychain"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1.1.0"
+
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
+dbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-rust", "vendored"] }
 
 [lints]
 workspace = true

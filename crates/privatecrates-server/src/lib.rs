@@ -132,7 +132,7 @@ impl AppState {
             gh: GitHub::new(&config)?,
             tenants: Tenants::default(),
             blobs: tenant::blob_cache(),
-            permissions: PermissionCache::new(config.permission_ttl),
+            permissions: PermissionCache::new(config.permission_ttl, config.new_tokens),
             oidc: Oidc::new(config.oidc_issuer.clone(), config.oidc_jwks_url.clone()),
             registry_tokens: RegistryTokens::new(&config.registry_token_secret),
             crates_io: CratesIo::new(config.crates_io_api.clone()),

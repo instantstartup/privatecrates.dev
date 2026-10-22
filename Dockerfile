@@ -39,11 +39,11 @@ COPY crates ./crates
 RUN cd crates/privatecrates-server && cargo chef prepare --recipe-path /src/recipe.json
 
 FROM chef AS server
-# A read-only GitHub token for the worldbuilding-dev PrivateCrates registry, where privatecrates-qos is published:
+# A read-only GitHub token for the instantstartup PrivateCrates registry, where privatecrates-qos is published:
 # a sealed Railway variable, which Railway passes to builds as a build argument. Declared in this stage only, so the
 # image that runs has no trace of it; Cargo uses it as a plain token for that registry.
 ARG PRIVATECRATES_TOKEN
-ENV CARGO_REGISTRIES_WORLDBUILDING_DEV_CREDENTIAL_PROVIDER=cargo:token
+ENV CARGO_REGISTRIES_INSTANTSTARTUP_CREDENTIAL_PROVIDER=cargo:token
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo ./.cargo
 COPY crates/privatecrates-server/Cargo.toml crates/privatecrates-server/Cargo.lock crates/privatecrates-server/
@@ -54,11 +54,11 @@ COPY crates/privatecrates-testkit crates/privatecrates-testkit
 COPY --from=planner /src/recipe.json recipe.json
 # Builds only the dependencies; this layer is cached until the server's Cargo.toml/Cargo.lock change.
 RUN cd crates/privatecrates-server \
-    && CARGO_REGISTRIES_WORLDBUILDING_DEV_TOKEN="$PRIVATECRATES_TOKEN" \
+    && CARGO_REGISTRIES_INSTANTSTARTUP_TOKEN="$PRIVATECRATES_TOKEN" \
        cargo chef cook --release --locked --recipe-path /src/recipe.json
 COPY crates ./crates
 RUN cd crates/privatecrates-server \
-    && CARGO_REGISTRIES_WORLDBUILDING_DEV_TOKEN="$PRIVATECRATES_TOKEN" cargo build --release --locked \
+    && CARGO_REGISTRIES_INSTANTSTARTUP_TOKEN="$PRIVATECRATES_TOKEN" cargo build --release --locked \
     && install -D -m 0755 target/release/privatecrates-server /out/privatecrates-server
 
 # ---- Runtime: glibc + CA certificates, non-root, no shell ------------------------------------------

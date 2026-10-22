@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: read
-      id-token: write # reads privatecrates-qos from the worldbuilding-dev registry
+      id-token: write # reads privatecrates-qos from the instantstartup registry
     defaults:
       run:
         working-directory: crates/privatecrates-server
@@ -85,7 +85,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      id-token: write # the server's workspace reads the worldbuilding-dev registry
+      id-token: write # the server's workspace reads the instantstartup registry
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -128,7 +128,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      id-token: write # reads privatecrates-qos from the worldbuilding-dev registry
+      id-token: write # reads privatecrates-qos from the instantstartup registry
     services:
       postgres:
         image: postgres:18@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
@@ -269,7 +269,7 @@ jobs:
         id: registry
         if: hashFiles('website/package.json') != ''
         env:
-          REGISTRY: https://worldbuilding-dev.privatecrates.dev
+          REGISTRY: https://instantstartup.privatecrates.dev
         run: |
           oidc="$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$REGISTRY" | jq -r .value)"

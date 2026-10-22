@@ -55,8 +55,10 @@
 	}
 	.bob {
 		animation: bob 7s ease-in-out infinite;
+		/* Drawing geometry in viewBox units (SVG's default transform-box, view-box), not CSS lengths: the point it rocks about. */
 		transform-origin: 200px 140px;
 	}
+	/* The bob is in viewBox units too, so it scales with the drawing. */
 	@keyframes bob {
 		0%,
 		100% {

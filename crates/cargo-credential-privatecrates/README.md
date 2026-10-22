@@ -29,7 +29,7 @@ cargo install --locked cargo-credential-privatecrates
 ```
 
 Release binaries carry GitHub build provenance; check one with
-`gh attestation verify <file> --repo worldbuilding-dev/privatecrates.dev`.
+`gh attestation verify <file> --repo instantstartup/privatecrates.dev`.
 
 ## Licence
 

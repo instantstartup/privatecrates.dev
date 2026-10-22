@@ -69,16 +69,17 @@
 	.tabs {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.25rem;
-		border-bottom: 2px solid var(--line);
+		gap: var(--space-2);
+		border-bottom: var(--border-outline) solid var(--line);
 	}
 	button {
-		min-height: 2.75rem;
-		padding: 0.5rem 1rem;
-		margin-bottom: -2px;
-		border: 2px solid transparent;
+		min-height: var(--size-control);
+		padding: var(--space-3) var(--space-5);
+		/* Overlaps the strip's rule, so the selected tab opens into the panel below. */
+		margin-bottom: calc(-1 * var(--border-outline));
+		border: var(--border-outline) solid transparent;
 		border-bottom: 0;
-		border-radius: 6px 6px 0 0;
+		border-radius: var(--radius-control) var(--radius-control) 0 0;
 		background: transparent;
 		color: var(--ink-muted);
 		font: inherit;
@@ -93,6 +94,6 @@
 		color: var(--ink);
 		background: var(--surface-raised);
 		border-color: var(--ink);
-		box-shadow: inset 0 3px 0 var(--action);
+		box-shadow: inset 0 var(--border-strong) 0 var(--action);
 	}
 </style>

@@ -34,3 +34,31 @@ allow = [
 	"--scene-glint",
 	"--scene-glare",
 ]
+
+# The server workspace, as CI's `server` job builds it: crates/privatecrates-server is excluded from the root
+# workspace (it alone reads the private instantstartup registry), so `check`, `lint` and `test` above never reach
+# it. Only for a lane that changed what it builds from: the server (its Cargo.lock included), its path
+# dependencies (privatecrates-common, -verify, -testkit), the client tools its full-system tests build from the
+# root workspace (cargo-privatecrates, cargo-credential-privatecrates and their privatecrates-auth, with the root
+# Cargo.toml and Cargo.lock), the website file its tests read (snippets.ts), the registry config, the scripts and
+# this file. Paths must exist in the repository (a typo would skip the step on every lane). server-gate-test.sh
+# first checks, with a fake cargo, that every call builds in the server's own target dir and can't prompt.
+[[build.steps]]
+name = "server"
+command = "sh scripts/server-gate-test.sh && sh scripts/server-gate.sh"
+paths = [
+	"crates/privatecrates-server/",
+	"crates/privatecrates-common/",
+	"crates/privatecrates-verify/",
+	"crates/privatecrates-testkit/",
+	"crates/privatecrates-auth/",
+	"crates/cargo-privatecrates/",
+	"crates/cargo-credential-privatecrates/",
+	"Cargo.toml",
+	"Cargo.lock",
+	"website/src/lib/snippets.ts",
+	".cargo/config.toml",
+	"scripts/server-gate.sh",
+	"scripts/server-gate-test.sh",
+	"instantstartup.toml",
+]

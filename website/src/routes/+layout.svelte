@@ -25,18 +25,18 @@
 <style>
 	.skip {
 		position: absolute;
-		left: 1rem;
-		top: -4rem;
+		left: var(--space-5);
+		top: calc(-1 * var(--space-12));
 		z-index: 10;
-		padding: 0.6rem 1rem;
+		padding: var(--space-control-y) var(--space-5);
 		background: var(--action);
 		color: var(--action-ink);
 		font-weight: 700;
-		border: 2px solid var(--line);
-		border-radius: 6px;
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-control);
 	}
 	.skip:focus {
-		top: 0.75rem;
+		top: var(--space-4);
 	}
 	main:focus {
 		outline: none;

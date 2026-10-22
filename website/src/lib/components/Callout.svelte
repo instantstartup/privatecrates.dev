@@ -19,13 +19,13 @@
 
 <style>
 	.callout {
-		border-left: 5px solid var(--info);
+		border-left: var(--border-bar) solid var(--info);
 		background: var(--surface-raised);
-		padding: 0.85rem 1rem;
-		border-radius: 0 8px 8px 0;
+		padding: var(--space-callout-y) var(--space-5);
+		border-radius: 0 var(--radius-card) var(--radius-card) 0;
 	}
 	.callout > :global(* + *) {
-		margin-top: 0.5rem;
+		margin-top: var(--space-3);
 	}
 	.warn {
 		border-color: var(--action);

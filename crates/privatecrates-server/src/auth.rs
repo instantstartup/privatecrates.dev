@@ -128,15 +128,6 @@ pub struct PermissionCache {
     new_tokens: privatecrates_qos::rate_limit::RateLimiter,
 }
 
-/// Tokens not seen before that may be checked with GitHub: a burst, then a steady rate. Far above what real use
-/// needs (a token is checked once per cache period), far below what would worry GitHub.
-const NEW_TOKENS: privatecrates_qos::rate_limit::RateLimitConfig =
-    privatecrates_qos::rate_limit::RateLimitConfig {
-        burst: 200,
-        per_second: 20.0,
-        max_keys: 16,
-    };
-
 const DENIAL_TTL: Duration = Duration::from_secs(30);
 /// How long a workflow actor's permission is trusted: at most a minute, so that revoking someone's Write access
 /// stops their publishes almost at once.
@@ -156,7 +147,7 @@ impl<K, T> moka::Expiry<K, Cached<T>> for Expiry {
 }
 
 impl PermissionCache {
-    pub fn new(ttl: Duration) -> Self {
+    pub fn new(ttl: Duration, new_tokens: privatecrates_qos::rate_limit::RateLimitConfig) -> Self {
         Self {
             users: moka::future::Cache::builder()
                 .max_capacity(100_000)
@@ -186,7 +177,7 @@ impl PermissionCache {
                 .max_capacity(10_000)
                 .time_to_live(ttl)
                 .build(),
-            new_tokens: privatecrates_qos::rate_limit::RateLimiter::new("new-tokens", NEW_TOKENS),
+            new_tokens: privatecrates_qos::rate_limit::RateLimiter::new("new-tokens", new_tokens),
             actors: moka::future::Cache::builder()
                 .max_capacity(100_000)
                 .time_to_live(ttl.min(ACTOR_TTL))
@@ -218,7 +209,8 @@ impl PermissionCache {
             .await;
     }
 
-    /// Whether one more token not seen before may be checked with GitHub now ([`NEW_TOKENS`]).
+    /// Whether one more token not seen before may be checked with GitHub now
+    /// ([`Config::new_tokens`](crate::config::Config::new_tokens)).
     fn admit_new_token(&self) -> Result<(), ApiError> {
         self.new_tokens
             .check("all")

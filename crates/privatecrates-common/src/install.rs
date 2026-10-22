@@ -3,7 +3,7 @@
 //! than the minutes `cargo install` takes to compile.
 
 /// The repository whose releases carry the binaries, and whose release workflow attests them.
-pub const RELEASE_REPO: &str = "worldbuilding-dev/privatecrates.dev";
+pub const RELEASE_REPO: &str = "instantstartup/privatecrates.dev";
 
 /// A workflow step, indented for a job's `steps:`, that installs `binary` at this version into `~/.cargo/bin` on a
 /// Linux runner (x86_64 or aarch64).
@@ -42,10 +42,10 @@ mod tests {
         // Built by our release workflow, from this version's tag: not by any other workflow of the repository.
         // One backslash: the shell joins the two lines into one command.
         assert!(step.contains(
-            "gh attestation verify \"$name.tgz\" --repo worldbuilding-dev/privatecrates.dev \\\n            --signer-workflow"
+            "gh attestation verify \"$name.tgz\" --repo instantstartup/privatecrates.dev \\\n            --signer-workflow"
         ));
         assert!(step.contains(
-            "--signer-workflow worldbuilding-dev/privatecrates.dev/.github/workflows/release.yml --source-ref \
+            "--signer-workflow instantstartup/privatecrates.dev/.github/workflows/release.yml --source-ref \
              refs/tags/v$VERSION\n"
         ));
         assert!(step.ends_with("~/.cargo/bin/cargo-credential-privatecrates\n"));

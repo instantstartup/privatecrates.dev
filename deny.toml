@@ -8,7 +8,9 @@ all-features = true
 # Unmaintained crates are reported for the whole graph; yanked versions are errors.
 unmaintained = "all"
 yanked = "deny"
-ignore = []
+ignore = [
+    { id = "RUSTSEC-2024-0449", reason = "2026-10-19: unsafe-libyaml is unmaintained; it reaches the server only through serde_yaml 0.9.34+deprecated <- apollo-configuration 0.7.1 (also via apollo-opentelemetry). No apollo-configuration release drops serde_yaml (0.9.0 still uses it); waiting on apollo-configuration to move to a maintained YAML crate (PC-19)." },
+]
 
 [licenses]
 allow = [
@@ -21,9 +23,23 @@ allow = [
     "MIT",
     "MIT-0",
     "Unicode-3.0",
+    # For the server's workspace (foldhash); the client workspace has no Zlib crate.
     "Zlib",
 ]
 confidence-threshold = 0.9
+
+# libdbus-sys (the Linux Secret Service store, through privatecrates-auth) builds its vendored copy of libdbus into the
+# client binaries. That C code is AFL-2.1 OR GPL-2.0-or-later (vendor/dbus/COPYING), which the crate's own MIT/Apache
+# metadata does not say; we take AFL-2.1, for this crate only, and ship its COPYING with the binaries
+# (about.toml).
+[[licenses.clarify]]
+crate = "libdbus-sys"
+expression = "(MIT OR Apache-2.0) AND (AFL-2.1 OR GPL-2.0-or-later)"
+license-files = [{ path = "vendor/dbus/COPYING", hash = 0x9794b080 }]
+
+[[licenses.exceptions]]
+crate = "libdbus-sys"
+allow = ["AFL-2.1"]
 
 # option-ext (through apollo-opentelemetry's configuration, in the server only): MPL-2.0, file-level copyleft. The
 # server is not distributed, and the crate is used unmodified.
@@ -34,7 +50,7 @@ allow = ["MPL-2.0"]
 # Our unpublished crates (the server, under the Business Source Licence) are not checked.
 [licenses.private]
 ignore = true
-registries = ["worldbuilding-dev"]
+registries = ["instantstartup"]
 
 [bans]
 multiple-versions = "allow"
@@ -47,5 +63,5 @@ unknown-git = "deny"
 # The server's private dependencies (privatecrates-qos) come from our own registry; nothing else may.
 allow-registry = [
     "https://github.com/rust-lang/crates.io-index",
-    "sparse+https://worldbuilding-dev.privatecrates.dev/index/",
+    "sparse+https://instantstartup.privatecrates.dev/index/",
 ]
