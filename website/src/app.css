@@ -57,16 +57,24 @@
 	--space-gutter: 3.5rem; /* between a sidebar and the content beside it */
 	--space-heading: 2.75rem; /* above an h2 in long-form text */
 	--space-after-heading: 0.6rem; /* between a long-form heading and the text it introduces */
-	--space-compact-step-bottom: 1.2rem; /* below a step in a compact ruled list (above it is --space-control-x) */
+	--space-compact-step-top: 1.1rem; /* above a step in a compact ruled panel of steps */
+	--space-compact-step-bottom: 1.2rem; /* below it */
+	--space-compact-step-title: 0.2rem; /* between a compact step's title and its text */
+	--space-panel-step-top: 1.4rem; /* above a step in a ruled panel of large numbered steps (below it is --space-7) */
 	--space-list-indent: 1.25rem; /* a bulleted list's indent */
 	--space-list-indent-ordered: 1.4rem; /* a numbered list's indent: room for two-digit numbers */
-	--space-list-item: 0.35rem; /* between the items of a long-form list, or a form label, its hint and its control */
+	--space-list-item: 0.35rem; /* between the items of a list */
 	--space-cell-y: 0.55rem; /* a table cell's padding, top and bottom */
 	--space-cell-x: 0.6rem; /* a table cell's padding, left and right */
 	--space-cell-stacked: 0.2rem; /* between the lines of a table row stacked as a card on phones */
 	--space-control-y: 0.55rem; /* a button's padding, top and bottom */
 	--space-control-x: 1.1rem; /* a button's padding, left and right */
 	--space-callout-y: 0.85rem; /* a callout's padding, top and bottom */
+	--space-choice-box-y: 0.85rem; /* a bordered box round a single checkbox and its text, top and bottom */
+	--space-paragraph: 0.85rem; /* between the paragraphs of a section's text set beside art or code, and below a code block among them */
+	--space-banner-x: 1.1rem; /* a banner's padding, left and right: the draft banner */
+	--space-features: 1.4rem; /* between the rows of a grid of features, two or three to a row */
+	--space-features-stacked: 1.1rem; /* between the features when they stack in one column on phones */
 	--space-code-block-top: 0.9rem; /* above a code block's first line, its leading adds the rest (a step moves each later block 1.6px) */
 	--space-nav-y: 0.45rem; /* an item's padding in a navigation list, top and bottom (a step moves each later row 1.6px) */
 	--space-nav-x: 0.8rem; /* an item's padding in a navigation list, left and right (a step re-wraps the docs nav's tiles on phones) */
@@ -119,7 +127,8 @@
 	 * because its value matches; such a length gets a role token of its own.
 	 */
 	--size-control: 2.75rem; /* the smallest tap target */
-	--size-control-compact: 2.25rem; /* a small control inside another block (a copy button, a notice's link), or a small mark beside a paragraph */
+	--size-control-compact: 2.25rem; /* a small control inside another block: a copy button, a notice's link */
+	--size-blurb-mark: 2.25rem; /* a mark beside a short paragraph: the footer's anchor */
 	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
 	--size-marker-large: 2.6rem; /* a large step number in a ruled list of steps */
 	--size-illustration-hero: 11rem; /* a hero's illustration beside its heading */
