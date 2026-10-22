@@ -27,6 +27,8 @@ STRIPE_API_VERSION="${STRIPE_API_VERSION:-2026-08-26.dahlia}"
 PRODUCT_ID="privatecrates"
 LOOKUP_KEY="privatecrates_member_monthly"
 UNIT_AMOUNT=1000 # cents, per member
+# Shown on Checkout, invoices and the portal.
+PRODUCT_DESCRIPTION="Hosted private Cargo registry for one GitHub organisation: per member past the free members, at most \$100 a month."
 CURRENCY="usd"
 EVENTS=(
   checkout.session.completed
@@ -108,12 +110,16 @@ if product="$(stripe GET "/v1/products/${PRODUCT_ID}")"; then
     stripe POST "/v1/products/${PRODUCT_ID}" -d active=true >/dev/null
     note "product: reactivated"
   fi
+  if [[ "$(jq -r .description <<<"$product")" != "$PRODUCT_DESCRIPTION" ]]; then
+    stripe POST "/v1/products/${PRODUCT_ID}" --data-urlencode description="$PRODUCT_DESCRIPTION" >/dev/null
+    note "product: description updated"
+  fi
 else
   [[ $? -eq 44 ]] || exit 1
   stripe POST /v1/products \
     -d id="$PRODUCT_ID" \
     -d name="PrivateCrates" \
-    --data-urlencode description="Hosted private Cargo registry for one GitHub organisation, unlimited users." \
+    --data-urlencode description="$PRODUCT_DESCRIPTION" \
     --data-urlencode url="$BASE_URL" \
     -d "metadata[app]=privatecrates" >/dev/null
   note "product: created $PRODUCT_ID"
