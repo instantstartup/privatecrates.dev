@@ -275,10 +275,11 @@
 		</FaqItem>
 		<FaqItem question="What about CI outside GitHub Actions, or Docker builds?">
 			<p>
-				At launch, only GitHub Actions can read the registry, so no long-lived credential exists anywhere.
-				Build images in Actions using a BuildKit secret mount, or run <code>cargo vendor</code> in Actions and
-				hand the vendored tree to the other system. See
-				<a href="/docs/ci#elsewhere">Docker builds and CI outside GitHub Actions</a>.
+				GitHub Actions reads the registry with no secret at all. Build images in Actions using a BuildKit
+				secret mount, or run <code>cargo vendor</code> in Actions and hand the vendored tree to the other
+				system. A platform that builds from Git itself, such as Railway or Render, uses a narrow, read-only
+				GitHub token. See <a href="/docs/ci#elsewhere">Docker builds and CI outside GitHub Actions</a> and
+				<a href="/docs/deploy">Deploying apps</a>.
 			</p>
 		</FaqItem>
 		<FaqItem question="Can we read the code?">
