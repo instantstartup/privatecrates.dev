@@ -109,12 +109,12 @@
 <style>
 	.trial-form {
 		display: grid;
-		gap: 1rem;
+		gap: var(--space-5);
 	}
 	.field {
 		display: grid;
-		gap: 0.35rem;
-		max-width: 30rem;
+		gap: var(--space-label);
+		max-width: var(--container-form);
 	}
 	label {
 		font-weight: 700;
@@ -125,10 +125,10 @@
 		color: var(--ink-muted);
 	}
 	input {
-		min-height: 2.75rem;
-		padding: 0.5rem 0.75rem;
-		border: 2px solid var(--line);
-		border-radius: 6px;
+		min-height: var(--size-control);
+		padding: var(--space-3) var(--space-4);
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-control);
 		background: var(--surface-raised);
 		color: var(--ink);
 	}
@@ -148,6 +148,6 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--space-4);
 	}
 </style>

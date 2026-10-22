@@ -80,15 +80,15 @@
 <style>
 	.accept {
 		display: grid;
-		gap: 1rem;
-		max-width: 36rem;
-		margin-top: 0.75rem;
+		gap: var(--space-5);
+		max-width: var(--container-notice);
+		margin-top: var(--space-4);
 	}
 	.submit {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.5rem 0.75rem;
+		gap: var(--space-3) var(--space-4);
 	}
 	.wait {
 		font-size: var(--text-meta);
