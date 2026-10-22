@@ -146,10 +146,10 @@
 
 <style>
 	.policy {
-		padding-top: 2.5rem;
+		padding-top: var(--space-10);
 	}
 	.intro {
-		margin-bottom: 2.5rem;
+		margin-bottom: var(--space-10);
 	}
 	h1 {
 		font-size: var(--text-headline);

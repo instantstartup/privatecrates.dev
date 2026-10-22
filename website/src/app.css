@@ -31,6 +31,7 @@
 	--tracking-heading: 0.005em; /* the display face, opened a hair */
 	--tracking-scene-label: 0.04em; /* stencilled crate lettering */
 	--underline-offset: 0.2em; /* inline links: the underline sits clear of descenders */
+	--underline-display: 0.12em; /* a heavy underline under a word in display type: both its thickness and its offset, in em so they scale with the heading */
 	--underline-offset-current: 0.35em; /* the current page's link in a menu: lower, a marker rather than a link (0.2em would lift it 2.5px) */
 
 	/*
@@ -51,11 +52,12 @@
 	--space-12: 4rem; /* 64px */
 	/* Space roles: lengths that are a role of their own rather than a step. */
 	--space-section: 5rem; /* between the home page's sections, and above the footer: open water */
-	--space-section-inset: 4.5rem; /* inside a full-width band, above its content */
+	--space-section-inset: 4.5rem; /* a section's own padding above its content: a full-width band, the home hero on wide screens, a split or FAQ section */
 	--space-break: 3.5rem; /* a clear break within a page: above a page's intro, above the docs pager */
 	--space-gutter: 3.5rem; /* between a sidebar and the content beside it */
 	--space-heading: 2.75rem; /* above an h2 in long-form text */
 	--space-after-heading: 0.6rem; /* between a long-form heading and the text it introduces */
+	--space-compact-step-bottom: 1.2rem; /* below a step in a compact ruled list (above it is --space-control-x) */
 	--space-list-indent: 1.25rem; /* a bulleted list's indent */
 	--space-list-indent-ordered: 1.4rem; /* a numbered list's indent: room for two-digit numbers */
 	--space-list-item: 0.35rem; /* between the items of a long-form list, or a form label, its hint and its control */
@@ -69,7 +71,7 @@
 	--space-nav-y: 0.45rem; /* an item's padding in a navigation list, top and bottom (a step moves each later row 1.6px) */
 	--space-nav-x: 0.8rem; /* an item's padding in a navigation list, left and right (a step re-wraps the docs nav's tiles on phones) */
 	--space-link-list: 0.3rem; /* above and below each link in a dense list of links (a step moves each later link 1.6px) */
-	--space-after-title: 0.4rem; /* between a card's, panel's or section's title and the line under it */
+	--space-after-title: 0.4rem; /* between a card's, panel's, step's or section's title and the line under it */
 	--space-menu-x: 0.7rem; /* a link's padding in a menu bar, left and right (a step shifts the header's menu 6.4px) */
 	--space-label: 0.35rem; /* between a form label, its hint and its control */
 	--space-badge-y: 0.15rem; /* a badge's padding, top and bottom (left and right is --space-3) */
@@ -114,9 +116,17 @@
 	--size-control: 2.75rem; /* the smallest tap target */
 	--size-control-compact: 2.25rem; /* a small control inside another block (a copy button, a notice's link), or a small mark beside a paragraph */
 	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
+	--size-marker-large: 2.6rem; /* a large step number in a ruled list of steps */
+	--size-numeral-column: 2.5rem; /* the column for a numbered step's large numeral, in a table */
+	--size-column-narrow: 11rem; /* a narrow column and what fills it: a tier at its narrowest, a hero's illustration */
+	--size-term-column: 10rem; /* the column of terms beside their definitions */
+	--size-illustration-hero-phone: 8rem; /* a hero's illustration above the heading on phones (beside it, --size-column-narrow) */
+	--size-crate: 4.5rem; /* one crate in a stack of crates: the pricing page's free plan */
 	--size-marker-compact: 2rem; /* a round marker beside a line of text: a checklist step's state, a person's initial */
 	--size-icon: 1.25rem; /* an icon beside a label */
 	--size-icon-small: 1.1rem; /* a small icon or tick in a list */
+	--size-tick-long: 0.8rem; /* a tick drawn with two borders: its long arm, before it is turned */
+	--size-tick-short: 0.55rem; /* its short arm */
 	--size-disclosure: 3.25rem; /* a disclosure's row, a question that opens its answer (--size-control moves each later row 0.8px) */
 	--size-control-label: 5rem; /* the least width of a control whose label changes, so it doesn't jump */
 	--size-preview-fade: 3.5rem; /* the fade over a collapsed preview's last lines */
@@ -127,7 +137,7 @@
 	--size-radio: 1.2rem; /* a radio button */
 	--size-hidden: 1px; /* a visually hidden element: present for screen readers, one pixel and clipped */
 	--size-illustration: 20rem; /* a spot illustration beside a heading, at its largest */
-	--size-illustration-small: 14rem; /* a small spot illustration beside a page's intro: the crane at sign-in */
+	--size-illustration-small: 14rem; /* an illustration at its small size: the crane beside sign-in's intro, the home page's lighthouse and crate stack */
 	--size-loading: 10rem; /* a loading panel's height, so the page does not jump when it fills */
 	--size-loading-report: 14rem; /* a report's loading block: room for its first rows, likewise */
 	--size-loading-bar: 1.1rem; /* a bar in a loading placeholder: a line of text still to come */
@@ -315,6 +325,7 @@
 	--container-list: 18rem; /* a list to choose from, beside the detail of what is chosen */
 	--container-aside: 16rem; /* a column beside the main content */
 	--container-sidebar: 14rem; /* a sidebar: the docs navigation, a table of contents */
+	--container-tier-note: 22ch; /* a pricing tier's one-line description */
 	--container-column-actor: 14rem; /* a table's who-did-it column, at its narrowest: long names wrap rather than squeeze */
 	--container-term-label: 8rem; /* the label column of a list of terms, beside their values */
 

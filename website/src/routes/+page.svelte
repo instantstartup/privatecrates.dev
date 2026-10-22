@@ -314,17 +314,19 @@
 	</div>
 </section>
 
-<style>
+<style lang="postcss">
+	@reference '../app.css';
+
 	.hero {
 		display: grid;
-		gap: 2.5rem;
+		gap: var(--space-10);
 		align-items: center;
-		padding-block: 3rem 4rem;
+		padding-block: var(--space-11) var(--space-12);
 	}
-	@media (min-width: 60rem) {
+	@media (width >= theme(--breakpoint-8)) {
 		.hero {
 			grid-template-columns: 5fr 6fr;
-			padding-block: 4.5rem 5rem;
+			padding-block: var(--space-section-inset) var(--space-section);
 		}
 	}
 	h1 {
@@ -332,16 +334,16 @@
 		text-wrap: balance;
 		/* Big Shoulders' long descenders (the g in "signed") need clear space above the next line's ascenders. */
 		line-height: 1.15;
-		margin-bottom: 1.25rem;
+		margin-bottom: var(--space-6);
 	}
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.75rem;
-		margin-top: 1.75rem;
+		gap: var(--space-4);
+		margin-top: var(--space-8);
 	}
 	.terms {
-		margin-top: 1rem;
+		margin-top: var(--space-5);
 		color: var(--ink-muted);
 		font-size: var(--text-meta);
 	}
@@ -351,59 +353,59 @@
 
 	h2 {
 		font-size: var(--text-headline);
-		margin-bottom: 1.25rem;
+		margin-bottom: var(--space-6);
 	}
 	.inline-cmd {
 		font-family: var(--font-display);
-		font-size: 1em;
+		font-size: inherit;
 		background: none;
 		padding: 0;
 		text-decoration: underline;
 		text-decoration-color: var(--action);
-		text-decoration-thickness: 0.12em;
-		text-underline-offset: 0.12em;
+		text-decoration-thickness: var(--underline-display);
+		text-underline-offset: var(--underline-display);
 	}
 	h3 {
 		font-size: var(--text-title);
-		margin-bottom: 0.4rem;
+		margin-bottom: var(--space-after-title);
 	}
 
 	/* How it works: a ruled manifest */
 	.steps {
-		padding-block: 2rem 4rem;
+		padding-block: var(--space-9) var(--space-12);
 	}
 	.manifest {
 		display: grid;
-		border: 2px solid var(--line);
-		border-radius: 10px;
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-panel);
 		background: var(--surface-raised);
 		overflow: hidden;
 	}
-	@media (min-width: 52rem) {
+	@media (width >= theme(--breakpoint-6)) {
 		.manifest {
 			grid-template-columns: repeat(3, 1fr);
 		}
 		.manifest li + li {
-			border-left: 2px dashed var(--divider);
+			border-left: var(--border-outline) dashed var(--divider);
 			border-top: 0 !important;
 		}
 	}
 	.manifest li {
 		display: flex;
-		gap: 1rem;
-		padding: 1.4rem 1.25rem 1.5rem;
+		gap: var(--space-5);
+		padding: var(--space-list-indent-ordered) var(--space-6) var(--space-7);
 	}
 	.manifest li + li {
-		border-top: 2px dashed var(--divider);
+		border-top: var(--border-outline) dashed var(--divider);
 	}
 	.num {
 		flex: none;
 		display: grid;
 		place-items: center;
-		width: 2.6rem;
-		height: 2.6rem;
-		border: 2px solid var(--line);
-		border-radius: 4px;
+		width: var(--size-marker-large);
+		height: var(--size-marker-large);
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-inline);
 		background: var(--action);
 		color: var(--action-ink);
 		font-family: var(--font-display);
@@ -415,12 +417,12 @@
 		color: var(--ink-muted);
 	}
 	.config {
-		margin-top: 1.5rem;
+		margin-top: var(--space-7);
 	}
 	.agents {
-		margin-top: 1.25rem;
-		padding-left: 1rem;
-		border-left: 4px solid var(--action);
+		margin-top: var(--space-6);
+		padding-left: var(--space-5);
+		border-left: var(--border-strong) solid var(--action);
 		max-width: var(--container-prose);
 		color: var(--ink-muted);
 	}
@@ -430,27 +432,27 @@
 
 	/* Security: the night band with the lighthouse */
 	.security {
-		padding-block: 4.5rem;
-		border-block: 2px solid var(--divider);
+		padding-block: var(--space-section-inset);
+		border-block: var(--border-outline) solid var(--divider);
 	}
 	.security-grid {
 		display: grid;
-		gap: 2rem;
+		gap: var(--space-9);
 		align-items: start;
 	}
-	@media (min-width: 60rem) {
+	@media (width >= theme(--breakpoint-8)) {
 		.security-grid {
-			grid-template-columns: 1fr 16rem;
+			grid-template-columns: 1fr var(--container-aside);
 		}
 	}
 	.security .lede {
-		margin-bottom: 2rem;
+		margin-bottom: var(--space-9);
 	}
 	.claims {
 		display: grid;
-		gap: 2rem;
+		gap: var(--space-9);
 	}
-	@media (min-width: 48rem) {
+	@media (width >= theme(--breakpoint-5)) {
 		.claims {
 			grid-template-columns: repeat(3, 1fr);
 		}
@@ -459,30 +461,30 @@
 		color: var(--ink-muted);
 	}
 	.claims p + p {
-		margin-top: 0.75rem;
+		margin-top: var(--space-4);
 	}
 	.security :global(.security-art) {
 		width: 100%;
-		max-width: 14rem;
+		max-width: var(--size-illustration-small);
 		height: auto;
 		justify-self: center;
 		order: -1;
 	}
-	@media (min-width: 60rem) {
+	@media (width >= theme(--breakpoint-8)) {
 		.security :global(.security-art) {
 			order: 0;
-			max-width: 16rem;
+			max-width: var(--container-aside);
 		}
 	}
 
 	/* Text beside code */
 	.split {
 		display: grid;
-		gap: 1.5rem 3rem;
+		gap: var(--space-7) var(--space-11);
 		align-items: start;
-		padding-top: 4.5rem;
+		padding-top: var(--space-section-inset);
 	}
-	@media (min-width: 60rem) {
+	@media (width >= theme(--breakpoint-8)) {
 		.split {
 			grid-template-columns: 5fr 6fr;
 		}
@@ -494,7 +496,7 @@
 		}
 	}
 	.split-text p + p {
-		margin-top: 0.85rem;
+		margin-top: var(--space-callout-y);
 	}
 	.split-text {
 		max-width: var(--container-prose);
@@ -503,53 +505,53 @@
 	/* The CI token chain: the manifest's ruled panel, in one column */
 	.chain {
 		display: grid;
-		border: 2px solid var(--line);
-		border-radius: 10px;
+		border: var(--border-outline) solid var(--line);
+		border-radius: var(--radius-panel);
 		background: var(--surface-raised);
 		overflow: hidden;
 	}
 	.chain li {
 		display: flex;
-		gap: 1rem;
-		padding: 1.1rem 1.25rem 1.2rem;
+		gap: var(--space-5);
+		padding: var(--space-control-x) var(--space-6) var(--space-compact-step-bottom);
 	}
 	.chain li + li {
-		border-top: 2px dashed var(--divider);
+		border-top: var(--border-outline) dashed var(--divider);
 	}
 	.chain h3 {
 		font-size: var(--text-lead);
-		margin-bottom: 0.2rem;
+		margin-bottom: var(--space-cell-stacked);
 	}
 	.chain p {
 		color: var(--ink-muted);
 	}
 	.release p {
-		margin-top: 0.85rem;
+		margin-top: var(--space-callout-y);
 		color: var(--ink-muted);
 		max-width: var(--container-prose);
 	}
 
 	/* Pricing teaser */
 	.pricing-teaser {
-		padding-top: 5rem;
+		padding-top: var(--space-section);
 	}
 	.price-card {
 		display: grid;
-		gap: 2rem;
-		padding: 2rem 1.25rem;
-		border: 2px solid var(--line);
+		gap: var(--space-9);
+		padding: var(--space-9) var(--space-6);
+		border: var(--border-outline) solid var(--line);
 	}
-	@media (min-width: 48rem) {
+	@media (width >= theme(--breakpoint-5)) {
 		.price-card {
-			grid-template-columns: 14rem 1fr;
+			grid-template-columns: var(--size-illustration-small) 1fr;
 			align-items: center;
-			padding: 2.5rem;
+			padding: var(--space-10);
 		}
 	}
 	.price-stack {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
-		max-width: 14rem;
+		max-width: var(--size-illustration-small);
 	}
 	.price-stack :global(svg) {
 		width: 100%;
@@ -573,18 +575,18 @@
 	/* The two plans side by side with equal weight; they stack on narrow screens. */
 	.tiers {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-		gap: 1rem 2rem;
-		margin-top: 1rem;
+		grid-template-columns: repeat(auto-fit, minmax(var(--size-column-narrow), 1fr));
+		gap: var(--space-5) var(--space-9);
+		margin-top: var(--space-5);
 	}
 	.tier {
 		display: grid;
 		align-content: start;
-		gap: 0.25rem;
+		gap: var(--space-2);
 	}
 	.tier dd {
 		color: var(--ink-muted);
-		max-width: 22ch;
+		max-width: var(--container-tier-note);
 	}
 	.figure {
 		font-family: var(--font-display);
@@ -594,28 +596,28 @@
 		color: var(--ink);
 	}
 	.includes {
-		margin-top: 1rem;
+		margin-top: var(--space-5);
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--space-list-item);
 	}
 	.includes li {
-		padding-left: 1.6rem;
+		padding-left: var(--space-7);
 		position: relative;
 	}
 	.includes li::before {
 		content: '';
 		position: absolute;
-		left: 0.15rem;
-		top: 0.45em;
-		width: 0.8rem;
-		height: 0.55rem;
-		border-left: 3px solid var(--ok);
-		border-bottom: 3px solid var(--ok);
+		left: var(--space-1);
+		top: var(--space-3);
+		width: var(--size-tick-long);
+		height: var(--size-tick-short);
+		border-left: var(--border-strong) solid var(--ok);
+		border-bottom: var(--border-strong) solid var(--ok);
 		transform: rotate(-45deg);
 	}
 
 	.faq {
-		padding-top: 5rem;
+		padding-top: var(--space-section);
 	}
 	.faq-list {
 		max-width: var(--container-prose);
