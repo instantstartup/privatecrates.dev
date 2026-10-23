@@ -212,9 +212,9 @@
 			<p>
 				The companies that process customer data on our behalf. We announce a new subprocessor here at least
 				30 days before it starts, and, once billing is on, email each organisation’s billing address too. If
-				you object and we cannot accommodate it, you may cancel and get a prorated refund of anything prepaid.
-				An urgent replacement, after a failure or a breach, may happen at once, with notice as soon as we can
-				give it.
+				you object and we cannot accommodate it, you may cancel: the subscription ends with the month already
+				paid for, and nothing more is charged. An urgent replacement, after a failure or a breach, may happen
+				at once, with notice as soon as we can give it.
 			</p>
 			<div class="table-scroll">
 				<table class="subprocessors table-cards">

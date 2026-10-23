@@ -24,8 +24,8 @@
 		{#if PREVIEW}
 			<Callout title="Nothing to refund during the preview">
 				<p>
-					PrivateCrates takes no payments during the preview, so there is nothing to cancel or refund yet. This
-					page says what will apply once billing starts.
+					PrivateCrates takes no payments during the preview, so there is nothing to cancel or refund yet.
+					This page says what will apply once billing starts.
 				</p>
 			</Callout>
 		{/if}
@@ -46,17 +46,17 @@
 				more days, then reading stops too.
 			</li>
 			<li>
-				<strong>Nothing is deleted:</strong> your index and every crate file are in your own GitHub repository, and
-				stay there.
+				<strong>Nothing is deleted:</strong> your index and every crate file are in your own GitHub repository,
+				and stay there.
 			</li>
 		</ul>
 		<p>
-			Cancelling during the free trial means you are never charged. A trial with no card needs no cancelling: it
-			ends by itself, and nothing is charged.
+			Cancelling during the free trial means you are never charged. A trial with no card needs no cancelling:
+			it ends by itself, and nothing is charged.
 		</p>
 		<p>
-			Uninstalling the PrivateCrates GitHub Apps stops the registry but does not cancel the subscription: cancel it
-			as well.
+			Uninstalling the PrivateCrates GitHub Apps stops the registry but does not cancel the subscription:
+			cancel it as well.
 		</p>
 		<p>
 			If your organisation shrinks to {FREE_MEMBER_LIMIT} members or fewer, there is no need to cancel: it pays
@@ -65,29 +65,30 @@
 
 		<h2 id="refunds">Refunds</h2>
 		<p>
-			We charge monthly, in advance, and <strong>do not refund part of a month</strong>. That includes cancelling
-			part-way through a month, members leaving, and shrinking to the free plan: each takes effect from the next
-			invoice, without proration. In the same way, members who join part-way through a month are not charged until
-			the next invoice.
+			We charge monthly, in advance, and <strong>do not refund part of a month</strong>. That includes
+			cancelling part-way through a month, members leaving, and shrinking to the free plan: each takes effect
+			from the next invoice, without proration. In the same way, members who join part-way through a month are
+			not charged until the next invoice.
 		</p>
 		<p>We do refund:</p>
 		<ul>
 			<li>
 				<strong>billing errors,</strong> such as a charge after the subscription was cancelled, a charge taken
 				twice, or an invoice for more members than your organisation had: email
-				<a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a> with the invoice number, and we refund the difference to
-				the card it was charged to;
+				<a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a> with the invoice number, and we refund the difference
+				to the card it was charged to;
 			</li>
 			<li>
-				<strong>the time after the service ends,</strong> if we stop offering PrivateCrates, or end your
-				organisation’s use for any reason other than a breach of the terms.
+				<strong>the time after the service ends,</strong> if we stop offering PrivateCrates, or end your organisation’s
+				use for any reason other than a breach of the terms.
 			</li>
 		</ul>
 
 		<h2 id="contact">Questions</h2>
 		<p>
-			Billing questions and refund requests: <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>, from or naming
-			your GitHub organisation. Admins can see and download every invoice under Manage billing on the account page.
+			Billing questions and refund requests: <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>, from or
+			naming your GitHub organisation. Admins can see and download every invoice under Manage billing on the
+			account page.
 		</p>
 	</article>
 </div>

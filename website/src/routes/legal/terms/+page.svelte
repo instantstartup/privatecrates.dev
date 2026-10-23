@@ -28,9 +28,9 @@
 				<h1>Preview terms</h1>
 				<LegalMeta version={TERMS_VERSION} date={TERMS_DATE} dateLabel="Published" />
 				<p class="lede">
-					PrivateCrates is in preview, open to any GitHub organisation or personal account. These terms apply to
-					every organisation that uses it until general availability. They are short on purpose; the summary
-					below is part of them.
+					PrivateCrates is in preview, open to any GitHub organisation or personal account. These terms apply
+					to every organisation that uses it until general availability. They are short on purpose; the
+					summary below is part of them.
 				</p>
 			</header>
 
@@ -43,8 +43,8 @@
 					</li>
 					<li><strong>Free.</strong> No payments are taken during the preview.</li>
 					<li>
-						<strong>As is, at your own risk.</strong> No warranty or guarantee of any kind, no uptime or support commitment,
-						and no liability beyond what the law does not let us exclude.
+						<strong>As is, at your own risk.</strong> No warranty or guarantee of any kind, no uptime or support
+						commitment, and no liability beyond what the law does not let us exclude.
 					</li>
 					<li>
 						<strong>Built on GitHub and others.</strong> When a service we depend on fails, PrivateCrates may too,
@@ -60,8 +60,8 @@
 				<h1>Terms of service</h1>
 				<LegalMeta version={TERMS_VERSION} date={PAID_TERMS_DATE} />
 				<p class="lede">
-					These terms apply to every organisation and person that uses PrivateCrates. They are short on purpose;
-					the summary below is part of them.
+					These terms apply to every organisation and person that uses PrivateCrates. They are short on
+					purpose; the summary below is part of them.
 				</p>
 			</header>
 
@@ -69,16 +69,16 @@
 				<h2 id="summary-title">In short</h2>
 				<ul>
 					<li>
-						<strong>Free for small teams.</strong> Personal accounts, and organisations with {FREE_MEMBER_LIMIT} members or fewer, pay
-						nothing.
+						<strong>Free for small teams.</strong> Personal accounts, and organisations with {FREE_MEMBER_LIMIT}
+						members or fewer, pay nothing.
 					</li>
 					<li>
-						<strong>Never more than ${PRICE_CAP_USD} a month.</strong> Larger organisations pay monthly, after a free
-						trial that needs no card. We never charge without a card an admin has added.
+						<strong>Never more than ${PRICE_CAP_USD} a month.</strong> Larger organisations pay monthly, after a
+						free trial that needs no card. We never charge without a card an admin has added.
 					</li>
 					<li>
-						<strong>Cancel any time.</strong> It takes effect at the end of the month already paid for. We do not refund
-						part-months, but we do refund billing errors.
+						<strong>Cancel any time.</strong> It takes effect at the end of the month already paid for. We do not
+						refund part-months, but we do refund billing errors.
 					</li>
 					<li>
 						<strong>Built on GitHub and others.</strong> When a service we depend on fails, PrivateCrates may too.
