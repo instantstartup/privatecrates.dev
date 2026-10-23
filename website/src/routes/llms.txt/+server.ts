@@ -10,6 +10,7 @@ import {
 	TERMS_VERSION,
 	TRIAL_MONTHS
 } from '$lib/site';
+import { legalDocuments } from '$lib/legal/docs';
 import {
 	cli,
 	cliUsage,
@@ -28,6 +29,8 @@ const indent = (text: string) => text.replace(/^/gm, '   ');
 const ORG = '<org>';
 const SLUG = '<name>';
 const TERMS_URL = `${SITE_URL}${TERMS_PATH}`;
+// The terms' name follows PREVIEW with the rest of the legal documents' status ($lib/legal/docs).
+const TERMS_TITLE = legalDocuments.find((doc) => doc.href === TERMS_PATH)?.title ?? 'Terms';
 
 const pricing = PREVIEW
 	? `- **Preview, open to everyone:** any GitHub organisation or personal account can have a registry. It is free and billing is off: there is no trial, no card and nothing to pay, whatever the organisation's size. It is provided as is, at the user's own risk, under the preview terms (${TERMS_URL}, version \`${TERMS_VERSION}\`). Planned pricing from general availability (${GA_TARGET}): ${PRICE_PHRASE}, per organisation.`
@@ -139,7 +142,7 @@ At each of these, stop. Give the admin the exact link, say what to choose there,
 
 - [Verify the registry](${SITE_URL}/docs/verify): the open-source verifier for the storage repository
 - [Error reference](${SITE_URL}/docs/errors): every error code the registry returns
-- [Preview terms](${TERMS_URL}): the terms an admin accepts before a registry is created
+- [${TERMS_TITLE}](${TERMS_URL}): the terms an admin accepts before a registry is created
 - [Pricing](${SITE_URL}/pricing): ${PREVIEW ? 'free during the preview; planned pricing from general availability' : 'free plan, trial and price'}
 `;
 

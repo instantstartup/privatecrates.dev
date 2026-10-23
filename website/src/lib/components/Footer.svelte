@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Anchor from '$lib/illustrations/Anchor.svelte';
-	import { REFUNDS_PATH } from '$lib/legal/docs';
-	import { COMPANY, docsNav, PREVIEW, TERMS_PATH } from '$lib/site';
+	import { legalDocuments } from '$lib/legal/docs';
+	import { COMPANY, docsNav } from '$lib/site';
 	import { STATUS_URL } from '$lib/trust';
 </script>
 
@@ -35,16 +35,9 @@
 			<ul>
 				<li><a href="/trust">Trust centre</a></li>
 				<li><a href="/security">Report a vulnerability</a></li>
-				{#if PREVIEW}
-					<li><a href={TERMS_PATH}>Preview terms</a></li>
-					<li><a href="/legal/privacy">Privacy</a></li>
-					<li><a href="/legal/dpa">DPA (draft)</a></li>
-				{:else}
-					<li><a href={TERMS_PATH}>Terms</a></li>
-					<li><a href={REFUNDS_PATH}>Refunds and cancellation</a></li>
-					<li><a href="/legal/privacy">Privacy</a></li>
-					<li><a href="/legal/dpa">DPA</a></li>
-				{/if}
+				{#each legalDocuments as doc (doc.href)}
+					<li><a href={doc.href}>{doc.short}</a></li>
+				{/each}
 				<li><a href="/third-party-licenses.txt">Third-party licences</a></li>
 			</ul>
 		</nav>
