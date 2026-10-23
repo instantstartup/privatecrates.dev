@@ -1,7 +1,7 @@
 # Live walkthrough before the paid launch
 
 A script for the founder, run once on **dev** (`https://dev.privatecrates.dev`, Stripe test mode) with `PREVIEW=false`
-and then once on **production** after the switch-over (founder-steps.md §4). Use a throwaway GitHub organisation
+and then once on **production** after the switch-over (founder-steps.md §6). Use a throwaway GitHub organisation
 (for example `pc-launch-check`, created at <https://github.com/account/organizations/new>, Free plan) and a second
 machine or a fresh container for "another machine". Tick each box. When a result differs, send back the step
 number, what you saw (a screenshot or the exact text), the URL, and the time (UTC), so it can be found in

@@ -4,7 +4,9 @@ Ticket PC-32. These are the steps only the founder can take, outside the code, i
 do it on. Where this audit couldn't establish a fact, the step says so as an **open question** rather than
 guessing. Check the official pages linked here for current figures before acting: thresholds and fees change.
 
-The code blockers (PC-29 legal pages, PC-30 `PREVIEW` off, and PC-31 tax if needed) must be merged before §4.
+The code blockers (PC-29 legal pages, PC-30 `PREVIEW` off, and PC-31 tax if needed) must be merged before §6, the
+switch-over. The notice to existing organisations (§4) must have run out and the legal review (§5) be done before it
+too: billing never starts before the notice period ends.
 
 ## 1. The legal entity
 
@@ -104,9 +106,55 @@ Open questions. This audit can't answer them; answer them with an accountant bef
       (<https://docs.stripe.com/tax>, registrations at <https://dashboard.stripe.com/tax/registrations>), so PC-31
       blocks and the pricing page says "excl. tax". Tell the orchestrator which.
 
-## 4. Production environment (the switch-over)
+## 4. Notice to existing organisations
 
-Only after PC-29 and PC-30 are merged and deployed to production with `PREVIEW` still true, and after §2:
+The preview terms (`/legal/terms` §4) promise: "Billing starts only after general availability, and only after at
+least 30 days' notice. Paying will need new terms, and no charge is ever taken without a card that an admin has
+added." §11 says notice is given "on this site and on the status page". The terms also name general availability as
+planned for 2027 (`site.ts` `GA_TARGET`), which PC-30 changes.
+
+1. [ ] Count the organisations that accepted the preview terms:
+
+   ```sh
+   railway link                      # privatecrates / production / Postgres
+   railway connect postgres          # opens psql
+   select org_login, version, accepted_at from terms_acceptances order by accepted_at;
+   ```
+
+   No email addresses are stored, so this gives only org and user logins.
+2. [ ] If there are none, there is nobody to give notice to; go to §5.
+3. [ ] Otherwise, post the notice at least 30 days before billing can start for them, on the site and on the
+       status page (docs/deploy.md §14.3, "Post or update an incident", used as an announcement). Say: the date
+       paid plans start; the price (free up to 5 members, USD 10 a member a month past 5, at most USD 100); that
+       an admin has to accept the new terms; and that nothing is charged without a card. The launch date is at
+       least 30 days after the day you post it.
+4. [ ] Wait until the notice has run out before §6. There is no way to keep existing organisations free once
+       `PREVIEW` is false: it is one switch for the whole service, and from then on the server starts the automatic
+       trial for every organisation over the free member limit (`crates/privatecrates-server/src/lib.rs`
+       `keep_billing_in_step`, "over the free member limit; starting the trial").
+
+Open question: is a notice on the site and the status page enough, or do you also want to reach the admins
+directly (for example an issue or email to the GitHub organisation's public contact)? Nothing in the code does
+that, and it would mean contacting them outside the service.
+
+Open question: organisations that sign up while the notice is up accept the preview terms, which promise 30 days'
+notice, but get fewer than 30 days before the launch date. Ask the solicitor (§5) whether the notice on the site at
+sign-up is enough for them, or whether the preview terms should stop being offered once the notice is posted.
+
+## 5. Legal review
+
+- [ ] Have a solicitor review the PC-29 pages before `PREVIEW=false` (§6): the paid terms, the refund and
+      cancellation page, the privacy notice and the DPA (with the SCCs and the UK addendum). In particular, they
+      should settle the refund promise: the trust page and DPA promise a "prorated refund of anything prepaid", but
+      Stripe cancels at period end without one (readiness.md, "Refund and cancellation page").
+- [ ] Consumer rules: the terms should say the service is for businesses. If consumers can subscribe, UK
+      consumer law adds a 14-day cancellation right for digital services, with conditions
+      (<https://www.gov.uk/accepting-returns-and-giving-refunds>). Ask the solicitor whether that applies.
+
+## 6. Production environment (the switch-over)
+
+Only after all of these: PC-29 and PC-30 are merged and deployed to production with `PREVIEW` still true; §2 is
+done; §4's notice period has run out (or §4 step 1 found no organisations); and §5's legal review is done.
 
 - [ ] Set the live Stripe variables on the production service (docs/deploy.md §6.2, with `E=production`):
 
@@ -127,43 +175,6 @@ Only after PC-29 and PC-30 are merged and deployed to production with `PREVIEW` 
 
 Rolling back is `railway variable set -e production -s privatecrates PREVIEW=true`. With it, billing is off
 whatever the Stripe configuration (test `billing::the_preview_is_free_and_never_calls_stripe`).
-
-## 5. Notice to existing organisations
-
-The preview terms (`/legal/terms` §4) promise: "Billing starts only after general availability, and only after at
-least 30 days' notice. Paying will need new terms, and no charge is ever taken without a card that an admin has
-added." §11 says notice is given "on this site and on the status page". The terms also name general availability as
-planned for 2027 (`site.ts` `GA_TARGET`), which PC-30 changes.
-
-1. [ ] Count the organisations that accepted the preview terms:
-
-   ```sh
-   railway link                      # privatecrates / production / Postgres
-   railway connect postgres          # opens psql
-   select org_login, version, accepted_at from terms_acceptances order by accepted_at;
-   ```
-
-   No email addresses are stored, so this gives only org and user logins.
-2. [ ] If there are none, there is nobody to give notice to; go to §6.
-3. [ ] Otherwise, post the notice at least 30 days before billing can start for them, on the site and on the
-       status page (docs/deploy.md §14.3, "Post or update an incident", used as an announcement). Say: the date
-       paid plans start; the price (free up to 5 members, USD 10 a member a month past 5, at most USD 100); that
-       an admin has to accept the new terms; and that nothing is charged without a card. Choose the launch date,
-       or keep existing orgs free until the notice runs out.
-
-Open question: is a notice on the site and the status page enough, or do you also want to reach the admins
-directly (for example an issue or email to the GitHub organisation's public contact)? Nothing in the code does
-that, and it would mean contacting them outside the service.
-
-## 6. Legal review
-
-- [ ] Have a solicitor review the PC-29 pages before `PREVIEW=false`: the paid terms, the refund and cancellation
-      page, the privacy notice and the DPA (with the SCCs and the UK addendum). In particular, they should settle
-      the refund promise: the trust page and DPA promise a "prorated refund of anything prepaid", but Stripe
-      cancels at period end without one (readiness.md, "Refund and cancellation page").
-- [ ] Consumer rules: the terms should say the service is for businesses. If consumers can subscribe, UK
-      consumer law adds a 14-day cancellation right for digital services, with conditions
-      (<https://www.gov.uk/accepting-returns-and-giving-refunds>). Ask the solicitor whether that applies.
 
 ## 7. Then
 

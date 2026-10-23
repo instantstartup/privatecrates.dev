@@ -15,8 +15,10 @@ site can show is a step in [walkthrough.md](walkthrough.md). The founder's own s
 | PC-32 | Founder pre-launch steps: Stripe live mode, production environment, legal review, ICO fee, notice to existing orgs | founder, outside the code |
 | PC-31 | Billing address, tax ID and optional Stripe automatic tax; prices shown "excl. tax" when taxed | code; **blocks only if** the founder decides to charge tax from day one (founder-steps.md §3) |
 
-The launch order is PC-29, then PC-30, then PC-32's switch-over (live Stripe keys and `PREVIEW=false` in
-production), and then the live run in [walkthrough.md](walkthrough.md).
+The launch order is PC-29, then PC-30, then PC-32's notice to existing organisations (at least 30 days, as the
+preview terms promise; founder-steps.md §4) and legal review (§5), and only once the notice has run out the
+switch-over (live Stripe keys and `PREVIEW=false` in production, §6), and then the live run in
+[walkthrough.md](walkthrough.md).
 
 ## Findings by area
 
@@ -45,7 +47,7 @@ not needed for launch).
 | Refund and cancellation page | **blocker** | no such page. Also, `trust/+page.svelte` and `legal/dpa/+page.svelte` promise a "prorated refund of anything prepaid", while the portal cancels at period end with no proration (`stripe-setup.sh`) and `sync_quantity` uses `proration_behavior=none`: one of them has to change | PC-29 |
 | Privacy notice | **blocker** | `legal/privacy` doesn't name Stripe as a processor of billing data (name, email, card via Stripe, invoices) | PC-29 |
 | DPA | **blocker** | `legal/dpa` is a draft for review, not in force; for EU and UK customers it needs the SCCs and the UK addendum | PC-29 |
-| Pricing page | ready (copy) | `website/src/routes/pricing/+page.svelte` has a paid branch with an FAQ on growth, trial end, cancelling, failed payment and who manages billing. Its "unlimited users" means there is no cap on users (the price stops at USD 100, 15 billed members), which is consistent with per-member pricing | — |
+| Pricing page | ready (copy) | `website/src/routes/pricing/+page.svelte` has a paid branch with an FAQ on growth, trial end, cancelling, failed payment and who manages billing. Its "unlimited users" means there is no cap on users (the price stops at USD 100: 10 billed members, reached at 15 members), which is consistent with per-member pricing | — |
 | Tax: prices, invoices, VAT/sales tax | **blocker if taxed** | `billing.rs` sends no `automatic_tax`, `billing_address_collection` or `tax_id_collection`; the pricing page says nothing about tax | PC-31 |
 | Failed-payment and trial-ending emails | not blocking | `invoice.*` webhooks are ignored; the emails are Stripe's, turned on by hand (founder-steps.md §2.5). Automatic-trial customers have no email until an admin enters one, so the cargo publish warning in the last 14 days is their only reminder | — |
 | USD 0 invoices | not blocking | `sync_quantity` takes a subscription down to quantity 0 when an org shrinks to the free limit, so Stripe issues USD 0 invoices each month. Correct, but noisy | — |
@@ -65,4 +67,4 @@ not needed for launch).
 `terms_acceptances` holds every org that accepted the preview terms (`org_login`, `user_login`, `version`,
 `accepted_at`), and no email addresses. In paid mode, these orgs see the terms banner until an admin accepts the
 paid version (`records.rs` `accepted`), but the banner doesn't stop the registry. Once PC-30 lands, billing waits
-for that acceptance. How they get notice before launch is founder-steps.md §5.
+for that acceptance. How they get notice before launch is founder-steps.md §4.
