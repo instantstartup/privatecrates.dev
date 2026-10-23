@@ -40,7 +40,7 @@ Limits, so you know before you try:
 - No SOC 2 or ISO 27001 yet.
 - Hosted in US East.
 
-The client tools (credential provider, `cargo privatecrates` CLI, and a verifier you run in your own CI against your storage repository) are MIT OR Apache-2.0. The server is source-available under BSL 1.1: you can read it and self-host it for your own organisation, and each version becomes Apache-2.0 after four years. Code: https://github.com/instantstartup/privatecrates.dev
+The client tools (credential provider, `cargo privatecrates` CLI, and a verifier you run in your own CI against your storage repository) are MIT OR Apache-2.0. The server is source-available under BSL 1.1: you can read and audit it, and each version becomes Apache-2.0 after four years. We run it as a hosted service only; it can't be built from the public repository today. Code: https://github.com/instantstartup/privatecrates.dev
 
 Setup takes about ten minutes for an org admin, then one config file and one install for each developer: https://privatecrates.dev/docs/setup
 
@@ -71,5 +71,6 @@ What we'd like to hear: where setup was confusing, what your CI or deploy setup 
 | No SOC 2 / ISO 27001 yet | website/src/routes/trust/+page.svelte |
 | US East | website/src/lib/trust.ts (Railway, US East) |
 | Licences, BSL → Apache-2.0 after four years | README.md (Licences) |
+| Hosted only; server not buildable from the public repo | crates/privatecrates-server/Cargo.toml l.32 (`privatecrates-qos` from the private `instantstartup` registry) |
 | About ten minutes for an admin | website/src/routes/docs/setup/+page.svelte |
 | Repo URL | README.md / Cargo.toml `repository` — confirm the repo is public before posting (checklist) |

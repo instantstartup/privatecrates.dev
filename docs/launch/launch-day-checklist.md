@@ -91,8 +91,9 @@ do Rust and only GitHub. (Don't make claims about their products or prices in re
 
 **What happens if you shut down?**
 Your crates and your index are already in your repository: each version is an immutable GitHub release and the
-index is plain files. They stay there if you leave or we stop. The server is source-available, and the BSL lets
-you run it for your own organisation. Meanwhile `cargo vendor` from Actions keeps builds working.
+index is plain files. They stay there if you leave or we stop, and you can download every `.crate` file from
+the releases. A build that has run `cargo vendor` doesn't need us at all. We don't offer a self-hosted server
+today, so the exit plan is your repository, not running our server.
 
 **What can you see, and what permissions do the GitHub Apps have?**
 Two Apps. The reader App has read access to metadata and members. The storage App has read and write access to
@@ -112,14 +113,15 @@ Not yet, and no independent penetration test yet. They are on the roadmap on the
 
 **Why BSL and not open source?**
 The client side is open source: the credential provider, the CLI and the verifier are MIT OR Apache-2.0, so
-everything that runs on your machines and in your CI is open. The server is BSL 1.1: you may read, audit, modify
-and self-host it for your own organisations, but not sell it as a hosted service. Each version becomes Apache-2.0
+everything that runs on your machines and in your CI is open. The server is BSL 1.1: you may read and audit it, and
+the licence doesn't let anyone sell it as a hosted service. Each version becomes Apache-2.0
 four years after its release. We don't accept code contributions to the BSL parts, because we must hold the rights
 to them; bug reports are welcome.
 
 **Can I self-host?**
-Yes, for your own organisation(s), under the BSL. You register your own two GitHub Apps and run the server; the
-deployment is described in `docs/deploy.md` in the repository.
+Not today. The BSL would allow it for your own organisations, but the server depends on a crate we haven't
+published, so it can't be built from the public repository. We run it as a hosted service only. Your crates and
+index live in your own GitHub repository either way, and `cargo vendor` builds without us.
 
 **How does pricing work?**
 Free for personal GitHub accounts, always, and for organisations with up to 5 members. Past 5, $10 a month for
@@ -174,7 +176,7 @@ Railway, US East (Virginia). Logs in Grafana Cloud. The full list of subprocesso
 | Laptops can't publish by default | website/src/lib/snippets.ts (`ownersToml`, `publishRefused`) |
 | No SOC 2 / ISO 27001 / pen test; on the roadmap | website/src/routes/trust/+page.svelte l.32–33, l.332–333 |
 | Licences, BSL grant, four years, no BSL contributions | README.md (Licences); SPEC.md §2.4 |
-| Self-hosting described in docs/deploy.md | README.md (Running the server) |
+| Not self-hostable today: server needs an unpublished crate | crates/privatecrates-server/Cargo.toml l.32 (`privatecrates-qos`, `registry = "instantstartup"`) |
 | Pricing examples (12 → $70, 200 → $100), who counts, read grace 14 days, SSO | crates/privatecrates-server/src/billing.rs; website/src/routes/pricing/+page.svelte (paid FAQ, l.195, l.210); SPEC.md §2.2 |
 | GitHub.com only, no GHES, no mirror | SPEC.md l.50 and non-goals |
 | Fine-grained read-only token for Railway/Render | website/src/routes/docs/deploy/+page.svelte |

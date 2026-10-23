@@ -53,7 +53,7 @@ In acme/story-engine, `git tag v0.2.0 && git push origin v0.2.0` runs the publis
 
 **Price.** Free for personal GitHub accounts and for organisations with up to 5 members. Past 5, $10 a month for each member past 5, and never more than $100 a month. A team of 12 pays $70 a month. The first 3 months are free with no card. Outside collaborators and CI jobs don't count as members. Both plans have every feature, SSO included.
 
-**Source.** The credential provider, the `cargo privatecrates` CLI and `privatecrates-verify` (a verifier you run in your own CI against your storage repository) are MIT OR Apache-2.0. The server is source-available under BSL 1.1: you may read it and self-host it for your own organisation, and each version becomes Apache-2.0 four years after release. https://github.com/instantstartup/privatecrates.dev
+**Source.** The credential provider, the `cargo privatecrates` CLI and `privatecrates-verify` (a verifier you run in your own CI against your storage repository) are MIT OR Apache-2.0. The server is source-available under BSL 1.1: you may read and audit it, and each version becomes Apache-2.0 four years after release. We run it as a hosted service only; it can't be built from the public repository today. https://github.com/instantstartup/privatecrates.dev
 
 Docs: https://privatecrates.dev/docs
 
