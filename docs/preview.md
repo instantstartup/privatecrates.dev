@@ -1,10 +1,12 @@
 # The preview: terms, acceptance, and the road to general availability
 
-Decided 27 September 2026. There is no legal entity yet, so PrivateCrates runs as a **preview**:
+Decided 27 September 2026, when there was no legal entity yet, so PrivateCrates runs as a **preview**. The company
+now exists and has operated the service since 7 October 2026 (below); the preview stays until general
+availability:
 
 - It is operated by **INSTANTSTARTUP LTD** (company number 17505349, England and Wales).
-- It is **free**: no payments are taken, in any environment, until the entity exists. The planned prices are shown as
-  planned, not charged.
+- It is **free**: no payments are taken, in any environment, until general availability. The planned prices are
+  shown as planned, not charged.
 - It is provided **as is, at the user's own risk**: no warranty, no service commitment, no liability beyond what law
   forbids excluding, and it may change or stop.
 - An organisation admin must **accept the preview terms** before a registry is created for their organisation.
@@ -71,7 +73,7 @@ contents stay in the customer's organisation.
 
 | # | Item | Why |
 |---|---|---|
-| 1 | Form a company; publish its name, number and address | The operator for terms, DPA and billing |
+| 1 | Form a company; publish its name, number and address (done: INSTANTSTARTUP LTD, named on the site 7 October 2026) | The operator for terms, DPA and billing |
 | 2 | Legal review of the terms, privacy notice and DPA (governing law: England and Wales, decided 28 September 2026) | Terms fit for paying customers |
 | 3 | International transfer mechanism (EU SCCs and the UK addendum) | EU customers' data processed in the US |
 | 4 | Turn on billing (Stripe live mode), with at least 30 days' notice to existing organisations | Revenue |
