@@ -43,6 +43,9 @@
 	const roadmap: [string, string][] = allRoadmap.flatMap(([item, why, paid]) =>
 		PREVIEW || paid === undefined ? [[item, why]] : paid === null ? [] : [[paid, why]]
 	);
+	/** The roadmap's name switches with its items: during the preview it leads to general availability. */
+	const roadmapName = PREVIEW ? 'roadmap to general availability' : 'roadmap';
+	const roadmapTitle = PREVIEW ? `Roadmap to general availability: ${GA_TARGET}` : 'Roadmap';
 
 	const toc: TocItem[] = [
 		['what-we-hold', 'What we hold'],
@@ -69,8 +72,9 @@
 			<h1>Trust centre</h1>
 			<p class="lede">
 				What we hold, who else touches it, and how you can check us. The short answer: your crates live in
-				your own GitHub organisation. We store only a record of who accepted our terms, and requests to join
-				the preview.
+				your own GitHub organisation. We store only a record of who accepted our terms{PREVIEW
+					? ', and requests to join the preview'
+					: ''}.
 			</p>
 		</div>
 		<Lighthouse class="hero-art" />
@@ -351,8 +355,7 @@
 				yourself.
 			</p>
 			<p>
-				The penetration test and SOC 2 are on the <a href="#roadmap">roadmap to general availability</a>,
-				below.
+				The penetration test and SOC 2 are on the <a href="#roadmap">{roadmapName}</a>, below.
 			</p>
 			<p>
 				GitHub’s and Stripe’s own reports cover the data they hold: see the
@@ -360,11 +363,17 @@
 				<a href="https://stripe.com/docs/security">Stripe security</a> pages.
 			</p>
 
-			<h2 id="roadmap">Roadmap to general availability: {GA_TARGET}</h2>
+			<h2 id="roadmap">{roadmapTitle}</h2>
 			<p>
-				PrivateCrates is in <a href={TERMS_PATH}>preview</a>: free, and provided as is. It is operated by
-				INSTANTSTARTUP LTD, incorporated in England and Wales on 7 October 2026. This is what has to happen
-				before general availability, in order. We will do it if there is enough interest.
+				{#if PREVIEW}
+					PrivateCrates is in <a href={TERMS_PATH}>preview</a>: free, and provided as is. It is operated by
+					INSTANTSTARTUP LTD, incorporated in England and Wales on 7 October 2026. This is what has to happen
+					before general availability, in order. We will do it if there is enough interest.
+				{:else}
+					PrivateCrates is generally available under our <a href={TERMS_PATH}>terms of service</a>. It is
+					operated by INSTANTSTARTUP LTD, incorporated in England and Wales on 7 October 2026. This is what we
+					plan next, in order.
+				{/if}
 			</p>
 			<div class="table-scroll">
 				<table class="roadmap table-cards">
