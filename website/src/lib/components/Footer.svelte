@@ -91,7 +91,7 @@
 	}
 	.about :global(.anchor) {
 		flex: none;
-		width: var(--size-control-compact);
+		width: var(--size-blurb-mark);
 		color: var(--ink);
 	}
 	h2 {

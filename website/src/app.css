@@ -57,16 +57,24 @@
 	--space-gutter: 3.5rem; /* between a sidebar and the content beside it */
 	--space-heading: 2.75rem; /* above an h2 in long-form text */
 	--space-after-heading: 0.6rem; /* between a long-form heading and the text it introduces */
-	--space-compact-step-bottom: 1.2rem; /* below a step in a compact ruled list (above it is --space-control-x) */
+	--space-compact-step-top: 1.1rem; /* above a step in a compact ruled panel of steps */
+	--space-compact-step-bottom: 1.2rem; /* below it */
+	--space-compact-step-title: 0.2rem; /* between a compact step's title and its text */
+	--space-panel-step-top: 1.4rem; /* above a step in a ruled panel of large numbered steps (below it is --space-7) */
 	--space-list-indent: 1.25rem; /* a bulleted list's indent */
 	--space-list-indent-ordered: 1.4rem; /* a numbered list's indent: room for two-digit numbers */
-	--space-list-item: 0.35rem; /* between the items of a long-form list, or a form label, its hint and its control */
+	--space-list-item: 0.35rem; /* between the items of a list */
 	--space-cell-y: 0.55rem; /* a table cell's padding, top and bottom */
 	--space-cell-x: 0.6rem; /* a table cell's padding, left and right */
 	--space-cell-stacked: 0.2rem; /* between the lines of a table row stacked as a card on phones */
 	--space-control-y: 0.55rem; /* a button's padding, top and bottom */
 	--space-control-x: 1.1rem; /* a button's padding, left and right */
 	--space-callout-y: 0.85rem; /* a callout's padding, top and bottom */
+	--space-choice-box-y: 0.85rem; /* a bordered box round a single checkbox and its text, top and bottom */
+	--space-paragraph: 0.85rem; /* between the paragraphs of a section's text set beside art or code, and below a code block among them */
+	--space-banner-x: 1.1rem; /* a banner's padding, left and right: the draft banner */
+	--space-features: 1.4rem; /* between the rows of a grid of features, two or three to a row */
+	--space-features-stacked: 1.1rem; /* between the features when they stack in one column on phones */
 	--space-code-block-top: 0.9rem; /* above a code block's first line, its leading adds the rest (a step moves each later block 1.6px) */
 	--space-nav-y: 0.45rem; /* an item's padding in a navigation list, top and bottom (a step moves each later row 1.6px) */
 	--space-nav-x: 0.8rem; /* an item's padding in a navigation list, left and right (a step re-wraps the docs nav's tiles on phones) */
@@ -74,6 +82,7 @@
 	--space-after-title: 0.4rem; /* between a card's, panel's, step's or section's title and the line under it */
 	--space-menu-x: 0.7rem; /* a link's padding in a menu bar, left and right (a step shifts the header's menu 6.4px) */
 	--space-label: 0.35rem; /* between a form label, its hint and its control */
+	--space-price-note: 0.35rem; /* between a price's figure and the note under it (a step moves the cards below it 3.2px when they stack) */
 	--space-badge-y: 0.15rem; /* a badge's padding, top and bottom (left and right is --space-3) */
 	--space-badge-gap: 0.3rem; /* between badges in a row, and above the row */
 	--space-item-lines: 0.3rem; /* between the lines of a dense list item: its title, detail and fix */
@@ -112,15 +121,19 @@
 	--shadow-offset-press: 1px;
 	--shadow-offset-feature: 6px; /* the featured pricing card */
 
-	/* Sizes of things. Widths of text are the containers in @theme. */
+	/*
+	 * Sizes of elements: icons, marks, numerals, illustrations, controls. The widths of blocks and columns (grid
+	 * tracks, layout columns, max-widths, text measures) are the --container-* tokens in @theme, never --size-*.
+	 * One token per role: two roles may share a value, but a token is never used for a role it doesn't name just
+	 * because its value matches; such a length gets a role token of its own.
+	 */
 	--size-control: 2.75rem; /* the smallest tap target */
-	--size-control-compact: 2.25rem; /* a small control inside another block (a copy button, a notice's link), or a small mark beside a paragraph */
+	--size-control-compact: 2.25rem; /* a small control inside another block: a copy button, a notice's link */
+	--size-blurb-mark: 2.25rem; /* a mark beside a short paragraph: the footer's anchor */
 	--size-marker: 2.1rem; /* a step's number, an organisation's initial, the logo's mark */
 	--size-marker-large: 2.6rem; /* a large step number in a ruled list of steps */
-	--size-numeral-column: 2.5rem; /* the column for a numbered step's large numeral, in a table */
-	--size-column-narrow: 11rem; /* a narrow column and what fills it: a tier at its narrowest, a hero's illustration */
-	--size-term-column: 10rem; /* the column of terms beside their definitions */
-	--size-illustration-hero-phone: 8rem; /* a hero's illustration above the heading on phones (beside it, --size-column-narrow) */
+	--size-illustration-hero: 11rem; /* a hero's illustration beside its heading */
+	--size-illustration-hero-phone: 8rem; /* a hero's illustration above its heading on phones */
 	--size-crate: 4.5rem; /* one crate in a stack of crates: the pricing page's free plan */
 	--size-marker-compact: 2rem; /* a round marker beside a line of text: a checklist step's state, a person's initial */
 	--size-icon: 1.25rem; /* an icon beside a label */
@@ -131,8 +144,8 @@
 	--size-control-label: 5rem; /* the least width of a control whose label changes, so it doesn't jump */
 	--size-preview-fade: 3.5rem; /* the fade over a collapsed preview's last lines */
 	--size-title-art: 5.5rem; /* an illustration beside a page's title */
-	--size-standalone: 28rem; /* a block standing on its own among text: an illustration, a lone search field */
-	--size-tile: 9.5rem; /* a tile-sized block: a tile's least width in a wrapping grid, a long text's collapsed height */
+	--size-art: 28rem; /* an illustration standing on its own among text, at its largest: the error page's */
+	--size-preview-collapsed: 9.5rem; /* a collapsed preview's height: the first lines of a long text, the rest a click away */
 	--size-checkbox: 1.35rem; /* a checkbox: larger than the browser's, an easy target */
 	--size-radio: 1.2rem; /* a radio button */
 	--size-hidden: 1px; /* a visually hidden element: present for screen readers, one pixel and clipped */
@@ -308,8 +321,10 @@
 	--color-accent: var(--accent);
 	--color-divider: var(--divider);
 	/*
-	 * Containers measure text: how wide a column of running text may get, named for what it holds. Fixed widths
-	 * of art, controls and grid columns are --size-* in :root. Both snap by the 1.6px rule, like every length.
+	 * Containers are the widths of blocks and columns: grid tracks, layout columns, max-widths and text measures,
+	 * each named for what it holds. The sizes of elements (icons, marks, numerals, illustrations, controls) are
+	 * --size-* in :root. One token per role: two roles may share a value, but a container is never used for a
+	 * role it doesn't name just because its value matches. Both snap by the 1.6px rule, like every length.
 	 */
 	--container-page: 72rem; /* the page's content column */
 	--container-closing: 46rem; /* a closing section of text under a page's main block, with a rule above it */
@@ -327,7 +342,15 @@
 	--container-sidebar: 14rem; /* a sidebar: the docs navigation, a table of contents */
 	--container-tier-note: 22ch; /* a pricing tier's one-line description */
 	--container-column-actor: 14rem; /* a table's who-did-it column, at its narrowest: long names wrap rather than squeeze */
-	--container-term-label: 8rem; /* the label column of a list of terms, beside their values */
+	--container-fact-label: 8rem; /* the label column of a panel's short list of facts, beside their values */
+	--container-term: 10rem; /* the column of terms in a page's list of terms and their definitions */
+	--container-tier: 11rem; /* a pricing tier's least width in a wrapping grid of tiers */
+	--container-hero-art: 11rem; /* the column a hero's illustration takes beside its heading */
+	--container-price-art: 14rem; /* the column a plan's illustration takes beside its price */
+	--container-tile: 9.5rem; /* a tile's least width in a wrapping grid of tiles: the docs navigation */
+	--container-field: 28rem; /* a lone field standing on its own among text: a search field */
+	--container-numeral: 2.5rem; /* the column of a numbered table's large step numerals */
+	--container-numeral-stacked: 2.25rem; /* that column when the table's rows stack as cards on phones */
 
 	/*
 	 * Breakpoints: one ordinal scale (the number is the step, not the value), exact, replacing Tailwind's

@@ -55,7 +55,7 @@
 		grid-template-columns: auto minmax(0, 1fr);
 		gap: var(--space-label) var(--space-choice);
 		align-items: start;
-		padding: var(--space-callout-y) var(--space-5);
+		padding: var(--space-choice-box-y) var(--space-5);
 		border: var(--border-outline) solid var(--line);
 		border-radius: var(--radius-card);
 		background: var(--surface-raised);

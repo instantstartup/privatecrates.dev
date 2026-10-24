@@ -304,7 +304,7 @@
 	.price {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-list-item);
+		gap: var(--space-price-note);
 	}
 	.figure {
 		font-family: var(--font-display);
@@ -361,12 +361,12 @@
 	}
 	dl {
 		display: grid;
-		gap: var(--space-control-x);
+		gap: var(--space-features-stacked);
 	}
 	@media (width >= theme(--breakpoint-3)) {
 		dl {
 			grid-template-columns: 1fr 1fr;
-			gap: var(--space-list-indent-ordered) var(--space-9);
+			gap: var(--space-features) var(--space-9);
 		}
 	}
 	@media (width >= theme(--breakpoint-9)) {

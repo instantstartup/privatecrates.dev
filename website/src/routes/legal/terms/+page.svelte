@@ -342,7 +342,7 @@
 		display: grid;
 	}
 	.summary li {
-		padding-block: var(--space-cell-x);
+		padding-block: var(--space-row-y);
 		border-top: var(--border-hairline) dashed var(--divider);
 	}
 	.summary li:first-child {

@@ -394,7 +394,7 @@
 	.manifest li {
 		display: flex;
 		gap: var(--space-5);
-		padding: var(--space-list-indent-ordered) var(--space-6) var(--space-7);
+		padding: var(--space-panel-step-top) var(--space-6) var(--space-7);
 	}
 	.manifest li + li {
 		border-top: var(--border-outline) dashed var(--divider);
@@ -474,7 +474,7 @@
 	@media (width >= theme(--breakpoint-8)) {
 		.security :global(.security-art) {
 			order: 0;
-			max-width: var(--container-aside);
+			max-width: none;
 		}
 	}
 
@@ -497,7 +497,7 @@
 		}
 	}
 	.split-text p + p {
-		margin-top: var(--space-callout-y);
+		margin-top: var(--space-paragraph);
 	}
 	.split-text {
 		max-width: var(--container-prose);
@@ -514,20 +514,20 @@
 	.chain li {
 		display: flex;
 		gap: var(--space-5);
-		padding: var(--space-control-x) var(--space-6) var(--space-compact-step-bottom);
+		padding: var(--space-compact-step-top) var(--space-6) var(--space-compact-step-bottom);
 	}
 	.chain li + li {
 		border-top: var(--border-outline) dashed var(--divider);
 	}
 	.chain h3 {
 		font-size: var(--text-lead);
-		margin-bottom: var(--space-cell-stacked);
+		margin-bottom: var(--space-compact-step-title);
 	}
 	.chain p {
 		color: var(--ink-muted);
 	}
 	.release p {
-		margin-top: var(--space-callout-y);
+		margin-top: var(--space-paragraph);
 		color: var(--ink-muted);
 		max-width: var(--container-prose);
 	}
@@ -544,7 +544,7 @@
 	}
 	@media (width >= theme(--breakpoint-5)) {
 		.price-card {
-			grid-template-columns: var(--size-illustration-small) 1fr;
+			grid-template-columns: var(--container-price-art) 1fr;
 			align-items: center;
 			padding: var(--space-10);
 		}
@@ -576,7 +576,7 @@
 	/* The two plans side by side with equal weight; they stack on narrow screens. */
 	.tiers {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(var(--size-column-narrow), 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(var(--container-tier), 1fr));
 		gap: var(--space-5) var(--space-9);
 		margin-top: var(--space-5);
 	}
