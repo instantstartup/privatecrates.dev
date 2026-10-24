@@ -1,6 +1,7 @@
 <script lang="ts">
 	import FaqItem from '$lib/components/FaqItem.svelte';
 	import Seo from '$lib/components/Seo.svelte';
+	import { REFUNDS_PATH } from '$lib/legal/docs';
 	import CargoShip from '$lib/illustrations/CargoShip.svelte';
 	import Crate from '$lib/illustrations/Crate.svelte';
 	import {
@@ -223,6 +224,13 @@
 					</p>
 					<p>
 						Nothing is deleted: your index and every crate file are in your own repository, and stay there.
+					</p>
+				</FaqItem>
+				<FaqItem question="Do you refund part of a month?">
+					<p>
+						No. Cancelling, members leaving and shrinking to the free plan all take effect from the next
+						invoice, without proration. We always refund billing errors, such as a charge taken twice. The
+						<a href={REFUNDS_PATH}>refunds and cancellation</a> page has the details.
 					</p>
 				</FaqItem>
 				<FaqItem question="What if a payment fails?">

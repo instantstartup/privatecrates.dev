@@ -1,5 +1,7 @@
 // Facts shared by the trust centre, the security policy and the DPA template, so they cannot drift apart.
 
+import { PREVIEW } from '$lib/site';
+
 /** Where security reports go (also in static/.well-known/security.txt). */
 export const SECURITY_EMAIL = 'security@privatecrates.dev';
 /** Everything that is not a security report: terms, privacy, questions. */
@@ -37,9 +39,12 @@ export const subprocessors: Subprocessor[] = [
 	},
 	{
 		name: 'Stripe',
-		purpose:
-			'Subscriptions, invoices, card payments and the trial-ending reminder email, from general availability. Billing is off during the preview, so Stripe receives nothing yet.',
-		data: 'The organisation’s GitHub name and ID, the billing email you give us, and card details (entered on Stripe; we never see them).',
+		purpose: PREVIEW
+			? 'Subscriptions, invoices, card payments and the trial-ending reminder email, from general availability. Billing is off during the preview, so Stripe receives nothing yet.'
+			: 'Subscriptions, invoices, card payments, the billing portal and the trial-ending reminder email.',
+		data: PREVIEW
+			? 'The organisation’s GitHub name and ID, the billing email you give us, and card details (entered on Stripe; we never see them).'
+			: 'The organisation’s GitHub name and ID, the number of members it pays for, the billing email you give us, card details (entered on Stripe; we never see them), and a billing address or tax ID if Stripe asks for one.',
 		location: 'United States and elsewhere, under Stripe’s terms',
 		url: 'https://stripe.com/privacy'
 	},

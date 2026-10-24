@@ -1,28 +1,36 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
-	import { GA_TARGET, TERMS_PATH } from '$lib/site';
+	import { legalDocuments } from '$lib/legal/docs';
+	import { GA_TARGET, PREVIEW, TERMS_PATH } from '$lib/site';
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
 	import Lighthouse from '$lib/illustrations/Lighthouse.svelte';
 	import { SECURITY_EMAIL, STATUS_URL, subprocessors } from '$lib/trust';
 
-	/** docs/preview.md §4, in order: [item, why]. */
-	const roadmap: [string, string][] = [
+	/**
+	 * docs/preview.md §4, in order: [item, why, once billing is on]. The third, when given, is what is left of the item in
+	 * paid mode, or null when the legal documents in force and billing itself have done it.
+	 */
+	const allRoadmap: [string, string, (string | null)?][] = [
 		[
 			'Legal review of the terms, privacy notice and DPA (governed by the law of England and Wales)',
-			'Terms fit for paying customers'
+			'Terms fit for paying customers',
+			null
 		],
 		[
 			'International transfer mechanism (EU SCCs and the UK addendum)',
-			'EU customers’ data processed in the US'
+			'EU customers’ data processed in the US',
+			null
 		],
 		[
 			'Turn on billing (Stripe live mode), with at least 30 days’ notice to existing organisations',
-			'Revenue'
+			'Revenue',
+			null
 		],
 		[
 			'Incident commitments: time to first status update, breach notification deadline (72 hours)',
-			'Enterprise reviews ask'
+			'Enterprise reviews ask',
+			'Incident commitments: time to first status update'
 		],
 		[
 			'Security response targets by severity; a PGP key or other encrypted channel',
@@ -32,6 +40,12 @@
 		['Independent penetration test, with a summary on the trust centre', 'Evidence for reviewers'],
 		['SOC 2 Type I, then Type II', 'The usual enterprise gate']
 	];
+	const roadmap: [string, string][] = allRoadmap.flatMap(([item, why, paid]) =>
+		PREVIEW || paid === undefined ? [[item, why]] : paid === null ? [] : [[paid, why]]
+	);
+	/** The roadmap's name switches with its items: during the preview it leads to general availability. */
+	const roadmapName = PREVIEW ? 'roadmap to general availability' : 'roadmap';
+	const roadmapTitle = PREVIEW ? `Roadmap to general availability: ${GA_TARGET}` : 'Roadmap';
 
 	const toc: TocItem[] = [
 		['what-we-hold', 'What we hold'],
@@ -58,8 +72,9 @@
 			<h1>Trust centre</h1>
 			<p class="lede">
 				What we hold, who else touches it, and how you can check us. The short answer: your crates live in
-				your own GitHub organisation. We store only a record of who accepted our terms, and requests to join
-				the preview.
+				your own GitHub organisation. We store only a record of who accepted our terms{PREVIEW
+					? ', and requests to join the preview'
+					: ''}.
 			</p>
 		</div>
 		<Lighthouse class="hero-art" />
@@ -193,8 +208,13 @@
 						<tr>
 							<th scope="row">Billing</th>
 							<td>
-								Stripe, from general availability. Billing is off during the preview, so Stripe is listed but
-								not yet used. Card details will be entered on Stripe’s pages and never reach us.
+								{#if PREVIEW}
+									Stripe, from general availability. Billing is off during the preview, so Stripe is listed
+									but not yet used. Card details will be entered on Stripe’s pages and never reach us.
+								{:else}
+									Stripe holds subscriptions, invoices and payment records. Card details are entered on
+									Stripe’s pages and never reach us.
+								{/if}
 							</td>
 						</tr>
 						<tr>
@@ -212,9 +232,9 @@
 			<p>
 				The companies that process customer data on our behalf. We announce a new subprocessor here at least
 				30 days before it starts, and, once billing is on, email each organisation’s billing address too. If
-				you object and we cannot accommodate it, you may cancel and get a prorated refund of anything prepaid.
-				An urgent replacement, after a failure or a breach, may happen at once, with notice as soon as we can
-				give it.
+				you object and we cannot accommodate it, you may cancel: the subscription ends with the month already
+				paid for, and nothing more is charged. An urgent replacement, after a failure or a breach, may happen
+				at once, with notice as soon as we can give it.
 			</p>
 			<div class="table-scroll">
 				<table class="subprocessors table-cards">
@@ -335,8 +355,7 @@
 				yourself.
 			</p>
 			<p>
-				The penetration test and SOC 2 are on the <a href="#roadmap">roadmap to general availability</a>,
-				below.
+				The penetration test and SOC 2 are on the <a href="#roadmap">{roadmapName}</a>, below.
 			</p>
 			<p>
 				GitHub’s and Stripe’s own reports cover the data they hold: see the
@@ -344,11 +363,17 @@
 				<a href="https://stripe.com/docs/security">Stripe security</a> pages.
 			</p>
 
-			<h2 id="roadmap">Roadmap to general availability: {GA_TARGET}</h2>
+			<h2 id="roadmap">{roadmapTitle}</h2>
 			<p>
-				PrivateCrates is in <a href={TERMS_PATH}>preview</a>: free, and provided as is. It is operated by
-				INSTANTSTARTUP LTD, incorporated in England and Wales on 7 October 2026. This is what has to happen
-				before general availability, in order. We will do it if there is enough interest.
+				{#if PREVIEW}
+					PrivateCrates is in <a href={TERMS_PATH}>preview</a>: free, and provided as is. It is operated by
+					INSTANTSTARTUP LTD, incorporated in England and Wales on 7 October 2026. This is what has to happen
+					before general availability, in order. We will do it if there is enough interest.
+				{:else}
+					PrivateCrates is generally available under our <a href={TERMS_PATH}>terms of service</a>. It is
+					operated by INSTANTSTARTUP LTD, incorporated in England and Wales on 7 October 2026. This is what we
+					plan next, in order.
+				{/if}
 			</p>
 			<div class="table-scroll">
 				<table class="roadmap table-cards">
@@ -381,13 +406,23 @@
 					<strong>Communication:</strong> incidents are posted on
 					<a href={STATUS_URL}>status.privatecrates.dev</a>, with an Atom feed to subscribe to. When GitHub is
 					the cause, the page says so and links GitHub’s incident. For a security incident affecting your
-					organisation, we will also email its billing address once billing is on; during the preview there is
-					none, so the status page is where we say it.
+					{#if PREVIEW}
+						organisation, we will also email its billing address once billing is on; during the preview there
+						is none, so the status page is where we say it.
+					{:else}
+						organisation, we also email its billing address.
+					{/if}
 				</li>
 				<li>
 					<strong>Target times:</strong>
-					none are committed during the preview. Time to first status update and a 72-hour breach notification deadline
-					are on the <a href="#roadmap">roadmap</a>.
+					{#if PREVIEW}
+						none are committed during the preview. Time to first status update and a 72-hour breach
+						notification deadline are on the <a href="#roadmap">roadmap</a>.
+					{:else}
+						the <a href="/legal/dpa#breach">data processing agreement</a> commits us to notify you of a
+						personal data breach within 72 hours. A target time to first status update is on the
+						<a href="#roadmap">roadmap</a>.
+					{/if}
 				</li>
 				<li>
 					<strong>Limiting the damage:</strong> the only durable data is the terms acceptance record, which holds
@@ -406,18 +441,12 @@
 
 			<h2 id="documents">Documents</h2>
 			<ul class="documents">
-				<li>
-					<a href="/legal/dpa">Data processing agreement</a>: a template, in draft for legal review, not yet
-					in force during the preview.
-				</li>
+				{#each legalDocuments as doc (doc.href)}
+					<li><a href={doc.href}>{doc.title}</a>: {doc.status}.</li>
+				{/each}
 				<li><a href="#subprocessors">Subprocessor list</a>, above.</li>
 				<li><a href="/security">Vulnerability disclosure policy</a>.</li>
 				<li><a href="/docs/security">Security model</a>, with the threat table.</li>
-				<li><a href={TERMS_PATH}>Preview terms</a>, in force during the preview.</li>
-				<li>
-					<a href="/legal/privacy">Privacy notice</a>, in force. The data processing agreement above: a draft,
-					not yet in force during the preview.
-				</li>
 				<li>
 					Licences: MIT or Apache-2.0 for the client tools and the verifier; Business Source License 1.1 for
 					the service, converting to Apache-2.0 four years after each release.

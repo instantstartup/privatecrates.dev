@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { COMPANY } from '$lib/site';
+	import { COMPANY, PREVIEW, TERMS_PATH } from '$lib/site';
 	import Callout from '$lib/components/Callout.svelte';
 	import DraftBanner from '$lib/components/DraftBanner.svelte';
+	import LegalMeta from '$lib/components/LegalMeta.svelte';
 	import Seo from '$lib/components/Seo.svelte';
+	import { DPA_DOC } from '$lib/legal/docs';
 	import type { TocItem } from '$lib/components/Toc.svelte';
 	import TocLayout from '$lib/components/TocLayout.svelte';
 	import { CONTACT_EMAIL, SECURITY_EMAIL, subprocessors } from '$lib/trust';
@@ -21,8 +23,10 @@
 </script>
 
 <Seo
-	title="Data processing agreement (draft)"
-	description="Draft template of the PrivateCrates data processing agreement, for legal review: parties, processing details, subprocessors, security measures, breach notification and deletion."
+	title={PREVIEW ? 'Data processing agreement (draft)' : 'Data processing agreement'}
+	description={PREVIEW
+		? 'Draft template of the PrivateCrates data processing agreement, for legal review: parties, processing details, subprocessors, security measures, breach notification and deletion.'
+		: 'The PrivateCrates data processing agreement: parties, processing details, subprocessors, security measures, breach notification, deletion, and the EU and UK transfer clauses.'}
 	path="/legal/dpa"
 />
 
@@ -30,14 +34,23 @@
 	<div class="legal">
 		<div class="prose intro">
 			<h1>Data processing agreement</h1>
-			<DraftBanner />
-			<Callout title="A template for legal review">
-				<p>
-					This sets out the structure and the facts of how PrivateCrates processes data. The legal wording and
-					every highlighted gap need review by a lawyer before anyone signs it. The facts it relies on are on
-					the <a href="/trust">trust centre</a>.
+			{#if PREVIEW}
+				<DraftBanner />
+				<Callout title="A template for legal review">
+					<p>
+						This sets out the structure and the facts of how PrivateCrates processes data. The legal wording
+						and every highlighted gap need review by a lawyer before anyone signs it. The facts it relies on
+						are on the <a href="/trust">trust centre</a>.
+					</p>
+				</Callout>
+			{:else}
+				<LegalMeta version={DPA_DOC.version} date={DPA_DOC.date} />
+				<p class="lede">
+					This agreement is part of the <a href={TERMS_PATH}>terms of service</a> and applies whenever an
+					admin accepts them for an organisation; nothing needs signing. The facts it relies on are on the
+					<a href="/trust">trust centre</a>.
 				</p>
-			</Callout>
+			{/if}
 		</div>
 		<TocLayout {toc}>
 			<h2 id="parties">1. Parties</h2>
@@ -125,9 +138,11 @@
 				replacing one, at least 30 days before the change, by updating the subprocessor list on the trust
 				centre and emailing the customer’s billing email address. The customer may object within that period
 				on reasonable data protection grounds; if the processor cannot accommodate the objection, the customer
-				may end the service and receive a prorated refund of anything prepaid. Where a subprocessor must be
-				replaced urgently, for example after a failure or a breach, the processor may make the change at once
-				and gives notice as soon as it can.
+				may cancel its subscription: it ends with the billing period already paid for, and nothing more is
+				charged. Where a subprocessor must be replaced urgently, for example after a failure or a breach, the
+				processor may make the change at once and gives notice as soon as it can.{#if !PREVIEW}
+					The processor puts data protection obligations on each subprocessor that are no less protective than
+					this agreement, and remains liable to the customer for its subprocessors’ performance of them.{/if}
 			</p>
 			<div class="table-scroll">
 				<table class="table-cards">
@@ -198,24 +213,76 @@
 					as evidence of the agreement.
 				</li>
 				<li>
-					<strong>Billing records</strong> at Stripe are kept for as long as tax law requires (6 years in the UK).
-					There are none during the preview.
+					<strong>Billing records</strong> at Stripe are kept for as long as tax law requires (6 years in the
+					UK).{#if PREVIEW}
+						There are none during the preview.{/if}
 				</li>
 			</ul>
 
 			<h2 id="transfers">8. International transfers</h2>
-			<p>
-				The service runs in the United States, in Railway’s US East (Virginia) region. Before this agreement
-				comes into force, the EU Standard Contractual Clauses and the UK International Data Transfer Addendum
-				will be incorporated for transfers from the EU and the UK.
-			</p>
+			{#if PREVIEW}
+				<p>
+					The service runs in the United States, in Railway’s US East (Virginia) region. Before this agreement
+					comes into force, the EU Standard Contractual Clauses and the UK International Data Transfer
+					Addendum will be incorporated for transfers from the EU and the UK.
+				</p>
+			{:else}
+				<p>
+					The service runs in the United States, in Railway’s US East (Virginia) region, and the subprocessors
+					in section 4 process data in the locations listed there. Where personal data the processor handles
+					for the customer is transferred out of the European Economic Area or the United Kingdom to a country
+					without an adequacy decision, the following are incorporated into this agreement by reference, and
+					the customer and the processor enter into them by accepting the terms:
+				</p>
+				<ul>
+					<li>
+						<strong>From the EEA:</strong> the Standard Contractual Clauses approved by
+						<a href="https://eur-lex.europa.eu/eli/dec_impl/2021/914/oj"
+							>Commission Implementing Decision (EU) 2021/914</a
+						>, Module 2 (controller to processor), with the customer as data exporter and the processor as
+						data importer. Clause 7 (the docking clause) applies. Under Clause 9(a), Option 2 (general written
+						authorisation) applies, with the notice period in section 4. The option in Clause 11 does not
+						apply. Under Clauses 17 and 18, the law and courts are those of Ireland. Annex I is completed by
+						sections 1 and 2, Annex II by section 5, and Annex III by the list in section 4. The competent
+						supervisory authority is the one Clause 13 identifies for the customer.
+					</li>
+					<li>
+						<strong>From the United Kingdom:</strong> the
+						<a
+							href="https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/international-data-transfer-agreement-and-guidance/"
+							>International Data Transfer Addendum to the EU Commission Standard Contractual Clauses</a
+						>, version B1.0, issued by the Information Commissioner under section 119A of the Data Protection
+						Act 2018. Table 1 is completed by section 1; Table 2 by the Module 2 clauses above; Table 3 by
+						sections 2, 4 and 5; and, under Table 4, either party may end the Addendum as its Section 19
+						allows.
+					</li>
+				</ul>
+				<p>
+					The processor makes the same transfers onward to its subprocessors under those clauses, or under the
+					EU–US Data Privacy Framework and its UK extension where the subprocessor is certified under it. If
+					the clauses and this agreement conflict, the clauses win.
+				</p>
+			{/if}
 
 			<h2 id="general">9. General</h2>
-			<p>
-				Liability is as in the terms of service. Where this agreement and the terms conflict about personal
-				data, this agreement wins. Governing law and jurisdiction are those of the terms of service, which
-				will name them at general availability.
-			</p>
+			{#if PREVIEW}
+				<p>
+					Liability is as in the terms of service. Where this agreement and the terms conflict about personal
+					data, this agreement wins. Governing law and jurisdiction are those of the terms of service, which
+					will name them at general availability.
+				</p>
+			{:else}
+				<p>
+					Liability is as in the terms of service. Where this agreement and the terms conflict about personal
+					data, this agreement wins. Apart from the clauses in section 8, which are governed as they say, this
+					agreement is governed by the law of England and Wales, and its courts have exclusive jurisdiction.
+				</p>
+				<p>
+					The processor may update this agreement in the same way as the terms, and does not reduce its
+					protection of personal data without the customer’s agreement. Earlier versions are available on
+					request.
+				</p>
+			{/if}
 			<p>
 				Questions about this agreement: <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>. Security
 				questions:

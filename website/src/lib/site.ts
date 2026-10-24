@@ -78,6 +78,7 @@ export const sitemapPaths = [
 	'/trust',
 	'/security',
 	'/legal/terms',
+	'/legal/refunds',
 	'/legal/privacy',
 	'/legal/dpa'
 ];
