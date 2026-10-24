@@ -35,6 +35,8 @@ struct World {
     next_id: u64,
     /// How many requests the fake received, of any kind.
     requests: usize,
+    /// How many of the next requests fail as an outage would, with a 500.
+    failing: usize,
     customers: Vec<Value>,
     /// In creation order; `customer` is the customer's ID.
     subscriptions: Vec<Value>,
@@ -199,6 +201,11 @@ impl FakeStripe {
     }
 
     /// How many requests reached the fake.
+    /// Makes the next `n` requests fail with a 500, as during a Stripe outage.
+    pub fn fail_next(&self, n: usize) {
+        self.world().failing = n;
+    }
+
     pub fn requests(&self) -> usize {
         self.world().requests
     }
@@ -288,7 +295,19 @@ fn router(fake: FakeStripe) -> Router {
 }
 
 async fn count(State(fake): State<FakeStripe>, request: Request, next: Next) -> Response {
-    fake.world().requests += 1;
+    let failing = {
+        let mut w = fake.world();
+        w.requests += 1;
+        let failing = w.failing > 0;
+        w.failing = w.failing.saturating_sub(1);
+        failing
+    };
+    if failing {
+        return error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the fake is failing, as asked",
+        );
+    }
     next.run(request).await
 }
 

@@ -801,18 +801,63 @@ async fn terms(
         });
     };
     record_terms(&state, &session, &membership).await?;
-    let plan = state.plan(org.id, &org.login, membership.personal).await;
-    if let Some(email) = email
-        && plan.trial_available
-    {
-        state
-            .billing
-            .start_trial(org.id, &org.login, plan.members, Some(&email))
-            .await?;
-        log::info!(org:% = org.login, by:% = membership.user.login; "trial requested with the terms");
+    // The terms are accepted from here on: what follows is billing catching up with them, which the onboarding
+    // document reports and nothing in it fails the request.
+    if let Some(email) = &email {
+        start_trial_with_terms(&state, &membership, email).await;
     }
     state.keep_billing_in_step(&tenant).await;
+    if let Some(email) = &email {
+        give_the_trial_its_email(&state, &membership, email).await;
+    }
     Ok(Json(onboarding_doc(&state, &membership).await?))
+}
+
+/// Starts the trial the terms were holding back, with the billing email sent with them. A failure is logged, not
+/// returned: another request or the refresh may have started it first, and a trial that Stripe refused now is
+/// started by keeping billing in step, then given the email by [`give_the_trial_its_email`].
+async fn start_trial_with_terms(state: &AppState, membership: &Membership, email: &str) {
+    let org = &membership.organization;
+    let plan = state.plan(org.id, &org.login, membership.personal).await;
+    if !plan.trial_available {
+        return;
+    }
+    match state
+        .billing
+        .start_trial(org.id, &org.login, plan.members, Some(email))
+        .await
+    {
+        Ok(()) => {
+            log::info!(org:% = org.login, by:% = membership.user.login; "trial started with the terms");
+        }
+        Err(e) => {
+            log::warn!(org:% = org.login, error:% = e; "the trial did not start with the terms");
+        }
+    }
+}
+
+/// Sets the billing email sent with the terms on the organisation's subscription when that has none, as a trial
+/// started without it does. A failure is logged: the account page then asks for the email again.
+async fn give_the_trial_its_email(state: &AppState, membership: &Membership, email: &str) {
+    let org = &membership.organization;
+    let Some(subscription) = state.billing.subscription(org.id) else {
+        return;
+    };
+    if !subscription.is_active() || !subscription.billing_email_missing() {
+        return;
+    }
+    match state
+        .billing
+        .set_billing_email(org.id, &org.login, email)
+        .await
+    {
+        Ok(()) => {
+            log::info!(org:% = org.login, by:% = membership.user.login; "billing email set with the terms")
+        }
+        Err(e) => {
+            log::warn!(org:% = org.login, error:% = e; "setting the billing email with the terms failed")
+        }
+    }
 }
 
 /// A GitHub login is letters, digits and hyphens; anything else must not reach a GitHub API path.

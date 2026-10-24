@@ -203,7 +203,9 @@ current version, and `account::not_set_up` 409 if the organisation has no regist
 (`billing::email_invalid` 400, nothing recorded), and if the organisation's trial is available it starts at once with
 that address as the Stripe customer's email (as `POST /trial` would). Without it, an organisation over the limit that
 was waiting for the terms starts its trial or grace period at once, with no email (as an automatic trial does).
-Returns the onboarding document.
+Once the terms are recorded the request succeeds whatever the trial does: one started meanwhile without an email
+gets the one sent, and a trial Stripe refused is logged and left to the next refresh (the document's `plan` step
+shows it still `todo`). Returns the onboarding document.
 
 The `plan` step (formerly `subscription`) is `done` when the organisation is free or has an active, trialing or
 past-due subscription; otherwise `todo` with a `detail` saying which action applies. Without the terms accepted that

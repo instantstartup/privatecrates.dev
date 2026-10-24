@@ -315,6 +315,70 @@ async fn the_terms_take_the_trials_billing_email() {
     );
 }
 
+/// Once the terms are recorded, the request succeeds whatever happens to the trial: one started first by someone else
+/// gets the email; one Stripe refused is started by keeping billing in step, then given the email; and with Stripe
+/// down the terms are still accepted, and the document says the trial is still to start.
+#[tokio::test]
+async fn the_terms_stay_accepted_whatever_the_trial_does() {
+    let accept = |h: &Harness, session: &str| {
+        h.api_post("/api/orgs/acme/terms", session)
+            .body(
+                json!({ "accept_terms": TERMS_VERSION, "billing_email": BILLING_EMAIL })
+                    .to_string(),
+            )
+            .send()
+    };
+    let one_customer_with_the_email = |stripe: &FakeStripe| {
+        let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
+        assert_eq!(customer["email"], BILLING_EMAIL);
+    };
+
+    // Started without an email in between (the refresh, or another request with the terms).
+    let (h, stripe) = start().await;
+    let (session, _, _) = setup_without_terms(&h).await;
+    h.fake.add_org_members(&h.org, 11);
+    h.accept_terms().await;
+    let tenant = h.state.tenants.by_org(h.org.id).unwrap();
+    h.state.keep_billing_in_step(&tenant).await;
+    let response = accept(&h, &session).await.unwrap();
+    assert_eq!(response.status(), 200);
+    one_customer_with_the_email(&stripe);
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+    assert_eq!(
+        session_org(&h, &session).await["billing_email_missing"],
+        false
+    );
+
+    // Stripe refuses the trial once.
+    let (h, stripe) = start().await;
+    let (session, _, _) = setup_without_terms(&h).await;
+    h.fake.add_org_members(&h.org, 11);
+    stripe.fail_next(1);
+    let response = accept(&h, &session).await.unwrap();
+    assert_eq!(response.status(), 200);
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(doc["terms"]["accepted"], true);
+    assert_eq!(doc["steps"][4]["status"], "done");
+    one_customer_with_the_email(&stripe);
+    assert_eq!(
+        session_org(&h, &session).await["billing_email_missing"],
+        false
+    );
+
+    // Stripe is down.
+    let (h, stripe) = start().await;
+    let (session, _, _) = setup_without_terms(&h).await;
+    h.fake.add_org_members(&h.org, 11);
+    stripe.fail_next(usize::MAX);
+    let response = accept(&h, &session).await.unwrap();
+    assert_eq!(response.status(), 200);
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(doc["terms"]["accepted"], true);
+    assert_eq!(doc["steps"][4]["status"], "todo");
+    assert!(h.state.terms.accepted(h.org.id).await);
+    assert!(stripe.customers().is_empty());
+}
+
 /// An organisation that had a trial, and grows again past the limit, gets its grace period only under the terms
 /// too; a returning one is told to accept them before subscribing.
 #[tokio::test]
