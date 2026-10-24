@@ -30,6 +30,9 @@ pub const API_VERSION: &str = "2026-08-26.dahlia";
 
 const DAY: u64 = 24 * 60 * 60;
 
+/// What Stripe keeps under an idempotency key: the request's parameters, and the status and body it got.
+type Stored = (HashMap<String, String>, StatusCode, Value);
+
 #[derive(Default)]
 struct World {
     next_id: u64,
@@ -50,7 +53,7 @@ struct World {
     checkouts: Vec<HashMap<String, String>>,
     portals: Vec<HashMap<String, String>>,
     /// (path, Idempotency-Key) → the request's parameters and the response it got, a failure as much as a success.
-    idempotent: HashMap<(String, String), (HashMap<String, String>, StatusCode, Value)>,
+    idempotent: HashMap<(String, String), Stored>,
 }
 
 impl World {
