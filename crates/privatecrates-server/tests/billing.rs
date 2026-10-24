@@ -349,21 +349,43 @@ async fn the_terms_stay_accepted_whatever_the_trial_does() {
         false
     );
 
-    // Stripe refuses the trial once.
+    // Stripe fails the subscription once, after creating the customer. Keeping billing in step tries again in the
+    // same request, before search finds that customer: the customer is created with the same form under the same
+    // key, so Stripe answers with the first one rather than refusing the key.
     let (h, stripe) = start().await;
     let (session, _, _) = setup_without_terms(&h).await;
     h.fake.add_org_members(&h.org, 11);
-    stripe.fail_next(1);
+    stripe.search_lags();
+    stripe.fail_next_on("/v1/subscriptions", 1);
     let response = accept(&h, &session).await.unwrap();
     assert_eq!(response.status(), 200);
     let doc: Value = response.json().await.unwrap();
     assert_eq!(doc["terms"]["accepted"], true);
     assert_eq!(doc["steps"][4]["status"], "done");
     one_customer_with_the_email(&stripe);
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
     assert_eq!(
         session_org(&h, &session).await["billing_email_missing"],
         false
     );
+
+    // The subscription fails until Stripe has forgotten the key: the refresh after that finds the customer the
+    // first attempt created, with its email, rather than creating another.
+    let (h, stripe) = start().await;
+    let (session, _, _) = setup_without_terms(&h).await;
+    h.fake.add_org_members(&h.org, 11);
+    stripe.fail_next_on("/v1/subscriptions", 2);
+    let response = accept(&h, &session).await.unwrap();
+    assert_eq!(response.status(), 200);
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(doc["steps"][4]["status"], "todo");
+    assert!(stripe.subscriptions(h.org.id).is_empty());
+    stripe.forget_idempotency_keys();
+    let tenant = h.state.tenants.by_org(h.org.id).unwrap();
+    h.state.keep_billing_in_step(&tenant).await;
+    one_customer_with_the_email(&stripe);
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+    assert_eq!(plan_step(&h, &session).await["status"], "done");
 
     // Stripe is down.
     let (h, stripe) = start().await;
