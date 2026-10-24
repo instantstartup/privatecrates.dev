@@ -149,16 +149,14 @@
 				<FaqItem question="Do we pay anything during the preview?">
 					<p>
 						No. Billing is off: we take no payments and ask for no card, whatever the size of your
-						organisation. The preview is provided as is and at your own risk; the <a href={TERMS_PATH}
-							>preview terms</a
-						> say what that means.
+						organisation. The <a href={TERMS_PATH}>terms</a> say what applies once it is on.
 					</p>
 				</FaqItem>
 				<FaqItem question="When does billing start?">
 					<p>
 						Only after general availability, planned for {GA_TARGET}, and only after at least 30 days’ notice
-						to organisations already using PrivateCrates. Paying will need new terms, which an admin accepts.
-						No charge is ever taken without a card an admin has added.
+						to organisations already using PrivateCrates. No charge is ever taken without a card an admin has
+						added.
 					</p>
 				</FaqItem>
 				<FaqItem question="What will organisations with more than {FREE_MEMBER_LIMIT} members pay?">

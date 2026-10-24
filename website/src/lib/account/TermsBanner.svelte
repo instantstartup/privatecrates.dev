@@ -36,10 +36,7 @@
 	}
 </script>
 
-<Callout
-	tone="warn"
-	title={admin ? `Accept the preview terms for ${org}` : 'The preview terms are waiting for an admin'}
->
+<Callout tone="warn" title={admin ? `Accept the terms for ${org}` : 'The terms are waiting for an admin'}>
 	{#if admin}
 		<p>
 			PrivateCrates asks an admin of each organisation to accept its terms, and nobody has for {org} yet. The registry
@@ -62,7 +59,7 @@
 					disabled={saving || !accepted}
 					aria-describedby={accepted ? undefined : `terms-wait-${org}`}
 				>
-					{saving ? 'Accepting the preview terms…' : 'Accept the preview terms'}
+					{saving ? 'Accepting the terms…' : 'Accept the terms'}
 				</button>
 				<p class="wait" id="terms-wait-{org}" aria-live="polite">
 					{accepted ? '' : 'Tick the box above first.'}
@@ -71,8 +68,8 @@
 		</form>
 	{:else}
 		<p>
-			An admin of {org} needs to accept the <a href={terms.url}>preview terms</a>. The registry keeps working
-			in the meantime.
+			An admin of {org} needs to accept the <a href={terms.url}>terms</a>. The registry keeps working in the
+			meantime.
 		</p>
 	{/if}
 </Callout>

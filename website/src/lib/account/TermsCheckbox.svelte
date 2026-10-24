@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Terms } from '$lib/api';
 
-	// The admin's acceptance of the terms on behalf of the organisation (docs/preview.md §2). Used where a registry is
+	// The admin's acceptance of the terms on behalf of the organisation (docs/website-api.md). Used where a registry is
 	// created (SlugForm) and where an existing one still needs it (TermsBanner); the parent owns the button.
 	interface Props {
 		org: string;
@@ -37,14 +37,14 @@
 		aria-describedby="{id}-summary{describedby ? ` ${describedby}` : ''}"
 	/>
 	<label for={id}>
-		I have read and accept the {@render newTab(terms.url, 'preview terms')} on behalf of
+		I have read and accept the {@render newTab(terms.url, 'PrivateCrates terms')} on behalf of
 		<strong>{org}</strong>
 	</label>
 	<p class="summary" id="{id}-summary">
-		In short: free during the preview, provided {@render newTab(
-			section('as-is'),
-			'as is and at your own risk'
-		)}, and your crates {@render newTab(section('your-data'), 'stay in your own repository')}. Version
+		In short: {@render newTab(section('plans'), 'free for small teams')}, larger organisations pay monthly
+		after a
+		{@render newTab(section('trial'), 'free trial that needs no card')}, and your crates
+		{@render newTab(section('your-data'), 'stay in your own repository')}. Version
 		<code>{terms.version}</code>.
 	</p>
 </div>

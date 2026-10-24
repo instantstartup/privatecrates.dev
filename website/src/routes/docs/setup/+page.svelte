@@ -61,7 +61,7 @@
 	<li>
 		<strong>Choose your registry name.</strong> It becomes your hostname,
 		<code>your-name.privatecrates.dev</code>, and is saved as <code>privatecrates.toml</code> in the storage
-		repository. In the same step you accept the <a href={TERMS_PATH}>preview terms</a> on behalf of your organisation.
+		repository. In the same step you accept the <a href={TERMS_PATH}>terms</a> on behalf of your organisation.
 	</li>
 	<li>
 		{#if PREVIEW}

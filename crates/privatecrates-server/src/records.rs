@@ -81,9 +81,7 @@ pub struct Accepted {
 
 /// The words an admin accepts, recorded with the acceptance.
 pub fn statement(version: &str, org_login: &str) -> String {
-    format!(
-        "I have read and accept the PrivateCrates preview terms ({version}) on behalf of {org_login}"
-    )
+    format!("I have read and accept the PrivateCrates terms ({version}) on behalf of {org_login}")
 }
 
 #[async_trait]

@@ -15,8 +15,8 @@ site can show is a step in [walkthrough.md](walkthrough.md). The founder's own s
 | PC-32 | Founder pre-launch steps: Stripe live mode, production environment, legal review, ICO fee, notice to existing orgs | founder, outside the code |
 | PC-31 | Billing address, tax ID and optional Stripe automatic tax; prices shown "excl. tax" when taxed | code; **blocks only if** the founder decides to charge tax from day one (founder-steps.md §3) |
 
-The launch order is PC-29, then PC-30, then PC-32's notice to existing organisations (at least 30 days, as the
-preview terms promise; founder-steps.md §4) and legal review (§5), and only once the notice has run out the
+The launch order is PC-29, then PC-30, then PC-32's check that there are no existing organisations to tell
+(founder-steps.md §4; the preview terms are gone, PC-33) and legal review (§5), and then the
 switch-over (live Stripe keys and `PREVIEW=false` in production, §6), and then the live run in
 [walkthrough.md](walkthrough.md).
 
@@ -40,10 +40,10 @@ not needed for launch).
 | Billing: lapsed or failed payment | ready | test `billing::a_lapsed_subscription_stops_publishing_then_reads`: publishing stops first, then reads, after the grace period | — |
 | Billing: webhooks | ready | test `billing::webhooks_must_be_signed_and_fresh`; endpoint created by `stripe-setup.sh` | — |
 | Billing: the preview never calls Stripe | ready (preview mode) | test `billing::the_preview_is_free_and_never_calls_stripe` | — |
-| Billing: trial, checkout and portal don't check the terms | **blocker** | `account.rs` `check_terms` is called only by the settings and terms handlers; `trial`, `checkout`, `portal` and the automatic trial in `lib.rs` `keep_billing_in_step` don't call it. In paid mode, an org could be billed without anyone accepting the paid terms | PC-30 |
-| `PREVIEW` default and terms version | **blocker** | `crates/privatecrates-server/src/config.rs` (`PREVIEW` defaults to true); `privatecrates-common` `TERMS_VERSION = "preview-2026-10-07"`; `website/src/lib/site.ts` `PREVIEW = true`, `TERMS_VERSION = 'preview-2026-10-07'` | PC-30 |
+| Billing: trial, checkout and portal check the terms | ready (PC-33) | `account.rs` `require_terms` on `/trial`, `/checkout` and `/portal`; `lib.rs` `keep_billing_in_step` starts no automatic trial until an admin accepts; config.json and publish answer `402 billing::terms_not_accepted`; tests in `tests/billing.rs` | PC-30 |
+| `PREVIEW` default and terms version | ready (PC-33) | one terms version, `2026-11-01`, in `privatecrates-common` `TERMS_VERSION` and `website/src/lib/site.ts` (a test keeps them equal); `PREVIEW` no longer switches the terms. `PREVIEW` still defaults to true (`config.rs`): production sets `PREVIEW=false` (PC-32) | PC-30 |
 | Copy that isn't gated on `PREVIEW` and still says "preview" | **blocker** | `docs/setup` step 4 ("accept the preview terms"); `trust/+page.svelte` (Stripe "Billing is off during the preview", "in preview: free, and provided as is", "none committed during the preview", "Preview terms"); `lib/trust.ts` Stripe subprocessor line; `security/+page.svelte` ("best-effort basis during the preview", "Draft for review"); `llms.txt` ("Preview terms"); `Footer`, `account/*` (Checklist, OrgList, RegistryPanel, TermsBanner, TermsCheckbox, format.ts), `AgentPrompt`, `docs/agents`, `snippets.ts`. Full list: `grep -rli preview website/src website/static` | PC-30 |
-| Terms of service for a paid service | **blocker** | `legal/terms` is the preview terms (free, as is) | PC-29 |
+| Terms of service for a paid service | ready | `legal/terms` is the terms of service, the only terms (PC-29, PC-33) | PC-29 |
 | Refund and cancellation page | **blocker** | no such page. Also, `trust/+page.svelte` and `legal/dpa/+page.svelte` promise a "prorated refund of anything prepaid", while the portal cancels at period end with no proration (`stripe-setup.sh`) and `sync_quantity` uses `proration_behavior=none`: one of them has to change | PC-29 |
 | Privacy notice | **blocker** | `legal/privacy` doesn't name Stripe as a processor of billing data (name, email, card via Stripe, invoices) | PC-29 |
 | DPA | **blocker** | `legal/dpa` is a draft for review, not in force; for EU and UK customers it needs the SCCs and the UK addendum | PC-29 |
@@ -64,7 +64,7 @@ not needed for launch).
 
 ## Existing organisations
 
-`terms_acceptances` holds every org that accepted the preview terms (`org_login`, `user_login`, `version`,
-`accepted_at`), and no email addresses. In paid mode, these orgs see the terms banner until an admin accepts the
-paid version (`records.rs` `accepted`), but the banner doesn't stop the registry. Once PC-30 lands, billing waits
-for that acceptance. How they get notice before launch is founder-steps.md §4.
+`terms_acceptances` holds every org that accepted the terms (`org_login`, `user_login`, `version`, `accepted_at`),
+and no email addresses. The only org that accepted the earlier preview terms is the founder's own; it sees the terms
+banner until an admin accepts version `2026-11-01` (`records.rs` `accepted`), and billing waits for that acceptance
+(PC-33). founder-steps.md §4 checks that no one else is there.

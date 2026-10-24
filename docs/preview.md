@@ -7,9 +7,9 @@ availability:
 - It is operated by **INSTANTSTARTUP LTD** (company number 17505349, England and Wales).
 - It is **free**: no payments are taken, in any environment, until general availability. The planned prices are
   shown as planned, not charged.
-- It is provided **as is, at the user's own risk**: no warranty, no service commitment, no liability beyond what law
-  forbids excluding, and it may change or stop.
-- An organisation admin must **accept the preview terms** before a registry is created for their organisation.
+- An organisation admin must **accept the terms** before a registry is created for their organisation. There is one
+  set of terms, version `2026-11-01` (`/legal/terms`), the same with `PREVIEW` on or off: the preview terms that came
+  before them are gone, and nobody but the founder had accepted them, so nothing migrates.
 - It is **open to any GitHub organisation or personal account**.
 
 ## 1. Preview mode (server)
@@ -21,7 +21,7 @@ availability:
   free during the preview").
 - Every organisation's `plan` is `"free"`, with `members` still reported. The onboarding `plan` step is `done`, with
   detail "Free during the private preview."
-- `GET /api/session` gains a top-level `"preview": true` and `"terms": { "version": "preview-2026-09-27", "url":
+- `GET /api/session` gains a top-level `"preview": true` and `"terms": { "version": "2026-11-01", "url":
   "https://{apex}/legal/terms" }`.
 - Publish warnings (trial reminders) are off.
 
@@ -36,7 +36,7 @@ contents stay in the customer's organisation.
   login), the GitHub user who accepted (id, login), terms version, time, `via` (`website` or `cli`), and the exact
   statement accepted. One row per organisation and version; the first acceptance is kept.
 - **At registry creation:** `POST /api/orgs/{org}/settings` requires `{"slug": "…", "accept_terms":
-  "preview-2026-09-27"}`, the current version, or refuses with `400 account::terms_not_accepted`. The acceptance is
+  "2026-11-01"}`, the current version, or refuses with `400 account::terms_not_accepted`. The acceptance is
   recorded first; if that fails, nothing is created.
 - **For an existing registry** (created before the terms, or when the version changes): `POST
   /api/orgs/{org}/terms` `{"accept_terms": "<current version>"}`, admin only.
@@ -53,16 +53,12 @@ contents stay in the customer's organisation.
 
 ## 3. Website
 
-- `/legal/terms` becomes the **Preview terms** (version `preview-2026-09-27`), plain English, not a draft banner:
-  who operates it (INSTANTSTARTUP LTD), free during the
-  preview, as is and at your own risk, no warranty, no availability or support commitment, limitation of liability to
-  the extent the law allows, the service may change or end with notice where possible, your data stays in your GitHub
-  organisation (so ending the service loses nothing), acceptable use, how terms change (a new version to accept),
-  contact (`contact@privatecrates.dev`; security reports to `security@`). The privacy notice is in force for the
-  preview (the operator as controller); the DPA stays a draft, marked as
-  not yet in force during the preview.
-- **Onboarding:** the registry-name step has a required checkbox, "I have read and accept the preview terms
-  (link), on behalf of {org}", sending `accept_terms`. Admins of an existing registry without acceptance see a banner
+- `/legal/terms` is the **Terms of service** (version `2026-11-01`), whatever `PREVIEW` says: plans and prices, the
+  no-card trial, billing, cancelling, acceptable use and liability. `PREVIEW` no longer switches the terms; it still
+  switches billing, the privacy notice's and the DPA's wording (the DPA is a draft, not yet in force, during the
+  preview) and the marketing copy.
+- **Onboarding:** the registry-name step has a required checkbox, "I have read and accept the PrivateCrates
+  terms (link) on behalf of {org}", sending `accept_terms`. Admins of an existing registry without acceptance see a banner
   with the same checkbox and button.
 - **Preview everywhere it matters:** a slim site-wide "Preview: free, use at your own risk" notice (linking the
   terms); `/pricing` shows the plans as "planned pricing, from general availability; free during the preview";

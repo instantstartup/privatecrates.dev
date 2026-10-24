@@ -33,7 +33,7 @@ const TERMS_URL = `${SITE_URL}${TERMS_PATH}`;
 const TERMS_TITLE = legalDocuments.find((doc) => doc.href === TERMS_PATH)?.title ?? 'Terms';
 
 const pricing = PREVIEW
-	? `- **Preview, open to everyone:** any GitHub organisation or personal account can have a registry. It is free and billing is off: there is no trial, no card and nothing to pay, whatever the organisation's size. It is provided as is, at the user's own risk, under the preview terms (${TERMS_URL}, version \`${TERMS_VERSION}\`). Planned pricing from general availability (${GA_TARGET}): ${PRICE_PHRASE}, per organisation.`
+	? `- **Preview, open to everyone:** any GitHub organisation or personal account can have a registry. It is free and billing is off: there is no trial, no card and nothing to pay, whatever the organisation's size. Use is under the terms (${TERMS_URL}, version \`${TERMS_VERSION}\`). Planned pricing from general availability (${GA_TARGET}): ${PRICE_PHRASE}, per organisation.`
 	: `- Free for organisations with up to ${FREE_MEMBER_LIMIT} members. Larger ones start a ${TRIAL_MONTHS}-month free trial with no card. Pricing per organisation: ${PRICE_PHRASE}.`;
 
 const trialFlag = PREVIEW

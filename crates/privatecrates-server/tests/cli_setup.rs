@@ -188,7 +188,7 @@ async fn an_admin_sets_up_a_registry() {
             "--slug",
             "globex-crates",
             "--accept-terms",
-            "preview-2026-01-01",
+            "2026-01-01",
             "--json",
         ]),
     )
@@ -534,7 +534,7 @@ async fn an_admin_accepts_the_terms_for_an_existing_registry() {
 
     let output = cli(
         config.path(),
-        &with_domain(&["terms", "acme", "--accept", "preview-2026-01-01", "--json"]),
+        &with_domain(&["terms", "acme", "--accept", "2026-01-01", "--json"]),
     )
     .await;
     assert!(!output.status.success());

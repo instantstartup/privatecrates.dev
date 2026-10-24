@@ -48,7 +48,7 @@
 	<li>
 		<strong>What we depend on:</strong> GitHub for storage, identity and permissions, and Railway and
 		Cloudflare to run the service. When one of them fails, PrivateCrates may too; we are not responsible for
-		them (<a href="/legal/terms#dependencies">terms, section 9</a>), and the
+		them (<a href="/legal/terms#dependencies">terms, section 11</a>), and the
 		<a href="/trust#dependencies">trust centre</a> explains how the status page tells their problems from ours.
 	</li>
 </ul>

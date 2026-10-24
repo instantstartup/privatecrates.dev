@@ -37,7 +37,7 @@
 		</div>
 		<p class="terms">
 			{#if PREVIEW}
-				In preview: free, and provided as is with no warranty:
+				In preview: free,
 				<a href={TERMS_PATH}>read the terms</a>. From general availability, {PRICE_PHRASE}. SSO included.
 			{:else}
 				Free for organisations with up to {FREE_MEMBER_LIMIT} members. Larger ones get {TRIAL_MONTHS} months free
@@ -293,15 +293,15 @@
 			<FaqItem question="Can anyone use the preview?">
 				<p>
 					Yes. An admin of a GitHub organisation, or anyone for their personal account, sets a registry up
-					from the <a href="/account">account page</a>. The preview is free, provided as is with no warranty
-					or guarantee, and at your own risk: the <a href={TERMS_PATH}>terms</a> have the details.
+					from the <a href="/account">account page</a>. The preview is free: the
+					<a href={TERMS_PATH}>terms</a> have the details.
 				</p>
 			</FaqItem>
 			<FaqItem question="What if the preview ends?">
 				<p>
 					Your crates and index are in your own repository, not with us, so they stay there. We give notice
 					where we can, and billing starts only after general availability, with at least 30 days’ notice. The
-					<a href={TERMS_PATH}>preview terms</a> have the details.
+					<a href={TERMS_PATH}>terms</a> have the details.
 				</p>
 			</FaqItem>
 		{:else}
