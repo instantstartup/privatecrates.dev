@@ -82,6 +82,7 @@
 	--space-after-title: 0.4rem; /* between a card's, panel's, step's or section's title and the line under it */
 	--space-menu-x: 0.7rem; /* a link's padding in a menu bar, left and right (a step shifts the header's menu 6.4px) */
 	--space-label: 0.35rem; /* between a form label, its hint and its control */
+	--space-price-note: 0.35rem; /* between a price's figure and the note under it (a step moves the cards below it 3.2px when they stack) */
 	--space-badge-y: 0.15rem; /* a badge's padding, top and bottom (left and right is --space-3) */
 	--space-badge-gap: 0.3rem; /* between badges in a row, and above the row */
 	--space-item-lines: 0.3rem; /* between the lines of a dense list item: its title, detail and fix */

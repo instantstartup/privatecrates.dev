@@ -304,7 +304,7 @@
 	.price {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-list-item);
+		gap: var(--space-price-note);
 	}
 	.figure {
 		font-family: var(--font-display);
