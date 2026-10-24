@@ -12,7 +12,8 @@
 // The preview (docs/preview.md) is on by default: every organisation is free, billing is off, and the registry name
 // needs the terms accepted. Add &preview=0 to any scenario for billing as it will be after general availability
 // (e.g. ?mock=trial&preview=0); &preview=1 turns the preview back on. Both are remembered with the scenario.
-//   ?mock=terms-pending         acme is live but no admin has accepted the terms: the banner, as an admin
+//   ?mock=terms-pending         acme is over the limit and no admin has accepted the terms: stopped, and the banner
+//                               starts the trial with them, as an admin
 //   ?mock=terms-pending-member  the same, as a member (told an admin must accept)
 //   ?mock=personal      the signed-in user's personal account, reader App installed
 //   ?mock=long-name     a live registry with a long name (worldbuilding-dev), for checking wrapping
@@ -323,6 +324,9 @@ function planOf(o: OrgModel): Plan {
 			return 'inactive';
 	}
 }
+
+/** Only the obvious, like the server's check. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function trialAvailable(o: OrgModel): boolean {
 	return !previewOn && o.billing && o.members > LIMIT && !o.trialUsed && !isActive(o.sub);
@@ -709,6 +713,16 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	if (o.role !== 'admin')
 		return delay(error(403, `Only admins of ${login} can do this.`, 'account::admin_required'));
 
+	const emailRefused = (email: string) =>
+		delay(
+			error(
+				400,
+				email
+					? `${email} is not a valid email address. Stripe sends the trial reminder and invoices there.`
+					: 'Enter a billing email address: Stripe sends the trial reminder and invoices there.',
+				'billing::email_invalid'
+			)
+		);
 	const termsRefused = () =>
 		delay(
 			error(
@@ -718,15 +732,31 @@ export const mockFetch: typeof fetch = async (input, init) => {
 			)
 		);
 	if (action === 'terms') {
-		const body = JSON.parse(String(init?.body ?? '{}')) as { accept_terms?: string };
+		const body = JSON.parse(String(init?.body ?? '{}')) as { accept_terms?: string; billing_email?: string };
 		if (body.accept_terms !== TERMS_VERSION) return termsRefused();
+		const email = body.billing_email?.trim();
+		if (email !== undefined && !EMAIL.test(email)) return emailRefused(email);
 		if (!o.slug) return delay(error(404, `${login} has no registry yet.`, 'registry::not_found'));
 		o.termsAccepted = true;
+		// Billing waits for the terms, so accepting them starts the trial, as the server does.
+		if (trialAvailable(o)) {
+			o.sub = trialing(TRIAL_DAYS);
+			o.trialUsed = true;
+			o.billingEmail = email ?? '';
+		}
 		save(state);
 		return delay(json(onboarding(o)), 600);
 	}
 	if (previewOn && ['trial', 'checkout', 'portal', 'billing-email'].includes(action))
 		return delay(error(409, 'PrivateCrates is free during the preview.', 'billing::preview'));
+	if (o.termsAccepted === false && ['trial', 'checkout', 'portal'].includes(action))
+		return delay(
+			error(
+				409,
+				`An admin must accept the PrivateCrates terms, version ${TERMS_VERSION}, at ${termsOf().url}, before billing: accept them at ${location.origin}/account?org=${login}`,
+				'billing::terms_required'
+			)
+		);
 
 	if (action === 'settings') {
 		const body = JSON.parse(String(init?.body ?? '{}')) as { slug?: string; accept_terms?: string };
@@ -760,14 +790,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	if (action === 'billing-email') {
 		const body = JSON.parse(String(init?.body ?? '{}')) as { billing_email?: string };
 		const email = (body.billing_email ?? '').trim();
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-			return delay(
-				error(
-					400,
-					`${email || 'That'} is not a valid email address. Stripe sends the trial reminder and invoices there.`,
-					'billing::email_invalid'
-				)
-			);
+		if (!EMAIL.test(email)) return emailRefused(email);
 		if (!o.sub) return delay(error(409, `${login} has no subscription yet.`, 'billing::no_subscription'));
 		o.billingEmail = email;
 		save(state);
@@ -776,16 +799,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
 	if (action === 'trial') {
 		const body = JSON.parse(String(init?.body ?? '{}')) as { billing_email?: string };
 		const email = (body.billing_email ?? '').trim();
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-			return delay(
-				error(
-					422,
-					email
-						? `${email} is not a valid email address. Stripe sends the trial reminder and invoices there.`
-						: 'Enter a billing email address: Stripe sends the trial reminder and invoices there.',
-					'billing::email_invalid'
-				)
-			);
+		if (!EMAIL.test(email)) return emailRefused(email);
 		if (o.members <= LIMIT)
 			return delay(
 				error(409, `${login} has ${o.members} members, so it is on the free plan.`, 'billing::free_plan')

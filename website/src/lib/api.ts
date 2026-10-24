@@ -47,7 +47,10 @@ export interface Org {
 	monthly_price_usd?: number;
 	/** The trial is a 14-day grace period: the organisation grew past the free limit again after an earlier one ended. */
 	grace_period?: boolean;
-	/** Whether POST /trial will work (over the limit, never had a trial, billing configured). */
+	/**
+	 * Whether the organisation can start its trial (over the limit, never had a trial, billing configured). POST
+	 * /trial also needs the terms (`terms_accepted`); while they wait, accepting them with POST /terms starts it.
+	 */
 	trial_available?: boolean;
 	/** A trial started by itself (the organisation grew past the free limit) and Stripe has no address to remind. */
 	billing_email_missing?: boolean;
@@ -294,9 +297,15 @@ export const api = {
 			allow_manual_publish: allowManualPublish,
 			...(acceptTerms ? { accept_terms: acceptTerms } : {})
 		}),
-	/** Accepts the current terms for an existing registry (admin only); returns nothing the page needs. */
-	acceptTerms: (login: string, version: string) =>
-		request<unknown>('POST', `${org(login)}/terms`, { accept_terms: version }),
+	/**
+	 * Accepts the current terms for an existing registry (admin only); returns nothing the page needs. Billing waits
+	 * for them, so accepting them starts a trial that is available, with `billingEmail` for Stripe's reminder.
+	 */
+	acceptTerms: (login: string, version: string, billingEmail?: string) =>
+		request<unknown>('POST', `${org(login)}/terms`, {
+			accept_terms: version,
+			...(billingEmail ? { billing_email: billingEmail } : {})
+		}),
 	/**
 	 * Starts the no-card free trial; returns the onboarding document. Stripe sends the trial-ending reminder and
 	 * invoices to the billing email.

@@ -780,7 +780,8 @@ async fn settings(
 
 /// Accepts the current terms for an organisation whose registry exists: set up before the terms, or before their
 /// current version. Accepting again records nothing new. An organisation over the free limit, held back without
-/// them, starts its trial at once.
+/// them, starts its trial at once; a `billing_email` sent with them goes to that trial's Stripe customer, so that the
+/// reminder before it ends reaches someone.
 async fn terms(
     State(state): State<Arc<AppState>>,
     session: Session,
@@ -792,6 +793,7 @@ async fn terms(
         .ok()
         .and_then(|r| r.accept_terms);
     check_terms(&state, accept_terms.as_ref())?;
+    let email = optional_billing_email(&body)?;
     let org = &membership.organization;
     let Some(tenant) = state.tenants.by_org(org.id) else {
         return Err(ApiError::NotSetUp {
@@ -799,6 +801,16 @@ async fn terms(
         });
     };
     record_terms(&state, &session, &membership).await?;
+    let plan = state.plan(org.id, &org.login, membership.personal).await;
+    if let Some(email) = email
+        && plan.trial_available
+    {
+        state
+            .billing
+            .start_trial(org.id, &org.login, plan.members, Some(&email))
+            .await?;
+        log::info!(org:% = org.login, by:% = membership.user.login; "trial requested with the terms");
+    }
     state.keep_billing_in_step(&tenant).await;
     Ok(Json(onboarding_doc(&state, &membership).await?))
 }
@@ -842,13 +854,9 @@ async fn require_terms(state: &AppState, org: &Organization) -> Result<(), ApiEr
             org: org.login.clone(),
             version: TERMS_VERSION,
             terms_url: state.config.terms_url(),
-            account_url: account_url(state, org),
+            account_url: state.config.account_url(&org.login),
         })
     }
-}
-
-fn account_url(state: &AppState, org: &Organization) -> String {
-    format!("{}?org={}", state.config.account_url(), org.login)
 }
 
 async fn checkout(
@@ -861,7 +869,7 @@ async fn checkout(
     not_personal(&membership)?;
     let org = &membership.organization;
     require_terms(&state, org).await?;
-    let back = account_url(&state, org);
+    let back = state.config.account_url(&org.login);
     let url = state
         .billing
         .checkout(
@@ -888,6 +896,15 @@ fn billing_email(body: &[u8]) -> Result<String, ApiError> {
         .map(|e| e.trim().to_owned())
         .filter(|e| billing::email_is_valid(e))
         .ok_or(ApiError::BillingEmailInvalid)
+}
+
+/// The `billing_email` of a request body that may leave it out or send `null`, checked when it is there.
+fn optional_billing_email(body: &[u8]) -> Result<Option<String>, ApiError> {
+    let sent = serde_json::from_slice::<Value>(body)
+        .ok()
+        .and_then(|doc| doc.get("billing_email").cloned())
+        .is_some_and(|email| !email.is_null());
+    sent.then(|| billing_email(body)).transpose()
 }
 
 /// Starts the organisation's no-card trial. The billing email is required, so that Stripe's reminder before the
@@ -950,7 +967,7 @@ async fn portal(
     require_terms(&state, org).await?;
     let url = state
         .billing
-        .portal(org.id, &org.login, &account_url(&state, org))
+        .portal(org.id, &org.login, &state.config.account_url(&org.login))
         .await?;
     Ok(Json(json!({ "url": url })))
 }

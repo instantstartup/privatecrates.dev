@@ -230,7 +230,7 @@ async fn billing_needs_the_terms() {
                 "the acme registry has stopped: the organisation has more members than PrivateCrates' free limit, \
                  and an organisation admin must accept the PrivateCrates terms, version {TERMS_VERSION}, to start \
                  its trial or subscribe. Read them at {terms_url}, then accept them at {}",
-                h.apex("/account")
+                h.apex("/account?org=acme")
             )
         );
     }
@@ -278,6 +278,41 @@ async fn billing_needs_the_terms() {
         200
     );
     publish_warnings(&h, repo, "0.1.0").await;
+}
+
+/// The trial that accepting the terms starts takes the billing email sent with them, so Stripe's reminder has an
+/// address; an address it refuses records nothing.
+#[tokio::test]
+async fn the_terms_take_the_trials_billing_email() {
+    let (h, stripe) = start().await;
+    let (session, _, _) = setup_without_terms(&h).await;
+    h.fake.add_org_members(&h.org, 11);
+    let accept = |email: Value| {
+        h.api_post("/api/orgs/acme/terms", &session)
+            .body(json!({ "accept_terms": TERMS_VERSION, "billing_email": email }).to_string())
+            .send()
+    };
+
+    for email in [json!(""), json!("billing"), json!(42)] {
+        let response = accept(email.clone()).await.unwrap();
+        assert_eq!(response.status(), 400, "{email}");
+        assert_eq!(error_code(response).await, "billing::email_invalid");
+    }
+    assert!(!h.state.terms.accepted(h.org.id).await);
+    assert!(stripe.customers().is_empty());
+
+    let response = accept(json!(BILLING_EMAIL)).await.unwrap();
+    assert_eq!(response.status(), 200);
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(doc["steps"][4]["status"], "done");
+    let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
+    assert_eq!(customer["email"], BILLING_EMAIL);
+    let [subscription]: [Value; 1] = stripe.subscriptions(h.org.id).try_into().unwrap();
+    assert_eq!(subscription["status"], "trialing");
+    assert_eq!(
+        session_org(&h, &session).await["billing_email_missing"],
+        false
+    );
 }
 
 /// An organisation that had a trial, and grows again past the limit, gets its grace period only under the terms
@@ -529,7 +564,7 @@ async fn a_trial_that_ends_without_a_card_is_cancelled() {
     let response = publish(&h, repo, "0.2.0").await;
     assert_eq!(response.status(), 402);
     let detail = error_detail(response).await;
-    assert!(detail.contains(&h.apex("/account")), "{detail}");
+    assert!(detail.contains(&h.apex("/account?org=acme")), "{detail}");
     assert_eq!(
         h.get("/index/config.json", Some(&reader)).await.status(),
         200
@@ -601,7 +636,7 @@ async fn every_publish_warns_while_a_trial_has_no_card() {
         [json!(format!(
             "acme has 12 members, more than the free 5, so it is on a PrivateCrates free trial until {date}; after \
              that, $70 a month. Publishing stops on {date} unless an organisation admin adds a card at {}",
-            h.apex("/account")
+            h.apex("/account?org=acme")
         ))]
     );
 
@@ -877,7 +912,7 @@ async fn a_lapsed_subscription_stops_publishing_then_reads() {
         format!(
             "publishing to the acme registry has stopped: its PrivateCrates trial or subscription has ended. Builds \
              can still read its crates until {reads_until}. An organisation admin can subscribe at {}",
-            h.apex("/account")
+            h.apex("/account?org=acme")
         )
     );
     assert_eq!(

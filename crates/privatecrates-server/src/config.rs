@@ -189,9 +189,10 @@ impl Config {
         format!("{}://{}", self.public_scheme, self.base_domain)
     }
 
-    /// Where an organisation admin manages the organisation's registry and subscription.
-    pub fn account_url(&self) -> String {
-        format!("{}/account", self.apex_url())
+    /// Where an organisation admin manages the organisation's registry and subscription: its own account page, so
+    /// that a link in an error lands on the organisation it is about.
+    pub fn account_url(&self, org: &str) -> String {
+        format!("{}/account?org={org}", self.apex_url())
     }
 
     /// Where the terms an organisation admin accepts are published.

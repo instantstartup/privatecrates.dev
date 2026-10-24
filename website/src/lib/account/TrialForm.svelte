@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api, ApiError, type Onboarding } from '$lib/api';
 	import { TRIAL_MONTHS } from '$lib/site';
+	import BillingEmailField, { aboutBillingEmail, missingBillingEmail } from './BillingEmailField.svelte';
 	import ErrorNotice from './ErrorNotice.svelte';
 
 	interface Props {
@@ -24,17 +25,12 @@
 	let starting = $state(false);
 	let error = $state<ApiError | null>(null);
 
-	/** Only the obvious; the server validates the address and has the final say. */
-	const problem = $derived(email.trim() ? null : 'Enter the email address for billing.');
-	/** The server's own verdict on the address, shown under the field. */
-	const serverProblem = $derived(error?.errors.find((e) => e.code === 'billing::email_invalid') ?? null);
-	const otherError = $derived(error && !serverProblem ? error : null);
-	const invalid = $derived((touched && !!problem) || !!serverProblem);
+	const otherError = $derived(aboutBillingEmail(error) ? null : error);
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		touched = true;
-		if (problem) return;
+		if (missingBillingEmail(email)) return;
 		starting = true;
 		error = null;
 		try {
@@ -50,39 +46,7 @@
 </script>
 
 <form class="trial-form" onsubmit={submit} novalidate>
-	<div class="field">
-		<label for="billing-email-{org}">Billing email</label>
-		<p class="hint" id="billing-email-hint-{org}">
-			Stripe sends the reminder before the trial ends, and invoices after it, to this address. Use a shared
-			inbox if you have one.
-		</p>
-		<input
-			id="billing-email-{org}"
-			name="billing_email"
-			type="email"
-			autocomplete="email"
-			autocapitalize="none"
-			spellcheck="false"
-			required
-			bind:value={email}
-			oninput={() => {
-				if (serverProblem) error = null;
-			}}
-			onblur={() => (touched = true)}
-			aria-invalid={invalid ? 'true' : undefined}
-			aria-describedby="billing-email-hint-{org}{invalid ? ` billing-email-problem-${org}` : ''}"
-		/>
-		{#if serverProblem}
-			<p class="problem" id="billing-email-problem-{org}" role="alert">
-				{serverProblem.detail}
-				<span class="code"
-					>(<a href="/docs/errors#billing::email_invalid"><code>billing::email_invalid</code></a>)</span
-				>
-			</p>
-		{:else if touched && problem}
-			<p class="problem" id="billing-email-problem-{org}">{problem}</p>
-		{/if}
-	</div>
+	<BillingEmailField {org} bind:email bind:touched {error} onedit={() => (error = null)} />
 	{#if otherError}
 		<ErrorNotice
 			error={otherError}
@@ -111,38 +75,9 @@
 		display: grid;
 		gap: var(--space-5);
 	}
-	.field {
-		display: grid;
-		gap: var(--space-label);
-		max-width: var(--container-form);
-	}
-	label {
-		font-weight: 700;
-	}
-	.hint,
 	.fine {
 		font-size: var(--text-meta);
 		color: var(--ink-muted);
-	}
-	input {
-		min-height: var(--size-control);
-		padding: var(--space-3) var(--space-4);
-		border: var(--border-outline) solid var(--line);
-		border-radius: var(--radius-control);
-		background: var(--surface-raised);
-		color: var(--ink);
-	}
-	input[aria-invalid='true'] {
-		border-color: var(--danger);
-	}
-	.problem {
-		color: var(--danger);
-		font-weight: 700;
-		font-size: var(--text-meta);
-	}
-	.code {
-		font-weight: 400;
-		white-space: nowrap;
 	}
 	.row {
 		display: flex;

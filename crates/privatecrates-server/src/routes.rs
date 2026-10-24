@@ -71,7 +71,7 @@ fn well_formed(name: &str, version: &str) -> Result<(), ApiError> {
 pub(crate) fn subscription_inactive(state: &AppState, tenant: &Tenant) -> ApiError {
     ApiError::SubscriptionInactive {
         org: tenant.org_login.clone(),
-        account_url: state.config.account_url(),
+        account_url: state.config.account_url(&tenant.org_login),
     }
 }
 
@@ -85,7 +85,7 @@ pub(crate) async fn lapsed(state: &AppState, tenant: &Tenant) -> ApiError {
         org: tenant.org_login.clone(),
         version: privatecrates_common::TERMS_VERSION,
         terms_url: state.config.terms_url(),
-        account_url: state.config.account_url(),
+        account_url: state.config.account_url(&tenant.org_login),
     }
 }
 
@@ -99,7 +99,7 @@ pub(crate) fn publishing_paused(state: &AppState, tenant: &Tenant) -> ApiError {
         Some(until) => ApiError::PublishingPaused {
             org: tenant.org_login.clone(),
             reads_until: until.date().to_string(),
-            account_url: state.config.account_url(),
+            account_url: state.config.account_url(&tenant.org_login),
         },
         None => subscription_inactive(state, tenant),
     }

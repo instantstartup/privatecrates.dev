@@ -52,6 +52,9 @@ URL), and exits non-zero on failure.
   the admin for). `--slug` needs `--accept-terms` with the current version: without it, the command prints the
   terms' URL and the exact flag to add, and exits 1 (`account::terms_not_accepted`, with `terms` in the `--json`
   error). The CLI never fills the version in: the admin passes it, or tells their agent to after reading the terms.
+  `--accept-terms V` alone accepts the terms for a registry set up before them; with `--start-trial` the billing
+  email goes with the acceptance, which starts the trial, so an org over the limit whose terms are pending needs one
+  command, `setup {org} --accept-terms V --start-trial --billing-email E` (the plan step prints it).
   `--json` for agents, with `terms: { version, url, accepted }`.
 - `terms <org> [--accept V] [--json]`: whether the organisation has accepted the current terms (exits 1 while not),
   and, with `--accept`, accepts them for a registry set up before them, or before their current version. The same

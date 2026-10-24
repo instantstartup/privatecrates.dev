@@ -259,7 +259,7 @@ async fn trial_reminder(state: &AppState, tenant: &Tenant) -> Option<String> {
         members = plan.members.unwrap_or_default(),
         limit = state.billing.free_member_limit(),
         price = state.billing.monthly_price_usd(plan.members),
-        url = state.config.account_url(),
+        url = state.config.account_url(&tenant.org_login),
     ))
 }
 

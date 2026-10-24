@@ -359,24 +359,27 @@ pub fn setup(domain: &Domain, options: &SetupOptions<'_>) -> Result<Setup, Error
             performed.push("settings");
         }
     }
-    // A registry set up before the terms, or before their current version.
+    // A registry set up before the terms, or before their current version. Accepting them starts a trial held back
+    // without them, so the billing email goes with them.
     if let Some(version) = options.accept_terms
         && step_done(&onboarding, "settings")
         && !accepted(&onboarding)
     {
-        onboarding = api.post(
-            &format!("{path}/terms"),
-            &json!({ "accept_terms": version }),
-        )?;
+        let trial = trial_email(options)?;
+        let plan_done = step_done(&onboarding, "plan");
+        let mut body = json!({ "accept_terms": version });
+        if let Some(email) = trial {
+            body["billing_email"] = json!(email);
+        }
+        onboarding = api.post(&format!("{path}/terms"), &body)?;
         performed.push("terms");
+        if trial.is_some() && !plan_done && step_done(&onboarding, "plan") {
+            performed.push("trial");
+        }
     }
-    if options.start_trial && !step_done(&onboarding, "plan") {
-        let email = options.billing_email.ok_or_else(|| {
-            Error::Invalid(
-                "--start-trial needs --billing-email <EMAIL>: where Stripe sends the reminder before the trial ends"
-                    .into(),
-            )
-        })?;
+    if let Some(email) = trial_email(options)?
+        && !step_done(&onboarding, "plan")
+    {
         onboarding = api.post(&format!("{path}/trial"), &json!({ "billing_email": email }))?;
         performed.push("trial");
     }
@@ -401,6 +404,20 @@ pub fn setup(domain: &Domain, options: &SetupOptions<'_>) -> Result<Setup, Error
         performed,
         immutable.map(|i| (repository, i)),
     ))
+}
+
+/// The billing email `--start-trial` needs, where Stripe sends the reminder before the trial ends; `None` without
+/// `--start-trial`.
+fn trial_email<'a>(options: &SetupOptions<'a>) -> Result<Option<&'a str>, Error> {
+    if !options.start_trial {
+        return Ok(None);
+    }
+    options.billing_email.map(Some).ok_or_else(|| {
+        Error::Invalid(
+            "--start-trial needs --billing-email <EMAIL>: where Stripe sends the reminder before the trial ends"
+                .into(),
+        )
+    })
 }
 
 /// Whether the repository has immutable releases on, asked with the admin's `gh` login; `None` if `gh` could not say.
@@ -524,6 +541,13 @@ fn describe(
                     step.commands = vec![cli(format!(
                         "setup {org} --slug {} --accept-terms {}",
                         onboarding.suggested_slug, onboarding.terms.version
+                    ))];
+                }
+                // Billing needs the terms, and accepting them starts the trial: both in one command.
+                "plan" if todo && !onboarding.terms.accepted => {
+                    step.commands = vec![cli(format!(
+                        "setup {org} --accept-terms {} --start-trial --billing-email <EMAIL>",
+                        onboarding.terms.version
                     ))];
                 }
                 "plan" if todo => {
