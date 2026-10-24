@@ -439,6 +439,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
         None => Step::new("settings", false, "Choose your registry name."),
     };
     let plan = state.plan(org.id, &org.login, membership.personal).await;
+    let terms_accepted = state.terms.accepted(org.id).await;
     let mut steps = vec![
         Step::new("reader_app", reader, "Install the reader App on the organisation.")
             .action(install(&config.reader_app_slug)),
@@ -452,7 +453,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
             None => install(&config.storage_app_slug),
         }),
         settings,
-        plan_step(state, &plan, membership.personal),
+        plan_step(state, &plan, membership.personal, terms_accepted),
     ];
     if !membership.is_admin() {
         let ask = format!("Only admins of {} can do this; ask one of them.", org.login);
@@ -465,7 +466,7 @@ async fn onboarding_doc(state: &AppState, membership: &Membership) -> Result<Val
             .collect();
     }
     let mut terms = terms_json(state);
-    terms["accepted"] = state.terms.accepted(org.id).await.into();
+    terms["accepted"] = terms_accepted.into();
     let verifier = match &tenant {
         Some(tenant) => verifier_json(state, tenant).await?,
         None => Value::Null,
@@ -506,8 +507,9 @@ async fn verifier_json(state: &AppState, tenant: &Tenant) -> Result<Value, ApiEr
     }))
 }
 
-/// Paying, or not: done while the organisation is free or its subscription is active, trialing or past due.
-fn plan_step(state: &AppState, plan: &OrgPlan, personal: bool) -> Step {
+/// Paying, or not: done while the organisation is free or its subscription is active, trialing or past due. Without
+/// the terms accepted it can do neither, so the step says to accept them first.
+fn plan_step(state: &AppState, plan: &OrgPlan, personal: bool, terms_accepted: bool) -> Step {
     let billing = &state.billing;
     let limit = billing.free_member_limit();
     let subscription = plan.subscription.as_ref();
@@ -543,6 +545,16 @@ fn plan_step(state: &AppState, plan: &OrgPlan, personal: bool) -> Step {
             let members = plan.members.unwrap_or_default();
             let action = if !billing.enabled() {
                 "billing is not set up on this server.".to_owned()
+            } else if !terms_accepted {
+                let then = if plan.trial_available {
+                    format!("to start your {} free trial, no card needed", trial_length(billing.trial_days()))
+                } else {
+                    "before subscribing".to_owned()
+                };
+                format!(
+                    "an admin must accept the PrivateCrates terms, version {TERMS_VERSION}, at {}, {then}.",
+                    state.config.terms_url()
+                )
             } else if plan.trial_available {
                 format!(
                     "start your {} free trial, no card needed. After it, ${} a month.",
@@ -767,7 +779,8 @@ async fn settings(
 }
 
 /// Accepts the current terms for an organisation whose registry exists: set up before the terms, or before their
-/// current version. Accepting again records nothing new.
+/// current version. Accepting again records nothing new. An organisation over the free limit, held back without
+/// them, starts its trial at once.
 async fn terms(
     State(state): State<Arc<AppState>>,
     session: Session,
@@ -780,12 +793,13 @@ async fn terms(
         .and_then(|r| r.accept_terms);
     check_terms(&state, accept_terms.as_ref())?;
     let org = &membership.organization;
-    if state.tenants.by_org(org.id).is_none() {
+    let Some(tenant) = state.tenants.by_org(org.id) else {
         return Err(ApiError::NotSetUp {
             org: org.login.clone(),
         });
-    }
+    };
     record_terms(&state, &session, &membership).await?;
+    state.keep_billing_in_step(&tenant).await;
     Ok(Json(onboarding_doc(&state, &membership).await?))
 }
 
@@ -818,6 +832,21 @@ fn not_personal(membership: &Membership) -> Result<(), ApiError> {
     }
 }
 
+/// Billing is under the terms: no trial, subscription or portal until an admin of the organisation has accepted
+/// them.
+async fn require_terms(state: &AppState, org: &Organization) -> Result<(), ApiError> {
+    if state.terms.accepted(org.id).await {
+        Ok(())
+    } else {
+        Err(ApiError::BillingTermsRequired {
+            org: org.login.clone(),
+            version: TERMS_VERSION,
+            terms_url: state.config.terms_url(),
+            account_url: account_url(state, org),
+        })
+    }
+}
+
 fn account_url(state: &AppState, org: &Organization) -> String {
     format!("{}?org={}", state.config.account_url(), org.login)
 }
@@ -831,6 +860,7 @@ async fn checkout(
     billing_on(&state)?;
     not_personal(&membership)?;
     let org = &membership.organization;
+    require_terms(&state, org).await?;
     let back = account_url(&state, org);
     let url = state
         .billing
@@ -872,6 +902,7 @@ async fn trial(
     billing_on(&state)?;
     not_personal(&membership)?;
     let org = &membership.organization;
+    require_terms(&state, org).await?;
     let email = billing_email(&body)?;
     state
         .billing
@@ -916,6 +947,7 @@ async fn portal(
     billing_on(&state)?;
     not_personal(&membership)?;
     let org = &membership.organization;
+    require_terms(&state, org).await?;
     let url = state
         .billing
         .portal(org.id, &org.login, &account_url(&state, org))

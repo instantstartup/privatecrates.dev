@@ -411,6 +411,7 @@ async fn an_admin_starts_the_trial_with_a_billing_email() {
     .await;
     let stripe = h.stripe.clone().unwrap();
     h.fake.add_org_members(&h.org, 11);
+    h.accept_terms().await;
     let token = h.fake.add_user("alice", "ghu_", &[]);
     h.fake.add_member(&token, &h.org, "admin");
     h.fake.set_device_flow_user(&token);

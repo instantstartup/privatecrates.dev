@@ -381,6 +381,39 @@ pub enum ApiError {
     },
 
     #[error(
+        "the {org} registry has stopped: the organisation has more members than PrivateCrates' free limit, and an \
+         organisation admin must accept the PrivateCrates terms, version {version}, to start its trial or \
+         subscribe. Read them at {terms_url}, then accept them at {account_url}"
+    )]
+    #[diagnostic(code(billing::terms_not_accepted))]
+    #[http_status(402)]
+    BillingTermsNotAccepted {
+        org: String,
+        #[extension]
+        version: &'static str,
+        #[extension]
+        terms_url: String,
+        #[extension]
+        account_url: String,
+    },
+
+    #[error(
+        "a trial, a subscription or the billing portal for {org} needs an organisation admin to accept the \
+         PrivateCrates terms, version {version}, first. Read them at {terms_url}, then accept them at {account_url}"
+    )]
+    #[diagnostic(code(billing::terms_required))]
+    #[http_status(409)]
+    BillingTermsRequired {
+        org: String,
+        #[extension]
+        version: &'static str,
+        #[extension]
+        terms_url: String,
+        #[extension]
+        account_url: String,
+    },
+
+    #[error(
         "publishing to the {org} registry has stopped: its PrivateCrates trial or subscription has ended. Builds can \
          still read its crates until {reads_until}. An organisation admin can subscribe at {account_url}"
     )]

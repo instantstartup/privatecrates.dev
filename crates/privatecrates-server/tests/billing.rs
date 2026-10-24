@@ -48,8 +48,16 @@ async fn send_event(h: &Harness, event_type: &str, object: Value) {
     assert_eq!(response.status(), 200, "{}", response.text().await.unwrap());
 }
 
-/// Signs in an admin of `acme`, its only member so far, and returns a crate repository and a reader's token.
+/// Signs in an admin of `acme`, its only member so far, who has accepted the terms, and returns a crate repository
+/// and a reader's token.
 async fn setup(h: &Harness) -> (String, u64, String) {
+    let setup = setup_without_terms(h).await;
+    h.accept_terms().await;
+    setup
+}
+
+/// Like [`setup`], with no admin having accepted the terms.
+async fn setup_without_terms(h: &Harness) -> (String, u64, String) {
     let admin = h.fake.add_user("alice", "ghu_", &[]);
     h.fake.add_member(&admin, &h.org, "admin");
     let session = h.sign_in(&admin).await;
@@ -193,6 +201,123 @@ async fn over_the_limit_without_a_subscription_is_inactive() {
     let response = post(&h, &session, "checkout").await;
     assert_eq!(response.status(), 409);
     assert_eq!(error_code(response).await, "billing::trial_available");
+}
+
+/// Billing is under the terms. An organisation over the limit whose admins have not accepted them gets no trial and
+/// stops, as any over the limit without a subscription does, saying where to accept them; accepting them starts
+/// the trial.
+#[tokio::test]
+async fn billing_needs_the_terms() {
+    let (h, stripe) = start().await;
+    let (session, repo, reader) = setup_without_terms(&h).await;
+    h.fake.add_org_members(&h.org, 11);
+    membership_changed(&h, "member_added", "d-1").await;
+    let tenant = h.state.tenants.by_org(h.org.id).unwrap();
+    h.state.keep_billing_in_step(&tenant).await;
+    assert!(stripe.subscriptions(h.org.id).is_empty());
+
+    let terms_url = h.apex("/legal/terms");
+    for response in [
+        h.get("/index/config.json", Some(&reader)).await,
+        publish(&h, repo, "0.1.0").await,
+    ] {
+        assert_eq!(response.status(), 402);
+        let error: Value = response.json().await.unwrap();
+        assert_eq!(error["errors"][0]["code"], "billing::terms_not_accepted");
+        assert_eq!(
+            error["errors"][0]["detail"],
+            format!(
+                "the acme registry has stopped: the organisation has more members than PrivateCrates' free limit, \
+                 and an organisation admin must accept the PrivateCrates terms, version {TERMS_VERSION}, to start \
+                 its trial or subscribe. Read them at {terms_url}, then accept them at {}",
+                h.apex("/account")
+            )
+        );
+    }
+    let org = session_org(&h, &session).await;
+    assert_eq!(org["plan"], "inactive");
+    assert_eq!(org["terms_accepted"], false);
+    let step = plan_step(&h, &session).await;
+    assert_eq!(step["status"], "todo");
+    assert_eq!(
+        step["detail"],
+        format!(
+            "12 members: an admin must accept the PrivateCrates terms, version {TERMS_VERSION}, at {terms_url}, \
+             to start your 3-month free trial, no card needed."
+        )
+    );
+    for action in ["trial", "checkout", "portal"] {
+        let response = post(&h, &session, action).await;
+        assert_eq!(response.status(), 409, "{action}");
+        let error: Value = response.json().await.unwrap();
+        assert_eq!(
+            error["errors"][0]["code"], "billing::terms_required",
+            "{action}"
+        );
+        let detail = error["errors"][0]["detail"].as_str().unwrap();
+        assert!(detail.contains(&terms_url), "{detail}");
+        assert!(detail.contains(&h.apex("/account?org=acme")), "{detail}");
+    }
+    assert!(stripe.customers().is_empty());
+
+    // Accepting them starts the trial, and the registry works again.
+    let response = h
+        .api_post("/api/orgs/acme/terms", &session)
+        .body(json!({ "accept_terms": TERMS_VERSION }).to_string())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let doc: Value = response.json().await.unwrap();
+    assert_eq!(doc["steps"][4]["status"], "done");
+    let [subscription]: [Value; 1] = stripe.subscriptions(h.org.id).try_into().unwrap();
+    assert_eq!(subscription["status"], "trialing");
+    assert_eq!(session_org(&h, &session).await["plan"], "trial");
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
+    publish_warnings(&h, repo, "0.1.0").await;
+}
+
+/// An organisation that had a trial, and grows again past the limit, gets its grace period only under the terms
+/// too; a returning one is told to accept them before subscribing.
+#[tokio::test]
+async fn a_grace_period_needs_the_terms() {
+    let (h, stripe) = start().await;
+    let (session, _, reader) = setup_without_terms(&h).await;
+    h.fake.add_org_members(&h.org, 4);
+    let old = stripe.add_subscription(h.org.id, "acme", "canceled");
+    stripe.update_subscription(&old, json!({ "ended_at": now() - 60 * DAY }));
+    h.state.billing.load().await.unwrap();
+    let tenant = h.state.tenants.by_org(h.org.id).unwrap();
+    h.state.keep_billing_in_step(&tenant).await;
+
+    h.fake.add_org_members(&h.org, 1);
+    membership_changed(&h, "member_added", "d-1").await;
+    assert_eq!(stripe.subscriptions(h.org.id).len(), 1);
+    let response = h.get("/index/config.json", Some(&reader)).await;
+    assert_eq!(response.status(), 402);
+    assert_eq!(error_code(response).await, "billing::terms_not_accepted");
+    assert_eq!(
+        plan_step(&h, &session).await["detail"],
+        format!(
+            "6 members: an admin must accept the PrivateCrates terms, version {TERMS_VERSION}, at {}, before \
+             subscribing.",
+            h.apex("/legal/terms")
+        )
+    );
+
+    h.accept_terms().await;
+    h.state.keep_billing_in_step(&tenant).await;
+    let subscriptions = stripe.subscriptions(h.org.id);
+    assert_eq!(subscriptions.len(), 2);
+    let grace = subscriptions.iter().find(|s| s["id"] != old).unwrap();
+    assert_eq!(grace["metadata"]["grace"], "true");
+    assert_eq!(
+        h.get("/index/config.json", Some(&reader)).await.status(),
+        200
+    );
 }
 
 #[tokio::test]

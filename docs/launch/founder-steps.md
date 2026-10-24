@@ -112,7 +112,8 @@ There are none to give notice to. The preview terms are gone (PC-33): `/legal/te
 `2026-11-01`, in force with `PREVIEW` on or off, and the only organisation that accepted the preview terms is your own.
 An organisation over the free member limit gets no trial until an admin accepts version `2026-11-01`
 (`crates/privatecrates-server/src/lib.rs` `keep_billing_in_step`); until then its registry answers 402 with a link to
-accept them.
+accept them (`402 billing::terms_not_accepted`), as any organisation over the limit without a subscription does, and
+an admin accepting them starts its trial.
 
 1. [ ] Check that no one else accepted the earlier terms:
 
@@ -122,7 +123,8 @@ accept them.
    select org_login, version, accepted_at from terms_acceptances order by accepted_at;
    ```
 
-   If another organisation shows up, stop and tell the orchestrator: the launch assumed there were none.
+   If another organisation shows up, stop and tell the orchestrator: the launch assumed there were none, and that
+   organisation is owed the 30 days' notice the preview terms promised before this deploys.
 2. [ ] Accept version `2026-11-01` for your own organisation from the account page.
 
 ## 5. Legal review

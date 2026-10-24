@@ -9,11 +9,12 @@ use std::{
 };
 
 use bytes::Bytes;
-use privatecrates_common::{audience, sha256_hex};
+use privatecrates_common::{TERMS_VERSION, audience, sha256_hex};
 use privatecrates_qos::rate_limit::RateLimitConfig;
 use privatecrates_server::{
     AppState,
     config::{self, AppConfig, Config, StripeConfig},
+    records::{self, Acceptance, Via},
     router,
 };
 use privatecrates_testkit::{FakeGitHub, Org, READER_APP_ID, STORAGE_APP_ID, stripe::FakeStripe};
@@ -145,6 +146,22 @@ impl Harness {
             port,
             client,
         }
+    }
+
+    /// Records that an admin of `acme` accepted the current terms, as setting its registry up does today: the
+    /// harness's `acme` is set up without them, as a registry from before the terms was.
+    pub async fn accept_terms(&self) {
+        let statement = records::statement(TERMS_VERSION, &self.org.login);
+        let acceptance = Acceptance {
+            org_id: self.org.id,
+            org_login: &self.org.login,
+            user_id: 1,
+            user_login: "alice",
+            version: TERMS_VERSION,
+            via: Via::Website,
+            statement: &statement,
+        };
+        self.state.terms.accept(&acceptance).await.unwrap();
     }
 
     pub fn base(&self) -> String {

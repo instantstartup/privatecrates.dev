@@ -145,7 +145,7 @@ pub async fn publish(
     match state.standing(tenant).await {
         Standing::Active => {}
         Standing::Grace => return Err(crate::routes::publishing_paused(state, tenant)),
-        Standing::Lapsed => return Err(crate::routes::subscription_inactive(state, tenant)),
+        Standing::Lapsed => return Err(crate::routes::lapsed(state, tenant).await),
     }
     // Unpacked only now, for a caller allowed to publish here (an anonymous upload is never decompressed), and off
     // the async workers, since a large archive takes a while to read.

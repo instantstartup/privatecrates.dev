@@ -75,6 +75,20 @@ pub(crate) fn subscription_inactive(state: &AppState, tenant: &Tenant) -> ApiErr
     }
 }
 
+/// Why a registry has stopped: an organisation over the free limit without a trial or subscription. When no admin
+/// has accepted the terms it can start neither, so the answer says so, and where to accept them.
+pub(crate) async fn lapsed(state: &AppState, tenant: &Tenant) -> ApiError {
+    if state.terms.accepted(tenant.org_id).await {
+        return subscription_inactive(state, tenant);
+    }
+    ApiError::BillingTermsNotAccepted {
+        org: tenant.org_login.clone(),
+        version: privatecrates_common::TERMS_VERSION,
+        terms_url: state.config.terms_url(),
+        account_url: state.config.account_url(),
+    }
+}
+
 /// Why a publish is refused while builds can still read: with the day reads stop too.
 pub(crate) fn publishing_paused(state: &AppState, tenant: &Tenant) -> ApiError {
     let reads_until = state
@@ -124,7 +138,7 @@ pub(crate) async fn caller(
     // Only someone who may use the registry learns that its subscription has lapsed.
     if state.standing(tenant).await == Standing::Lapsed {
         return Err(if resolver.can_use_registry(&caller).await? {
-            subscription_inactive(state, tenant)
+            lapsed(state, tenant).await
         } else {
             ApiError::NoAccess
         });
@@ -413,7 +427,7 @@ pub async fn oidc_exchange(
         return Err(ApiError::WorkflowOutsideOrganisation);
     }
     if state.standing(&tenant).await == Standing::Lapsed {
-        return Err(subscription_inactive(&state, &tenant));
+        return Err(lapsed(&state, &tenant).await);
     }
     let repository_id = claims
         .repository_id()
