@@ -200,12 +200,12 @@ impl FakeStripe {
             .collect()
     }
 
-    /// How many requests reached the fake.
     /// Makes the next `n` requests fail with a 500, as during a Stripe outage.
     pub fn fail_next(&self, n: usize) {
         self.world().failing = n;
     }
 
+    /// How many requests reached the fake.
     pub fn requests(&self) -> usize {
         self.world().requests
     }
