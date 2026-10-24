@@ -366,7 +366,7 @@
 			<h2 id="roadmap">{roadmapTitle}</h2>
 			<p>
 				{#if PREVIEW}
-					PrivateCrates is in <a href={TERMS_PATH}>preview</a>: free, and provided as is. It is operated by
+					PrivateCrates is in preview: free, under our <a href={TERMS_PATH}>terms</a>. It is operated by
 					INSTANTSTARTUP LTD, incorporated in England and Wales on 7 October 2026. This is what has to happen
 					before general availability, in order. We will do it if there is enough interest.
 				{:else}

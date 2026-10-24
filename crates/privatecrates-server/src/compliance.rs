@@ -329,7 +329,7 @@ async fn report(
         .by_org(membership.organization.id)
         .ok_or_else(|| ApiError::ComplianceNotSetUp {
             org: membership.organization.login.clone(),
-            account_url: state.config.account_url(),
+            account_url: state.config.account_url(&membership.organization.login),
         })?;
     let visible = visible(state, session, &tenant).await?;
     if let Some(report) = state.compliance.reports.get(&tenant.storage_repo_id).await {

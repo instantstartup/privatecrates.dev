@@ -29,7 +29,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use miette::Diagnostic;
 use reqwest::Method;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 
 use crate::{
     AppState,
@@ -337,7 +337,8 @@ struct Stripe {
 }
 
 impl Stripe {
-    /// A Stripe API call. A POST with an idempotency key has its effect once, however often it is repeated.
+    /// A Stripe API call. A POST with an idempotency key has its effect once, however often it is repeated; the key
+    /// sent is the one given with a hash of the form ([`idempotency_key`]).
     async fn call<T: DeserializeOwned>(
         &self,
         method: Method,
@@ -356,7 +357,7 @@ impl Stripe {
             .bearer_auth(&self.config.secret_key)
             .header("Stripe-Version", API_VERSION);
         if let Some(key) = idempotency_key {
-            request = request.header("Idempotency-Key", key);
+            request = request.header("Idempotency-Key", self::idempotency_key(key, form));
         }
         request = if method == Method::GET {
             request.query(form)
@@ -376,19 +377,37 @@ impl Stripe {
     }
 
     async fn subscription(&self, id: &str) -> Result<Subscription, BillingError> {
-        // Subscription IDs come from signed webhooks, but keep them from reshaping the URL all the same.
-        let id: String = id
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect();
         self.call(
             Method::GET,
-            &format!("/v1/subscriptions/{id}"),
+            &format!("/v1/subscriptions/{}", path_segment(id)),
             &[("expand[]", "customer")],
             None,
         )
         .await
     }
+}
+
+/// The idempotency key of a creation: `scope`, what is created once (an organisation's trial), and a hash of the
+/// form. Stripe answers a key reused with other parameters with a 400 for the 24 hours it keeps the key, so a retry
+/// with other parameters (another member count, a renamed organisation) is a request of its own, never a refused
+/// repeat. What keeps it from creating a second trial is what [`Billing::start_trial`] checks first.
+fn idempotency_key(scope: &str, form: &[(&str, &str)]) -> String {
+    let mut hash = Sha256::new();
+    for (name, value) in form {
+        hash.update(name.as_bytes());
+        hash.update([0]);
+        hash.update(value.as_bytes());
+        hash.update([0]);
+    }
+    format!("{scope}-{}", &hex::encode(hash.finalize())[..16])
+}
+
+/// A Stripe ID as a URL path segment. IDs come from Stripe or signed webhooks, but keep them from reshaping the URL
+/// all the same.
+fn path_segment(id: &str) -> String {
+    id.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -759,6 +778,10 @@ impl Billing {
     /// Starts the organisation's no-card trial: a Stripe customer and a trialing subscription that cancels itself
     /// if no card was added by its end. Each organisation gets one trial. The billing email, set on the customer,
     /// receives Stripe's reminder before the trial ends; a trial started automatically has none.
+    ///
+    /// A retry, here or on another instance, repeats the first attempt's requests exactly: the customer is created
+    /// with the same form whatever the email, which is set on it afterwards, and one an earlier attempt created is
+    /// found again rather than created twice.
     pub async fn start_trial(
         &self,
         org_id: u64,
@@ -780,24 +803,46 @@ impl Billing {
                 limit: self.free_member_limit,
             });
         }
-        // Keyed by organisation, so a repeat (another instance, a retry) creates nothing more; Stripe keeps keys
-        // for 24 hours, and after that the subscription is known.
+        // Keyed by organisation and form, so a repeat (another instance, a retry) creates nothing more; Stripe keeps
+        // keys for 24 hours, and after that the customer is found and the subscription known.
         let key = format!("privatecrates-trial-{org_id}");
         let org_id = org_id.to_string();
-        let mut customer = vec![
-            ("name", org_login),
-            ("metadata[github_org_id]", &org_id),
-            ("metadata[github_org_login]", org_login),
-        ];
-        customer.extend(billing_email.map(|email| ("email", email)));
-        let customer: Created = stripe
+        let search = format!("metadata['{ORG_ID_KEY}']:'{org_id}'");
+        let found: List<Created> = stripe
             .call(
-                Method::POST,
-                "/v1/customers",
-                &customer,
-                Some(&format!("{key}-customer")),
+                Method::GET,
+                "/v1/customers/search",
+                &[("query", &search)],
+                None,
             )
             .await?;
+        let customer = match found.data.into_iter().next() {
+            Some(customer) => customer,
+            None => {
+                stripe
+                    .call(
+                        Method::POST,
+                        "/v1/customers",
+                        &[
+                            ("name", org_login),
+                            ("metadata[github_org_id]", &org_id),
+                            ("metadata[github_org_login]", org_login),
+                        ],
+                        Some(&format!("{key}-customer")),
+                    )
+                    .await?
+            }
+        };
+        if let Some(email) = billing_email {
+            stripe
+                .call::<Created>(
+                    Method::POST,
+                    &format!("/v1/customers/{}", path_segment(&customer.id)),
+                    &[("email", email)],
+                    None,
+                )
+                .await?;
+        }
         let trial_days = self.trial_days.to_string();
         let quantity = self.billed(members).to_string();
         let subscription: Subscription = stripe
@@ -887,16 +932,10 @@ impl Billing {
             .ok_or_else(|| ApiError::NoSubscription {
                 org: org_login.to_owned(),
             })?;
-        let customer = subscription.customer_id();
-        // Customer IDs come from Stripe, but keep them from reshaping the URL all the same.
-        let customer: String = customer
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect();
         stripe
             .call::<Created>(
                 Method::POST,
-                &format!("/v1/customers/{customer}"),
+                &format!("/v1/customers/{}", path_segment(subscription.customer_id())),
                 &[("email", email)],
                 None,
             )
@@ -1136,6 +1175,21 @@ mod tests {
         assert_eq!(over.members, Some(50));
         assert!(!over.trial_available);
         assert_eq!(preview.standing(100, Some(50)), Standing::Active);
+    }
+
+    /// A key is never sent again with other parameters, which Stripe would refuse for 24 hours.
+    #[test]
+    fn idempotency_keys_follow_the_form() {
+        let form = [("customer", "cus_1"), ("items[0][quantity]", "2")];
+        let key = idempotency_key("privatecrates-trial-100", &form);
+        assert!(key.starts_with("privatecrates-trial-100-"));
+        assert_eq!(key, idempotency_key("privatecrates-trial-100", &form));
+        let grown = [("customer", "cus_1"), ("items[0][quantity]", "3")];
+        assert_ne!(key, idempotency_key("privatecrates-trial-100", &grown));
+        assert_ne!(
+            idempotency_key("s", &[("a", "bc")]),
+            idempotency_key("s", &[("ab", "c")])
+        );
     }
 
     #[test]

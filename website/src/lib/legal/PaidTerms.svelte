@@ -15,8 +15,7 @@
 	} from '$lib/site';
 	import { CONTACT_EMAIL, SECURITY_EMAIL, STATUS_URL } from '$lib/trust';
 
-	// The terms once billing is on (PREVIEW is false). The ids the preview terms share keep their meaning: the
-	// trust centre and the docs link to #dependencies.
+	// The terms, the only ones there are. The trust centre and the docs link to #dependencies.
 	const toc: TocItem[] = [
 		['operator', '1. Who runs PrivateCrates'],
 		['who', '2. Who can use it'],

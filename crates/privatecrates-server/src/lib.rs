@@ -211,11 +211,13 @@ impl AppState {
     }
 
     /// Keeps a registered organisation's billing in step with its member count, so that growing never breaks its
-    /// registry. Called from webhooks and the periodic refresh, never while serving a request: a failure is logged,
+    /// registry. Called from webhooks, the periodic refresh and an admin accepting the terms: a failure is logged,
     /// and the next refresh tries again.
     ///
     /// - Past the free limit for the first time: its no-card trial starts.
     /// - Past it again, after an earlier trial or subscription ended while it was free: a grace period starts.
+    /// - Either only once an admin has accepted the terms: until then the registry stops, as any over the limit
+    ///   without a subscription does, and accepting them starts it.
     /// - Subscribed: the members it pays for follow its member count.
     /// - Back at the free limit with an ended subscription: noted, so that growing again earns the grace period.
     pub async fn keep_billing_in_step(&self, tenant: &Tenant) {
@@ -226,7 +228,11 @@ impl AppState {
             .plan(tenant.org_id, &tenant.org_login, tenant.personal)
             .await;
         let (org_id, login, members) = (tenant.org_id, tenant.org_login.as_str(), plan.members);
-        let result = if plan.trial_available {
+        let starts = plan.trial_available || self.billing.grace_due(org_id, members);
+        let result = if starts && !self.terms.accepted(org_id).await {
+            log::info!(org:% = login, members:? = members; "over the free member limit; no trial until an admin accepts the terms");
+            Ok(())
+        } else if plan.trial_available {
             log::info!(org:% = login, members:? = members; "over the free member limit; starting the trial");
             self.billing.start_trial(org_id, login, members, None).await
         } else if self.billing.grace_due(org_id, members) {

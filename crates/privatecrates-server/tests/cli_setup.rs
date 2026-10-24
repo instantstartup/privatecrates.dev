@@ -188,7 +188,7 @@ async fn an_admin_sets_up_a_registry() {
             "--slug",
             "globex-crates",
             "--accept-terms",
-            "preview-2026-01-01",
+            "2026-01-01",
             "--json",
         ]),
     )
@@ -411,6 +411,7 @@ async fn an_admin_starts_the_trial_with_a_billing_email() {
     .await;
     let stripe = h.stripe.clone().unwrap();
     h.fake.add_org_members(&h.org, 11);
+    h.accept_terms().await;
     let token = h.fake.add_user("alice", "ghu_", &[]);
     h.fake.add_member(&token, &h.org, "admin");
     h.fake.set_device_flow_user(&token);
@@ -496,6 +497,96 @@ async fn an_admin_starts_the_trial_with_a_billing_email() {
 }
 
 #[tokio::test]
+async fn one_command_accepts_the_terms_and_starts_the_trial_with_its_email() {
+    let h = Harness::start_with(Options {
+        preview: false,
+        stripe: true,
+        ..Options::default()
+    })
+    .await;
+    let stripe = h.stripe.clone().unwrap();
+    h.fake.add_org_members(&h.org, 11);
+    let token = h.fake.add_user("alice", "ghu_", &[]);
+    h.fake.add_member(&token, &h.org, "admin");
+    h.fake.set_device_flow_user(&token);
+    let config = tempfile::tempdir().unwrap();
+    let domain = h.apex("");
+    let with_domain = |args: &[&'static str]| {
+        let mut all: Vec<&str> = args.to_vec();
+        all.extend(["--domain", domain.as_str(), "--json"]);
+        all
+    };
+    let output = cli(config.path(), &with_domain(&["login"])).await;
+    assert!(output.status.success(), "{:?}", output);
+
+    // Billing needs the terms, so the checklist's command accepts them too.
+    let setup = json(&cli(config.path(), &with_domain(&["setup", "acme"])).await);
+    assert_eq!(
+        step(&setup, "plan")["commands"][0],
+        format!(
+            "cargo privatecrates setup acme --accept-terms {TERMS_VERSION} --start-trial --billing-email <EMAIL> \
+             --domain {domain}"
+        )
+    );
+
+    // Without them the trial is refused, and nothing reaches Stripe.
+    let output = cli(
+        config.path(),
+        &with_domain(&[
+            "setup",
+            "acme",
+            "--start-trial",
+            "--billing-email",
+            "billing@acme.example",
+        ]),
+    )
+    .await;
+    assert!(!output.status.success());
+    assert_eq!(json(&output)["error"]["code"], "billing::terms_required");
+    assert!(stripe.customers().is_empty());
+
+    // An address the server refuses leaves the terms unaccepted.
+    let output = cli(
+        config.path(),
+        &with_domain(&[
+            "setup",
+            "acme",
+            "--accept-terms",
+            TERMS_VERSION,
+            "--start-trial",
+            "--billing-email",
+            "billing",
+        ]),
+    )
+    .await;
+    assert!(!output.status.success());
+    assert_eq!(json(&output)["error"]["code"], "billing::email_invalid");
+    assert!(!h.state.terms.accepted(h.org.id).await);
+    assert!(stripe.customers().is_empty());
+
+    // Accepting them starts the trial, with the email given.
+    let output = cli(
+        config.path(),
+        &with_domain(&[
+            "setup",
+            "acme",
+            "--accept-terms",
+            TERMS_VERSION,
+            "--start-trial",
+            "--billing-email",
+            "billing@acme.example",
+        ]),
+    )
+    .await;
+    assert!(output.status.success(), "{:?}", output);
+    let setup = json(&output);
+    assert_eq!(setup["performed"], serde_json::json!(["terms", "trial"]));
+    assert_eq!(step(&setup, "plan")["status"], "done");
+    let [customer]: [Value; 1] = stripe.customers().try_into().unwrap();
+    assert_eq!(customer["email"], "billing@acme.example");
+}
+
+#[tokio::test]
 async fn an_admin_accepts_the_terms_for_an_existing_registry() {
     let h = Harness::start().await;
     let token = h.fake.add_user("alice", "ghu_", &[]);
@@ -534,7 +625,7 @@ async fn an_admin_accepts_the_terms_for_an_existing_registry() {
 
     let output = cli(
         config.path(),
-        &with_domain(&["terms", "acme", "--accept", "preview-2026-01-01", "--json"]),
+        &with_domain(&["terms", "acme", "--accept", "2026-01-01", "--json"]),
     )
     .await;
     assert!(!output.status.success());

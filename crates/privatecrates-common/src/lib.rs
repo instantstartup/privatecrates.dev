@@ -16,9 +16,10 @@ pub const CRATES_IO_INDEX: &str = "https://github.com/rust-lang/crates.io-index"
 /// The sparse form of the crates.io index URL, which Cargo may also send.
 pub const CRATES_IO_SPARSE_INDEX: &str = "sparse+https://index.crates.io/";
 
-/// The version of the PrivateCrates terms an organisation admin accepts now (docs/preview.md §2). The account API
-/// publishes it with the terms' URL; nothing accepts it on anyone's behalf.
-pub const TERMS_VERSION: &str = "preview-2026-10-07";
+/// The version of the PrivateCrates terms an organisation admin accepts (docs/website-api.md): the only terms there
+/// are, mirrored in the website's `src/lib/site.ts`. The account API publishes it with the terms' URL; nothing
+/// accepts it on anyone's behalf.
+pub const TERMS_VERSION: &str = "2026-11-01";
 
 /// Whether a dependency's `registry` value refers to crates.io.
 pub fn is_crates_io(registry: &str) -> bool {
@@ -77,5 +78,13 @@ mod tests {
         for slug in ["-acme", "acme-", "-"] {
             assert!(!slug_is_valid(slug), "{slug}");
         }
+    }
+
+    /// The website states the version an admin accepts: it must be the one the server checks.
+    #[test]
+    fn the_website_mirrors_the_terms_version() {
+        let site = include_str!("../../../website/src/lib/site.ts");
+        let line = format!("export const TERMS_VERSION = '{TERMS_VERSION}';");
+        assert!(site.contains(&line), "site.ts should say: {line}");
     }
 }

@@ -93,7 +93,9 @@
 	);
 	/** Free again with a subscription still running: admins may cancel it (we never cancel automatically). */
 	const freeAgain = $derived(plan === 'free' && isActive(tenant.status));
-	const portal = $derived(admin && hasSubscription(org));
+	/** Billing is under the terms: until an admin accepts them, the banner above takes the place of its buttons. */
+	const termsPending = $derived(!!terms && org.terms_accepted === false);
+	const portal = $derived(admin && !termsPending && hasSubscription(org));
 	const trialEndedWithoutCard = $derived(
 		!hasCard && trialDaysLeft === 0 && !!trialEnds && (!periodEndIso || periodEndIso === trialEndsIso)
 	);
@@ -149,8 +151,15 @@
 {/snippet}
 
 <div class="registry">
-	{#if terms && org.terms_accepted === false}
-		<TermsBanner org={org.login} {terms} {admin} onaccepted={() => onterms?.()} />
+	{#if terms && termsPending}
+		<TermsBanner
+			org={org.login}
+			{terms}
+			{admin}
+			stopped={!preview && !live}
+			trial={!preview && !live && !!org.trial_available}
+			onaccepted={() => onterms?.()}
+		/>
 	{/if}
 	{#if org.billing_email_missing && admin && !preview}
 		<Callout tone="warn" role="status" title="Add a billing email">
@@ -323,10 +332,12 @@
 				<ErrorNotice {error} title={errorTitles[failed]} />
 			{/if}
 
-			{#if admin && !live && org.trial_available}
+			{#if admin && termsPending && !preview && plan !== 'free'}
+				<p class="fine">Billing waits for the terms: accept them above.</p>
+			{:else if admin && !live && org.trial_available}
 				<TrialForm org={org.login} {price} onstarted={() => onchange?.()} />
 			{/if}
-			{#if admin && (portal || (!live && !org.trial_available))}
+			{#if admin && !termsPending && (portal || (!live && !org.trial_available))}
 				<div class="row">
 					{#if !live && !org.trial_available && hasSubscription(org)}
 						<button

@@ -108,12 +108,14 @@ Open questions. This audit can't answer them; answer them with an accountant bef
 
 ## 4. Notice to existing organisations
 
-The preview terms (`/legal/terms` §4) promise: "Billing starts only after general availability, and only after at
-least 30 days' notice. Paying will need new terms, and no charge is ever taken without a card that an admin has
-added." §11 says notice is given "on this site and on the status page". The terms also name general availability as
-planned for 2027 (`site.ts` `GA_TARGET`), which PC-30 changes.
+There are none to give notice to. The preview terms are gone (PC-33): `/legal/terms` is the one set of terms, version
+`2026-11-01`, in force with `PREVIEW` on or off, and the only organisation that accepted the preview terms is your own.
+An organisation over the free member limit gets no trial until an admin accepts version `2026-11-01`
+(`crates/privatecrates-server/src/lib.rs` `keep_billing_in_step`); until then its registry answers 402 with a link to
+accept them (`402 billing::terms_not_accepted`), as any organisation over the limit without a subscription does, and
+an admin accepting them starts its trial.
 
-1. [ ] Count the organisations that accepted the preview terms:
+1. [ ] Check that no one else accepted the earlier terms:
 
    ```sh
    railway link                      # privatecrates / production / Postgres
@@ -121,25 +123,9 @@ planned for 2027 (`site.ts` `GA_TARGET`), which PC-30 changes.
    select org_login, version, accepted_at from terms_acceptances order by accepted_at;
    ```
 
-   No email addresses are stored, so this gives only org and user logins.
-2. [ ] If there are none, there is nobody to give notice to; go to §5.
-3. [ ] Otherwise, post the notice at least 30 days before billing can start for them, on the site and on the
-       status page (docs/deploy.md §14.3, "Post or update an incident", used as an announcement). Say: the date
-       paid plans start; the price (free up to 5 members, USD 10 a member a month past 5, at most USD 100); that
-       an admin has to accept the new terms; and that nothing is charged without a card. The launch date is at
-       least 30 days after the day you post it.
-4. [ ] Wait until the notice has run out before §6. There is no way to keep existing organisations free once
-       `PREVIEW` is false: it is one switch for the whole service, and from then on the server starts the automatic
-       trial for every organisation over the free member limit (`crates/privatecrates-server/src/lib.rs`
-       `keep_billing_in_step`, "over the free member limit; starting the trial").
-
-Open question: is a notice on the site and the status page enough, or do you also want to reach the admins
-directly (for example an issue or email to the GitHub organisation's public contact)? Nothing in the code does
-that, and it would mean contacting them outside the service.
-
-Open question: organisations that sign up while the notice is up accept the preview terms, which promise 30 days'
-notice, but get fewer than 30 days before the launch date. Ask the solicitor (§5) whether the notice on the site at
-sign-up is enough for them, or whether the preview terms should stop being offered once the notice is posted.
+   If another organisation shows up, stop and tell the orchestrator: the launch assumed there were none, and that
+   organisation is owed the 30 days' notice the preview terms promised before this deploys.
+2. [ ] Accept version `2026-11-01` for your own organisation from the account page.
 
 ## 5. Legal review
 

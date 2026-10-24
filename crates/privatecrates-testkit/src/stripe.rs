@@ -30,11 +30,21 @@ pub const API_VERSION: &str = "2026-08-26.dahlia";
 
 const DAY: u64 = 24 * 60 * 60;
 
+/// What Stripe keeps under an idempotency key: the request's parameters, and the status and body it got.
+type Stored = (HashMap<String, String>, StatusCode, Value);
+
 #[derive(Default)]
 struct World {
     next_id: u64,
     /// How many requests the fake received, of any kind.
     requests: usize,
+    /// How many of the next requests fail as an outage would, with a 500, before Stripe handles them.
+    failing: usize,
+    /// When set, only requests to this path count towards `failing`.
+    failing_path: Option<String>,
+    /// Customers created while search lags, which search does not find yet.
+    unindexed: Vec<String>,
+    search_lags: bool,
     customers: Vec<Value>,
     /// In creation order; `customer` is the customer's ID.
     subscriptions: Vec<Value>,
@@ -42,8 +52,8 @@ struct World {
     subscription_requests: Vec<HashMap<String, String>>,
     checkouts: Vec<HashMap<String, String>>,
     portals: Vec<HashMap<String, String>>,
-    /// (path, Idempotency-Key) → the request's parameters and the response it got.
-    idempotent: HashMap<(String, String), (HashMap<String, String>, Value)>,
+    /// (path, Idempotency-Key) → the request's parameters and the response it got, a failure as much as a success.
+    idempotent: HashMap<(String, String), Stored>,
 }
 
 impl World {
@@ -198,6 +208,38 @@ impl FakeStripe {
             .collect()
     }
 
+    /// Makes the next `n` requests fail with a 500, as during a Stripe outage.
+    pub fn fail_next(&self, n: usize) {
+        let mut w = self.world();
+        w.failing = n;
+        w.failing_path = None;
+    }
+
+    /// Makes the next `n` requests to `path` fail with a 500 before Stripe handles them, so that nothing is stored
+    /// under their idempotency keys; other requests go through.
+    pub fn fail_next_on(&self, path: &str, n: usize) {
+        let mut w = self.world();
+        w.failing = n;
+        w.failing_path = Some(path.to_owned());
+    }
+
+    /// Makes customer search miss the customers created from now on until [`Self::search_catches_up`], as Stripe's
+    /// search does for a while after a write.
+    pub fn search_lags(&self) {
+        self.world().search_lags = true;
+    }
+
+    pub fn search_catches_up(&self) {
+        let mut w = self.world();
+        w.search_lags = false;
+        w.unindexed.clear();
+    }
+
+    /// Forgets every idempotency key, as Stripe does after 24 hours.
+    pub fn forget_idempotency_keys(&self) {
+        self.world().idempotent.clear();
+    }
+
     /// How many requests reached the fake.
     pub fn requests(&self) -> usize {
         self.world().requests
@@ -272,6 +314,7 @@ pub fn sign_webhook(secret: &str, timestamp: u64, body: &str) -> String {
 fn router(fake: FakeStripe) -> Router {
     Router::new()
         .route("/v1/customers", post(create_customer))
+        .route("/v1/customers/search", get(search_customers))
         .route("/v1/customers/{id}", post(update_customer))
         .route(
             "/v1/subscriptions",
@@ -288,7 +331,25 @@ fn router(fake: FakeStripe) -> Router {
 }
 
 async fn count(State(fake): State<FakeStripe>, request: Request, next: Next) -> Response {
-    fake.world().requests += 1;
+    let failing = {
+        let mut w = fake.world();
+        w.requests += 1;
+        let counts = w
+            .failing_path
+            .as_deref()
+            .is_none_or(|path| path == request.uri().path());
+        let failing = counts && w.failing > 0;
+        if counts {
+            w.failing = w.failing.saturating_sub(1);
+        }
+        failing
+    };
+    if failing {
+        return error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the fake is failing, as asked",
+        );
+    }
     next.run(request).await
 }
 
@@ -317,13 +378,16 @@ fn authorised(headers: &HeaderMap) -> Result<(), Response> {
 }
 
 /// Runs a creation once per `Idempotency-Key`, as Stripe does: a repeat with the same parameters gets the first
-/// response, and one with other parameters is refused.
+/// response, a failure as much as a success, and one with other parameters is refused.
 fn idempotent(
     fake: &FakeStripe,
     path: &str,
     headers: &HeaderMap,
     form: HashMap<String, String>,
-    create: impl FnOnce(&mut World, &HashMap<String, String>) -> Result<Value, Response>,
+    create: impl FnOnce(
+        &mut World,
+        &HashMap<String, String>,
+    ) -> Result<Value, (StatusCode, &'static str)>,
 ) -> Response {
     if let Err(e) = authorised(headers) {
         return e;
@@ -333,9 +397,9 @@ fn idempotent(
         .get("idempotency-key")
         .and_then(|v| v.to_str().ok())
         .map(|k| (path.to_owned(), k.to_owned()));
-    if let Some((first, response)) = key.as_ref().and_then(|k| w.idempotent.get(k)) {
+    if let Some((first, status, response)) = key.as_ref().and_then(|k| w.idempotent.get(k)) {
         return if *first == form {
-            Json(response.clone()).into_response()
+            (*status, Json(response.clone())).into_response()
         } else {
             error(
                 StatusCode::BAD_REQUEST,
@@ -343,15 +407,14 @@ fn idempotent(
             )
         };
     }
-    match create(&mut w, &form) {
-        Ok(response) => {
-            if let Some(key) = key {
-                w.idempotent.insert(key, (form, response.clone()));
-            }
-            Json(response).into_response()
-        }
-        Err(e) => e,
+    let (status, response) = match create(&mut w, &form) {
+        Ok(response) => (StatusCode::OK, response),
+        Err((status, message)) => (status, json!({ "error": { "message": message } })),
+    };
+    if let Some(key) = key {
+        w.idempotent.insert(key, (form, status, response.clone()));
     }
+    (status, Json(response)).into_response()
 }
 
 /// `metadata[key]=value` form fields as an object.
@@ -375,9 +438,49 @@ async fn create_customer(
         let mut customer = customer_json(&id, metadata(form));
         customer["name"] = json!(form.get("name"));
         customer["email"] = json!(form.get("email"));
+        if w.search_lags {
+            w.unindexed.push(id);
+        }
         w.customers.push(customer.clone());
         Ok(customer)
     })
+}
+
+#[derive(Deserialize)]
+struct SearchQuery {
+    query: String,
+}
+
+/// Customer search, for the one query PrivateCrates makes: `metadata['key']:'value'`.
+async fn search_customers(
+    State(fake): State<FakeStripe>,
+    headers: HeaderMap,
+    Query(search): Query<SearchQuery>,
+) -> Response {
+    if let Err(e) = authorised(&headers) {
+        return e;
+    }
+    let Some((key, value)) = search
+        .query
+        .strip_prefix("metadata['")
+        .and_then(|q| q.split_once("']:'"))
+        .and_then(|(key, value)| Some((key, value.strip_suffix('\'')?)))
+    else {
+        return error(
+            StatusCode::BAD_REQUEST,
+            "the fake searches by one metadata key",
+        );
+    };
+    let w = fake.world();
+    let data: Vec<Value> = w
+        .customers
+        .iter()
+        .filter(|c| {
+            c["metadata"][key] == value && !w.unindexed.iter().any(|id| c["id"] == id.as_str())
+        })
+        .cloned()
+        .collect();
+    Json(json!({ "object": "search_result", "data": data, "has_more": false })).into_response()
 }
 
 /// Updates a customer: only its email, which is all PrivateCrates changes.
@@ -414,10 +517,10 @@ async fn create_subscription(
     idempotent(&fake, "/v1/subscriptions", &headers, form, |w, form| {
         let customer = form.get("customer").map(String::as_str).unwrap_or_default();
         if w.customer(customer).is_none() {
-            return Err(error(StatusCode::BAD_REQUEST, "No such customer"));
+            return Err((StatusCode::BAD_REQUEST, "No such customer"));
         }
         if form.get("items[0][price]").map(String::as_str) != Some(PRICE_ID) {
-            return Err(error(StatusCode::BAD_REQUEST, "No such price"));
+            return Err((StatusCode::BAD_REQUEST, "No such price"));
         }
         let trial_days: Option<u64> = form.get("trial_period_days").and_then(|d| d.parse().ok());
         let n = w.id();

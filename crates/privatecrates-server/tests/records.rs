@@ -25,9 +25,9 @@ fn acceptance<'a>(org_id: u64, user_login: &'a str, via: Via) -> Acceptance<'a> 
         org_login: "acme",
         user_id: 12345,
         user_login,
-        version: "preview-2026-09-27",
+        version: "2026-11-01",
         via,
-        statement: "I have read and accept the PrivateCrates preview terms (preview-2026-09-27) on behalf of acme",
+        statement: "I have read and accept the PrivateCrates terms (2026-11-01) on behalf of acme",
     }
 }
 
@@ -38,9 +38,7 @@ async fn migrations_run_again_harmlessly() {
     db.migrate().await.unwrap();
     db.migrate().await.unwrap();
     assert_eq!(
-        db.acceptance(fresh_org_id(), "preview-2026-09-27")
-            .await
-            .unwrap(),
+        db.acceptance(fresh_org_id(), "2026-11-01").await.unwrap(),
         None
     );
 }
@@ -51,26 +49,19 @@ async fn the_first_acceptance_is_kept() {
     let db = database();
     db.migrate().await.unwrap();
     let org_id = fresh_org_id();
-    assert_eq!(
-        db.acceptance(org_id, "preview-2026-09-27").await.unwrap(),
-        None
-    );
+    assert_eq!(db.acceptance(org_id, "2026-11-01").await.unwrap(), None);
 
     assert!(
         db.accept(&acceptance(org_id, "BrynCooke", Via::Website))
             .await
             .unwrap()
     );
-    let first = db
-        .acceptance(org_id, "preview-2026-09-27")
-        .await
-        .unwrap()
-        .unwrap();
+    let first = db.acceptance(org_id, "2026-11-01").await.unwrap().unwrap();
     assert_eq!(first.org_id, org_id);
     assert_eq!(first.org_login, "acme");
     assert_eq!(first.user_id, 12345);
     assert_eq!(first.user_login, "BrynCooke");
-    assert_eq!(first.version, "preview-2026-09-27");
+    assert_eq!(first.version, "2026-11-01");
     assert_eq!(first.via, "website");
     assert!(first.statement.ends_with("on behalf of acme"));
 
@@ -81,10 +72,7 @@ async fn the_first_acceptance_is_kept() {
             .unwrap()
     );
     assert_eq!(
-        db.acceptance(org_id, "preview-2026-09-27")
-            .await
-            .unwrap()
-            .unwrap(),
+        db.acceptance(org_id, "2026-11-01").await.unwrap().unwrap(),
         first
     );
 

@@ -44,6 +44,11 @@ loading, trials, Checkout or portal, and `/webhooks/stripe` answers 404), and `/
   does so from the `organization` webhook and from the 10-minute refresh, for any registered organisation over the
   limit that has never had a subscription (so one registered while already over the limit gets its trial within 10
   minutes if no admin starts it first).
+- **Under the terms**: an automatic trial or grace period starts only once an admin has accepted the current terms
+  (*Terms* below). Until then an organisation over the limit is inactive, as any over the limit without a
+  subscription is, with `billing::terms_not_accepted` (402) instead of `billing::subscription_inactive`: its detail
+  names the version, the terms' URL and the account page. Accepting them (`POST /terms`) starts the trial or grace
+  period at once.
 - **Growing past it again** after a trial or subscription ended: if the organisation was seen at the free limit
   after it ended, the server notes that on the Stripe customer (`metadata[free_after]` = the ended subscription's
   ID), and growing past the limit again starts a 14-day no-card grace period (`trial_period_days=14`,
@@ -61,22 +66,24 @@ loading, trials, Checkout or portal, and `/webhooks/stripe` answers 404), and `/
 - A tenant is **active** when it is free (at or under the limit), or its subscription is `trialing`, `active` or
   `past_due` (Stripe retries payment). Otherwise (subscription `canceled`/`unpaid`, e.g. a trial that ended with no
   card): publishing is refused at once with `billing::subscription_inactive` (HTTP 402); reads keep working for 14 days
-  after the period ended, then are refused with the same error. Messages point to `https://{BASE_DOMAIN}/account`.
+  after the period ended, then are refused with the same error. Messages point to the organisation's account page,
+  `https://{BASE_DOMAIN}/account?org={org}`.
 - **Reminders**: in the last 14 days of a trial with no card, successful publishes return a Cargo warning ("the free
-  trial ends on …; add a card at …/account") and the account page shows a banner. Stripe's own trial-ending email is
+  trial ends on …; add a card at …/account?org={org}") and the account page shows a banner. Stripe's own trial-ending email is
   enabled in the Dashboard (see `docs/deploy.md`).
 - An organisation that shrinks to the limit becomes free again at once; the account page tells admins with a
   subscription that they can cancel it in the billing portal (we do not cancel automatically: counts can fluctuate).
 
 ## Terms
 
-An organisation admin accepts the current PrivateCrates terms (version `preview-2026-10-07`, published at
+An organisation admin accepts the current PrivateCrates terms (version `2026-11-01`, published at
 `https://{BASE_DOMAIN}/legal/terms`) before its registry is created, and an admin of a registry set up earlier is
 asked to. Each acceptance is recorded in our own Postgres (`DATABASE_URL`), not in the customer's repository: the
 organisation (id, login), the admin (GitHub id, login), the version, the time, `via` (`website` for the session
-cookie, `cli` for a bearer token) and the exact statement accepted, "I have read and accept the PrivateCrates preview
-terms (preview-2026-10-07) on behalf of {org}". The table is append-only; the first acceptance of each version is kept
-and a repeat is a no-op. A registry without an acceptance keeps working.
+cookie, `cli` for a bearer token) and the exact statement accepted, "I have read and accept the PrivateCrates
+terms (2026-11-01) on behalf of {org}". The table is append-only; the first acceptance of each version is kept
+and a repeat is a no-op. A registry without an acceptance keeps working while it is free; billing needs it (see
+*Billing* above: no trial, grace period, Checkout or portal without it).
 
 `accept_terms` must be the current version as a string; anything else (missing, another version, another type) is
 refused with `account::terms_not_accepted` (400), whose detail names the version and the terms' URL. Neither the
@@ -106,7 +113,7 @@ website nor the CLI fills it in on the admin's behalf.
 ## Endpoints (apex host only)
 
 All JSON. Errors use `{"errors":[{"detail": "...", "code": "..."}]}` with the apollo-errors code. `POST` bodies are
-`{}`, except for `/settings` (`{"slug": …, "accept_terms": …}`), `/terms` (`{"accept_terms": …}`), and `/trial` and
+`{}`, except for `/settings` (`{"slug": …, "accept_terms": …}`), `/terms` (`{"accept_terms": …, "billing_email": …}`, the email optional), and `/trial` and
 `/billing-email` (`{"billing_email": …}`).
 
 ### `GET /auth/github/login?return_to=/account`
@@ -141,7 +148,7 @@ tokens included; drops their cached permissions; clears the cookie. `204`. Other
   ],
   "install_url": "https://github.com/apps/privatecrates-reader/installations/new",
   "preview": false,
-  "terms": { "version": "preview-2026-10-07", "url": "https://privatecrates.dev/legal/terms" }
+  "terms": { "version": "2026-11-01", "url": "https://privatecrates.dev/legal/terms" }
 }
 ```
 `preview` is `true` during the preview (then every `plan` is `free`). `terms` (also when signed out) is the version an
@@ -149,7 +156,8 @@ admin accepts now and where to read it. Per organisation, `terms_accepted` says 
 version (looked up in our records, cached for a minute; `false` if the lookup fails).
 Per organisation, `plan` is one of `free` (at or under the member limit), `trial`, `paid`, `past_due` or `inactive`
 (ended or never started while over the limit); `members` is `null` when the count is unknown (the reader App is not
-installed yet). `trial_available` says whether `POST /trial` will work. `billing_email_missing` is `true` when the
+installed yet). `trial_available` says whether the organisation can still start its trial: `POST /trial` works when it is `true`
+and `terms_accepted` is `true`, and `POST /terms` with a `billing_email` starts it while the terms are not accepted. `billing_email_missing` is `true` when the
 organisation has a subscription whose Stripe customer has no email, as a trial started automatically does not (an
 admin sets one with `POST /billing-email`); otherwise `false`. `tenant.status` keeps the raw Stripe subscription
 status, or `null`.
@@ -175,26 +183,39 @@ For an org the user belongs to. Each step is `done`, `todo` or `blocked`, with a
     { "id": "plan", "status": "todo", "detail": "12 members: start your 3-month free trial, no card needed." }
   ],
   "suggested_slug": "acme",
-  "terms": { "version": "preview-2026-10-07", "url": "https://privatecrates.dev/legal/terms", "accepted": false }
+  "terms": { "version": "2026-11-01", "url": "https://privatecrates.dev/legal/terms", "accepted": false }
 }
 ```
 Only org admins can act; members see the same checklist with `blocked` steps and a note to ask an admin.
 
-### `POST /api/orgs/{org}/settings` `{"slug": "acme", "accept_terms": "preview-2026-10-07", "allow_manual_publish": false}`
+### `POST /api/orgs/{org}/settings` `{"slug": "acme", "accept_terms": "2026-11-01", "allow_manual_publish": false}`
 Admin only. `allow_manual_publish` (optional, default `false`) is the admin's choice of whether crates may also be
 published from developers' machines; it is written to `privatecrates.toml` as the default for every repository. Validates the slug (format, reserved), then `accept_terms` (`account::terms_not_accepted` 400), then that
 the organisation has no registry and the slug is not taken. It records the admin's acceptance of the terms first (if
 that fails, `records::unavailable` 503 and nothing is created), then has the storage App **create**
 `privatecrates.toml` in the storage repository (creation only; refused if it exists). Returns the onboarding document.
 
-### `POST /api/orgs/{org}/terms` `{"accept_terms": "preview-2026-10-07"}`
+### `POST /api/orgs/{org}/terms` `{"accept_terms": "2026-11-01", "billing_email": "billing@acme.example"}`
 Admin only. For a registry set up before the terms, or before their current version: records the admin's acceptance.
 Accepting again succeeds and records nothing new. Refused with `account::terms_not_accepted` 400 for anything but the
 current version, and `account::not_set_up` 409 if the organisation has no registry (its terms are accepted at set-up).
-Returns the onboarding document.
+`billing_email` is optional (missing or `null`); when it is sent it is checked first, as for `/trial`
+(`billing::email_invalid` 400, nothing recorded), and if the organisation's trial is available it starts at once with
+that address as the Stripe customer's email (as `POST /trial` would). Without it, an organisation over the limit that
+was waiting for the terms starts its trial or grace period at once, with no email (as an automatic trial does).
+Once the terms are recorded the request succeeds whatever the trial does: one started meanwhile without an email
+gets the one sent, and a trial Stripe refused is logged and left to the next refresh (the document's `plan` step
+shows it still `todo`). Returns the onboarding document.
 
 The `plan` step (formerly `subscription`) is `done` when the organisation is free or has an active, trialing or
-past-due subscription; otherwise `todo` with a `detail` saying which action applies.
+past-due subscription; otherwise `todo` with a `detail` saying which action applies. Without the terms accepted that
+is accepting them: "12 members: an admin must accept the PrivateCrates terms, version 2026-11-01, at
+https://privatecrates.dev/legal/terms, to start your 3-month free trial, no card needed." (or "…, before
+subscribing." for a returning organisation).
+
+`/trial`, `/checkout` and `/portal` need the terms: after the admin, preview and personal-account checks, they are
+refused with `billing::terms_required` 409 until an admin of the organisation has accepted the current version; its
+detail names the version, the terms' URL and the organisation's account page.
 
 ### `POST /api/orgs/{org}/trial` `{"billing_email": "billing@acme.example"}`
 Admin only. Starts the 3-month, no-card trial. `billing_email` is required: it is set as the Stripe customer's email,

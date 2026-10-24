@@ -776,7 +776,7 @@ async fn settings_need_the_terms_accepted() {
         json!({ "slug": "globex" }),
         json!({ "slug": "globex", "accept_terms": null }),
         json!({ "slug": "globex", "accept_terms": true }),
-        json!({ "slug": "globex", "accept_terms": "preview-2026-01-01" }),
+        json!({ "slug": "globex", "accept_terms": "2026-01-01" }),
         json!({ "slug": "globex", "accept_terms": "" }),
     ] {
         let response = settings(body.clone()).await.unwrap();
@@ -814,7 +814,7 @@ async fn settings_need_the_terms_accepted() {
     assert_eq!(
         accepted.statement,
         format!(
-            "I have read and accept the PrivateCrates preview terms ({TERMS_VERSION}) on behalf of globex"
+            "I have read and accept the PrivateCrates terms ({TERMS_VERSION}) on behalf of globex"
         )
     );
     assert!(accepted.accepted_at >= before);
@@ -855,7 +855,7 @@ async fn an_existing_registry_accepts_the_terms() {
     let response = accept(&member, current.clone()).await.unwrap();
     assert_eq!(response.status(), 403);
     assert_eq!(error_code(response).await, "account::admin_required");
-    for body in [json!({}), json!({ "accept_terms": "preview-2026-01-01" })] {
+    for body in [json!({}), json!({ "accept_terms": "2026-01-01" })] {
         let response = accept(&admin, body).await.unwrap();
         assert_eq!(response.status(), 400);
         assert_eq!(error_code(response).await, "account::terms_not_accepted");

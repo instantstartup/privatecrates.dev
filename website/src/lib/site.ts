@@ -7,9 +7,12 @@ export const SITE_NAME = 'PrivateCrates';
  * Static pages read this; the account page follows the server's `session.preview`.
  */
 export const PREVIEW = true;
-/** The current preview terms: the version an admin accepts, and when it was published. */
-export const TERMS_VERSION = 'preview-2026-10-07';
-export const TERMS_DATE = '7 October 2026';
+/**
+ * The terms: the version an admin accepts, and when it was published. The server's TERMS_VERSION (privatecrates-common)
+ * must equal it; a test there checks.
+ */
+export const TERMS_VERSION = '2026-11-01';
+export const TERMS_DATE = '22 October 2026';
 export const TERMS_PATH = '/legal/terms';
 /** The company that operates PrivateCrates: named as Companies House registered it. */
 export const OPERATOR = 'INSTANTSTARTUP LTD';

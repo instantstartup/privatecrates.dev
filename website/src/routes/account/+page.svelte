@@ -230,7 +230,7 @@
 				</div>
 				<p class="fine">
 					{#if PREVIEW}
-						Free during the preview, and provided as is: read the <a href={TERMS_PATH}>preview terms</a>.
+						Free during the preview: read the <a href={TERMS_PATH}>terms</a>.
 					{:else}
 						Organisations are {PRICE_PHRASE}, after {TRIAL_MONTHS} months free with no card.
 					{/if}

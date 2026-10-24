@@ -1,32 +1,42 @@
 <script lang="ts">
 	import { api, ApiError, type Terms } from '$lib/api';
 	import Callout from '$lib/components/Callout.svelte';
+	import { TRIAL_MONTHS } from '$lib/site';
+	import BillingEmailField, { aboutBillingEmail, missingBillingEmail } from './BillingEmailField.svelte';
 	import ErrorNotice from './ErrorNotice.svelte';
 	import TermsCheckbox from './TermsCheckbox.svelte';
 
-	// A registry created before the terms (or before their current version) keeps working, but an admin is asked to
-	// accept them here (docs/preview.md §2). Members are told who can.
+	// A registry created before the terms (or before their current version): an admin is asked to accept them here,
+	// and members are told who can. Billing waits for them, so one over the free limit has stopped until they are
+	// accepted, and accepting them starts its trial (docs/website-api.md).
 	interface Props {
 		org: string;
 		terms: Terms;
 		admin: boolean;
+		/** Over the free limit with no trial or subscription: the registry has stopped until the terms are accepted. */
+		stopped?: boolean;
+		/** Accepting the terms starts the free trial, so the form asks for its billing email too. */
+		trial?: boolean;
 		/** Called once the terms are accepted, to re-read the session. */
 		onaccepted: () => void;
 	}
 
-	let { org, terms, admin, onaccepted }: Props = $props();
+	let { org, terms, admin, stopped = false, trial = false, onaccepted }: Props = $props();
 
 	let accepted = $state(false);
+	let email = $state('');
+	let touched = $state(false);
 	let saving = $state(false);
 	let error = $state<ApiError | null>(null);
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
-		if (!accepted) return;
+		touched = true;
+		if (!accepted || (trial && missingBillingEmail(email))) return;
 		saving = true;
 		error = null;
 		try {
-			await api.acceptTerms(org, terms.version);
+			await api.acceptTerms(org, terms.version, trial ? email.trim() : undefined);
 			onaccepted();
 		} catch (e) {
 			error = e instanceof ApiError ? e : new ApiError(0, [{ detail: String(e) }]);
@@ -36,14 +46,19 @@
 	}
 </script>
 
-<Callout
-	tone="warn"
-	title={admin ? `Accept the preview terms for ${org}` : 'The preview terms are waiting for an admin'}
->
+<Callout tone="warn" title={admin ? `Accept the terms for ${org}` : 'The terms are waiting for an admin'}>
 	{#if admin}
 		<p>
-			PrivateCrates asks an admin of each organisation to accept its terms, and nobody has for {org} yet. The registry
-			keeps working in the meantime.
+			PrivateCrates asks an admin of each organisation to accept its terms, and nobody has for {org} yet.
+			{#if stopped && trial}
+				{org} has more members than the free plan covers, so its registry has stopped until they are accepted. Accepting
+				them starts its {TRIAL_MONTHS}-month free trial, no card needed.
+			{:else if stopped}
+				{org} has more members than the free plan covers, so its registry has stopped until they are accepted and
+				it subscribes.
+			{:else}
+				The registry keeps working in the meantime.
+			{/if}
 		</p>
 		<form class="accept" onsubmit={submit} novalidate>
 			<TermsCheckbox
@@ -52,7 +67,10 @@
 				bind:checked={accepted}
 				describedby={accepted ? undefined : `terms-wait-${org}`}
 			/>
-			{#if error}
+			{#if trial}
+				<BillingEmailField {org} bind:email bind:touched {error} onedit={() => (error = null)} />
+			{/if}
+			{#if error && !(trial && aboutBillingEmail(error))}
 				<ErrorNotice {error} title="The terms were not accepted" />
 			{/if}
 			<div class="submit">
@@ -62,7 +80,11 @@
 					disabled={saving || !accepted}
 					aria-describedby={accepted ? undefined : `terms-wait-${org}`}
 				>
-					{saving ? 'Accepting the preview terms…' : 'Accept the preview terms'}
+					{#if trial}
+						{saving ? 'Starting the trial…' : 'Accept the terms and start the free trial'}
+					{:else}
+						{saving ? 'Accepting the terms…' : 'Accept the terms'}
+					{/if}
 				</button>
 				<p class="wait" id="terms-wait-{org}" aria-live="polite">
 					{accepted ? '' : 'Tick the box above first.'}
@@ -71,8 +93,12 @@
 		</form>
 	{:else}
 		<p>
-			An admin of {org} needs to accept the <a href={terms.url}>preview terms</a>. The registry keeps working
-			in the meantime.
+			An admin of {org} needs to accept the <a href={terms.url}>terms</a>.
+			{#if stopped}
+				{org} has more members than the free plan covers, so its registry has stopped until they do.
+			{:else}
+				The registry keeps working in the meantime.
+			{/if}
 		</p>
 	{/if}
 </Callout>
