@@ -1,0 +1,5 @@
+[tools]
+# The toolchain every build of this repo uses: the app's gates and seed builds read it through mise, and
+# without it they fall back to whatever cargo is on the machine (1.84 once, which can't read edition 2024).
+# Keep it in step with RUST_TOOLCHAIN in .github/workflows and RUST_IMAGE in the Dockerfile.
+rust = "1.99.1"
