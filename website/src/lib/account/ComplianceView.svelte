@@ -292,8 +292,7 @@
 									<th scope="row"><code>{p.crate}</code></th>
 									<td><a class="repo" href="https://github.com/{p.repository}">{p.repository}</a></td>
 									<td>
-										{#each p.workflows as w, n (w)}{#if n > 0},
-											{/if}<code>{w}</code>{/each}
+										{#each p.workflows as w, n (w)}{#if n > 0},{' '}{/if}<code>{w}</code>{/each}
 									</td>
 									<td
 										>{#if p.environment}<code>{p.environment}</code>{:else}<span class="none">Any</span

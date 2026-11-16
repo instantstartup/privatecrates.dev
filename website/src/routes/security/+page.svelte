@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { COMPANY } from '$lib/site';
+	import { COMPANY, PREVIEW } from '$lib/site';
 	import Callout from '$lib/components/Callout.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import type { TocItem } from '$lib/components/Toc.svelte';
@@ -32,12 +32,14 @@
 				about a problem twice than not at all.
 			</p>
 
-			<Callout title="Draft for review">
-				<p>
-					The safe-harbour wording below has not been reviewed by a lawyer yet, and the response targets are
-					not set. Highlighted items are not decided yet.
-				</p>
-			</Callout>
+			{#if PREVIEW}
+				<Callout title="Draft for review">
+					<p>
+						The safe-harbour wording below has not been reviewed by a lawyer yet, and the response targets are
+						not set. Highlighted items are not decided yet.
+					</p>
+				</Callout>
+			{/if}
 		</div>
 		<TocLayout {toc}>
 			<h2 id="scope">Scope</h2>
@@ -98,7 +100,8 @@
 			</p>
 			<p>
 				This commitment is given by {COMPANY.name} (company number {COMPANY.number}), which runs
-				PrivateCrates. It will be reviewed by a lawyer before general availability.
+				PrivateCrates.{#if PREVIEW}{' '}
+					It will be reviewed by a lawyer before general availability.{/if}
 			</p>
 
 			<h2 id="report">What to include</h2>
@@ -114,20 +117,24 @@
 				</li>
 				<li>How you would like to be credited, if at all.</li>
 			</ul>
-			<p>Encrypted email is not offered yet; it is on the roadmap for general availability.</p>
+			<p>
+				Encrypted email is not offered yet; it is on the roadmap{#if PREVIEW}{' '}
+					for general availability{/if}.
+			</p>
 
 			<h2 id="response">What happens next</h2>
 			<ul>
 				<li><strong>Acknowledgement:</strong> within 3 business days.</li>
 				<li>
-					<strong>Triage and first assessment:</strong> within 5 business days, on a best-effort basis during the
-					preview.
+					<strong>Triage and first assessment:</strong> within 5 business days, on a best-effort basis{#if PREVIEW}{' '}
+						during the preview{/if}.
 				</li>
 				<li>
 					<strong>Fix:</strong>
 					critical problems (tokens, crates or another organisation’s data exposed, or publishing without permission)
-					within 7 days; others as soon as practical, on a best-effort basis during the preview. We tell you when
-					the fix is deployed, and post on the status page if customers need to act.
+					within 7 days; others as soon as practical, on a best-effort basis{#if PREVIEW}{' '}
+						during the preview{/if}. We tell you when the fix is deployed, and post on the status page if
+					customers need to act.
 				</li>
 				<li>
 					<strong>Credit:</strong> with your permission, we thank you by name in the release notes of the fix. We

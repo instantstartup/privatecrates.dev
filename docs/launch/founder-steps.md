@@ -130,7 +130,9 @@ an admin accepting them starts its trial.
 ## 5. Legal review
 
 - [ ] Have a solicitor review the PC-29 pages before `PREVIEW=false` (§6): the paid terms, the refund and
-      cancellation page, the privacy notice and the DPA (with the SCCs and the UK addendum). In particular, they
+      cancellation page, the privacy notice, the DPA (with the SCCs and the UK addendum) and the safe harbour in
+      the vulnerability disclosure policy (`/security`, which drops its "not reviewed by a lawyer" note in paid
+      mode). In particular, they
       should settle the refund promise: the trust page and DPA promise a "prorated refund of anything prepaid", but
       Stripe cancels at period end without one (readiness.md, "Refund and cancellation page").
 - [ ] Consumer rules: the terms should say the service is for businesses. If consumers can subscribe, UK

@@ -1,15 +1,17 @@
 <script lang="ts">
-	import { TERMS_PATH } from '$lib/site';
+	import { PREVIEW, TERMS_PATH } from '$lib/site';
 </script>
 
-<div class="draft" role="note">
-	<p class="title">Draft: not yet in force during the preview</p>
-	<p>
-		This page shows the intended structure and has not been reviewed by a lawyer. It is not an agreement, and
-		highlighted items are not decided yet. During the preview, the <a href={TERMS_PATH}>terms</a>
-		apply, and the <a href="/trust">trust centre</a> describes how the service handles data today.
-	</p>
-</div>
+{#if PREVIEW}
+	<div class="draft" role="note">
+		<p class="title">Draft: not yet in force during the preview</p>
+		<p>
+			This page shows the intended structure and has not been reviewed by a lawyer. It is not an agreement,
+			and highlighted items are not decided yet. During the preview, the <a href={TERMS_PATH}>terms</a>
+			apply, and the <a href="/trust">trust centre</a> describes how the service handles data today.
+		</p>
+	</div>
+{/if}
 
 <style>
 	.draft {

@@ -11,7 +11,7 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"lint": "prettier --check . && eslint . && node scripts/check-paid-copy.js",
+		"lint": "prettier --check . && eslint . && node --test scripts/check-paid-copy.test.js && node scripts/check-paid-copy.js",
 		"format": "prettier --write ."
 	},
 	"devDependencies": {

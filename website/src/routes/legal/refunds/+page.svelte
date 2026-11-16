@@ -18,7 +18,7 @@
 		<h1>Refunds and cancellation</h1>
 		<LegalMeta version={REFUNDS_DOC.version} date={REFUNDS_DOC.date} />
 		<p class="lede">
-			How cancelling works, and when we give money back.{#if !PREVIEW}
+			How cancelling works, and when we give money back.{#if !PREVIEW}{' '}
 				This page is part of the <a href={TERMS_PATH}>terms</a>.{/if}
 		</p>
 		{#if PREVIEW}
