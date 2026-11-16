@@ -64,6 +64,12 @@ contents stay in the customer's organisation.
   terms); `/pricing` shows the plans as "planned pricing, from general availability; free during the preview";
   `/account` shows "Free during the preview" instead of plan and trial controls; the billing parts of the FAQ say
   billing starts only after general availability, with notice.
+- **One switch for all of it:** with `PREVIEW` false, no page says anything that is true only during the preview
+  ("the preview", "preview terms", "billing is off", "draft", "not yet in force", "general availability", "as
+  is"). `website/scripts/check-paid-copy.js`, run by `pnpm lint`, reads every file under `website/src` and
+  `website/static` and fails on such a phrase outside a branch on the switch: `{#if PREVIEW}`, the `{:else}` of
+  `{#if !PREVIEW}`, the arm after `PREVIEW ?` or `if (PREVIEW)`. On the account page the switch is the server's
+  `PREVIEW`, as `session.preview`. The mock API is not checked: it replays the server's own preview answers.
 
 ## 4. Roadmap to general availability (2027, if there is interest)
 
