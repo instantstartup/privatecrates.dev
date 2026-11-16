@@ -30,6 +30,11 @@ const cases = [
 	['an inline {:else} starting with a space', '<p>a{#if x}b{:else} c{/if}</p>', [1]],
 	['a branch ending with a space before a word', '<p>{#if x}Free {/if}plan</p>', [1]],
 	['a branch after an element may start on a new line', '<p>\n{#if PREVIEW}\n\tok{/if}</p>', []],
+	['a branch after a closing tag starting with a space', '<p><b>a</b>{#if PREVIEW} during{/if}</p>', [1]],
+	['a branch ending with a space before {:else}', '<p>{#if x}Free {:else}Paid{/if}plan</p>', [1]],
+	['a branch ending with a space before an element', '<p>{#if n > 0},\n\t{/if}<code>b</code></p>', [2]],
+	['a branch may end with a space before a closing tag', '<p>{#if x}a\n{/if}</p>', []],
+	['a branch may start with a space after a block tag', '{#each xs as x}{#if x}\n<p>a</p>{/if}{/each}', []],
 	[
 		'{:else if} of {#if PREVIEW} and the {:else} after it are paid',
 		'{#if PREVIEW}\n<p>a</p>\n{:else if x}\n<p>draft</p>\n{:else}\n<p>billing is off</p>\n{/if}',

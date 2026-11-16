@@ -38,12 +38,8 @@ const BLOCK = new RegExp(
 	String.raw`\{(?:(?<open>#(?<kind>\w+))|(?<branch>:else\s+if|:else|:then|:catch)|\/(?<close>\w+)\s*\})(?:\s*(?<not>!?)\s*(?<on>PREVIEW|preview)\s*\})?`,
 	'g'
 );
-/**
- * Words a branch edge would run together, as Svelte trims the whitespace at the start and end of every branch: text
- * right before an `{#if}` or `{:else}` whose branch starts with whitespace, or a branch ending in whitespace right
- * before `{/if}` and a word. The separating space goes in an expression instead: `basis{#if PREVIEW}{' '}during`.
- */
-const TRIMMED = /[^\s>]\{(?:#if|:else)\b[^}\n]*\}\s+[^\s{]|\s\{\/if\s*\}\w/g;
+/** A Svelte block tag of any kind: its sigil (`#`, `:` or `/`) and the whole tag. */
+const TAG = /\{([#:/])\w[^}]*\}/g;
 /** Which modes can render: paid, preview, both. */
 const PAID = 1;
 const PREVIEW_MODE = 2;
@@ -141,10 +137,59 @@ export function paidText(source) {
 		.join('\n');
 }
 
+/** The line `index` is on. */
+const lineOf = (text, index) => text.slice(0, index).split('\n').length;
+
+/** Whether the text right before `index` is inline content: not whitespace, an opening tag or a block tag. */
+function inlineBefore(text, index) {
+	const c = text[index - 1];
+	if (c === undefined || /\s/.test(c) || /\{[#:/]\w[^}]*\}$/.test(text.slice(0, index))) return false;
+	if (c !== '>') return true;
+	const tag = text.slice(text.lastIndexOf('<', index), index);
+	return tag.startsWith('</') || tag.endsWith('/>');
+}
+
+/** Whether the text right after `index` is inline content: not whitespace, a closing tag or a block tag. */
+function inlineAfter(text, index) {
+	const c = text[index];
+	if (c === undefined || /\s/.test(c)) return false;
+	return !/^(?:<\/|\{[#:/]\w)/.test(text.slice(index, index + 3));
+}
+
+/**
+ * Lines where Svelte runs two words together, as it trims the whitespace at the start and end of every block branch:
+ * a branch starting with whitespace after inline content before its block, or ending with whitespace before inline
+ * content after its block. The separating space goes in an expression instead: `basis{#if PREVIEW}{' '}during`.
+ */
+function trimmedEdges(source) {
+	const text = stripNonPaid(source);
+	const stack = [];
+	const at = new Set();
+	for (const tag of text.matchAll(TAG)) {
+		const end = tag.index + tag[0].length;
+		if (tag[1] === '#') {
+			stack.push({ start: tag.index, from: end, branches: [] });
+			continue;
+		}
+		const block = tag[1] === '/' ? stack.pop() : stack.at(-1);
+		if (!block) continue;
+		block.branches.push([block.from, tag.index]);
+		block.from = end;
+		if (tag[1] === ':') continue;
+		for (const [from, to] of block.branches) {
+			const body = text.slice(from, to);
+			if (!body.trim()) continue;
+			if (/^\s/.test(body) && inlineBefore(text, block.start)) at.add(lineOf(text, from - 1));
+			if (/\s$/.test(body) && inlineAfter(text, end)) at.add(lineOf(text, to));
+		}
+	}
+	return [...at];
+}
+
 /** Line numbers, sorted and once each, of the matches of `pattern` in `text`. */
 function lines(text, pattern) {
 	const at = new Set();
-	for (const match of text.matchAll(pattern)) at.add(text.slice(0, match.index + 1).split('\n').length);
+	for (const match of text.matchAll(pattern)) at.add(lineOf(text, match.index + 1));
 	return [...at].sort((x, y) => x - y);
 }
 
@@ -157,7 +202,7 @@ export function findings(source) {
 	const found = (problem) => (line) => ({ line, text: original[line - 1].trim(), problem });
 	return [
 		...lines(paidText(source), PREVIEW_ONLY).map(found('preview-only wording outside a preview branch')),
-		...lines(stripNonPaid(source), TRIMMED).map(found('Svelte trims the space at this branch edge'))
+		...trimmedEdges(source).map(found('Svelte trims the space at this branch edge'))
 	].sort((x, y) => x.line - y.line);
 }
 

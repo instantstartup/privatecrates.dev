@@ -70,9 +70,10 @@ contents stay in the customer's organisation.
   `website/static` and fails on such a phrase outside a branch on the switch: `{#if PREVIEW}`, the `{:else}` of
   `{#if !PREVIEW}`, the `{:else if}` and `{:else}` arms of `{#if PREVIEW}`, the arm after `PREVIEW ?` or
   `if (PREVIEW)`. On the account page the switch is the server's `PREVIEW`, as `session.preview`. The mock API is
-  not checked: it replays the server's own preview answers. The same check fails on a branch that opens right after
-  text with whitespace, as in `basis{#if PREVIEW} during`: Svelte trims whitespace at a branch's edges, so the words
-  would run together. The space goes in an expression instead: `basis{#if PREVIEW}{' '}during`.
+  not checked: it replays the server's own preview answers. The same check fails on a branch edge that would run
+  two words together: Svelte trims whitespace at both edges of every block branch, so `basis{#if PREVIEW} during`
+  renders "basisduring", and a branch ending in a space before `{:else}` or `{/if}` loses it too. The space goes in an
+  expression instead: `basis{#if PREVIEW}{' '}during`.
 
 ## 4. Roadmap to general availability (2027, if there is interest)
 
