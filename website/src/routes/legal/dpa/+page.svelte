@@ -34,8 +34,8 @@
 	<div class="legal">
 		<div class="prose intro">
 			<h1>Data processing agreement</h1>
+			<DraftBanner />
 			{#if PREVIEW}
-				<DraftBanner />
 				<Callout title="A template for legal review">
 					<p>
 						This sets out the structure and the facts of how PrivateCrates processes data. The legal wording

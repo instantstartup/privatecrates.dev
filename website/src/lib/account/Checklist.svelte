@@ -101,7 +101,7 @@
 		if (org.personal)
 			return {
 				title: 'Plan: free, always',
-				body: 'Personal accounts are always free: nothing to choose, now or after general availability.'
+				body: 'Personal accounts are always free: nothing to choose.'
 			};
 		if (preview)
 			return {
