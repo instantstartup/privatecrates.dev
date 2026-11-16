@@ -100,7 +100,7 @@
 			</p>
 			<p>
 				This commitment is given by {COMPANY.name} (company number {COMPANY.number}), which runs
-				PrivateCrates.{#if PREVIEW}
+				PrivateCrates.{#if PREVIEW}{' '}
 					It will be reviewed by a lawyer before general availability.{/if}
 			</p>
 
@@ -118,7 +118,7 @@
 				<li>How you would like to be credited, if at all.</li>
 			</ul>
 			<p>
-				Encrypted email is not offered yet; it is on the roadmap{#if PREVIEW}
+				Encrypted email is not offered yet; it is on the roadmap{#if PREVIEW}{' '}
 					for general availability{/if}.
 			</p>
 
@@ -126,13 +126,13 @@
 			<ul>
 				<li><strong>Acknowledgement:</strong> within 3 business days.</li>
 				<li>
-					<strong>Triage and first assessment:</strong> within 5 business days, on a best-effort basis{#if PREVIEW}
+					<strong>Triage and first assessment:</strong> within 5 business days, on a best-effort basis{#if PREVIEW}{' '}
 						during the preview{/if}.
 				</li>
 				<li>
 					<strong>Fix:</strong>
 					critical problems (tokens, crates or another organisation’s data exposed, or publishing without permission)
-					within 7 days; others as soon as practical, on a best-effort basis{#if PREVIEW}
+					within 7 days; others as soon as practical, on a best-effort basis{#if PREVIEW}{' '}
 						during the preview{/if}. We tell you when the fix is deployed, and post on the status page if
 					customers need to act.
 				</li>

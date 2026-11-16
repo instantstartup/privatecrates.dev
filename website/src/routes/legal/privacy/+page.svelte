@@ -121,7 +121,7 @@
 			receive it in a portable form. Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a> from, or
 			naming, your GitHub account; we answer within one month. We use your data because it is needed to run
 			the service you or your organisation asked for{#if !PREVIEW}, and to bill for it{/if}, and, for terms
-			acceptances, to keep evidence of the agreement.{#if !PREVIEW}
+			acceptances, to keep evidence of the agreement.{#if !PREVIEW}{' '}
 				We keep billing records because tax law requires it.{/if} A terms acceptance made on behalf of an organisation
 			is kept for its retention period even after a deletion request, because it is the record of that agreement.
 		</p>

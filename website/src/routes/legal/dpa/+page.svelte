@@ -140,9 +140,9 @@
 				on reasonable data protection grounds; if the processor cannot accommodate the objection, the customer
 				may cancel its subscription: it ends with the billing period already paid for, and nothing more is
 				charged. Where a subprocessor must be replaced urgently, for example after a failure or a breach, the
-				processor may make the change at once and gives notice as soon as it can.{#if !PREVIEW}
-					The processor puts data protection obligations on each subprocessor that are no less protective than
-					this agreement, and remains liable to the customer for its subprocessors’ performance of them.{/if}
+				processor may make the change at once and gives notice as soon as it can.{#if !PREVIEW}{' '}
+					The processor puts data protection obligations on each subprocessor that are no less protective than this
+					agreement, and remains liable to the customer for its subprocessors’ performance of them.{/if}
 			</p>
 			<div class="table-scroll">
 				<table class="table-cards">
@@ -214,7 +214,7 @@
 				</li>
 				<li>
 					<strong>Billing records</strong> at Stripe are kept for as long as tax law requires (6 years in the
-					UK).{#if PREVIEW}
+					UK).{#if PREVIEW}{' '}
 						There are none during the preview.{/if}
 				</li>
 			</ul>

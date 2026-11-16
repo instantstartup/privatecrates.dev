@@ -23,7 +23,33 @@ const cases = [
 		[]
 	],
 	['{#if !preview} renders its first branch', '{#if !preview}\n<p>billing is off</p>\n{/if}', [2]],
-	['an inline branch', '<p>basis{#if PREVIEW} during the preview{/if}.</p>', []],
+	['an inline branch', "<p>basis{#if PREVIEW}{' '}during the preview{/if}.</p>", []],
+	// Svelte trims whitespace at a branch's edges, so these rendered "basisduring", "UK).There" and "Freeplan".
+	['an inline branch starting with a space', '<p>basis{#if PREVIEW} during the preview{/if}.</p>', [1]],
+	['an inline branch starting on the next line', '<p>UK).{#if PREVIEW}\n\tThere are none.{/if}</p>', [1]],
+	['an inline {:else} starting with a space', '<p>a{#if x}b{:else} c{/if}</p>', [1]],
+	['a branch ending with a space before a word', '<p>{#if x}Free {/if}plan</p>', [1]],
+	['a branch after an element may start on a new line', '<p>\n{#if PREVIEW}\n\tok{/if}</p>', []],
+	[
+		'{:else if} of {#if PREVIEW} and the {:else} after it are paid',
+		'{#if PREVIEW}\n<p>a</p>\n{:else if x}\n<p>draft</p>\n{:else}\n<p>billing is off</p>\n{/if}',
+		[4, 6]
+	],
+	[
+		'{:else if PREVIEW} hides its branch, not the {:else} after it',
+		'{#if x}\n<p>a</p>\n{:else if PREVIEW}\n<p>draft</p>\n{:else}\n<p>billing is off</p>\n{/if}',
+		[6]
+	],
+	[
+		'{:else} of an {#each} is not a branch of the {#if} around it',
+		'{#if !PREVIEW}\n{#each xs as x}\n<p>x</p>\n{:else}\n<p>y</p>\n{/each}\n<p>the preview</p>\n{/if}',
+		[7]
+	],
+	[
+		'{:then} and {:catch} of an {#await} keep the mode around them',
+		'{#if PREVIEW}\n{#await p}\n<p>draft</p>\n{:then v}\n<p>draft</p>\n{:catch e}\n<p>draft</p>\n{/await}\n{/if}',
+		[]
+	],
 	[
 		'an unrelated {#if} inside a preview branch',
 		'{#if PREVIEW}\n{#if x}\n<p>the preview</p>\n{/if}\n{/if}',
@@ -43,6 +69,10 @@ const cases = [
 	['comments are skipped', '<!-- the preview -->\n// draft\n/* billing is off */', []],
 	['styles are skipped', '<style>\n.draft { color: red; }\n</style>', []]
 ];
+
+test('a block closed by the wrong tag fails the check', () => {
+	assert.throws(() => findings('{#if PREVIEW}\n{#each xs as x}\n{/if}'), /\{\/if\} closes each/);
+});
 
 for (const [name, source, lines] of cases)
 	test(name, () => {
